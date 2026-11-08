@@ -246,8 +246,8 @@ describe("chromaHueAtTime (Tier 2)", () => {
     // C is fifths index 0 -> hue 0; A is index 3 -> 90/360 = 0.25.
     expect(chromaHueAtTime(frames, 0.1)).toBeCloseTo(0, 5);
     expect(chromaHueAtTime(frames, 0.6)).toBeCloseTo(0.25, 5);
-    expect(chromaHueAtTime(frames, 1.1)).toBeCloseTo(pitchClassToHue("E")!, 5);
-    expect(chromaHueAtTime(frames, 2.1)).toBeCloseTo(pitchClassToHue("G")!, 5);
+    expect(chromaHueAtTime(frames, 1.1)).toBeCloseTo(pitchClassToHue("E") ?? -1, 5);
+    expect(chromaHueAtTime(frames, 2.1)).toBeCloseTo(pitchClassToHue("G") ?? -1, 5);
   });
 
   it("returns null for empty windows, low confidence, and out-of-range times", () => {

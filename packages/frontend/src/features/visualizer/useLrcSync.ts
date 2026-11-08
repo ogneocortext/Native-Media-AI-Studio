@@ -124,13 +124,16 @@ export function computeLrcSync(
         currentIndex: -1,
       };
     }
-    const nextLine = lyrics[nextIdx] || null;
+    // Out-of-bounds indexing is possible at runtime even though the array
+    // element type is non-nullable, so keep the widened local type.
+    const nextLine = (lyrics[nextIdx] || null) as LyricLine | null;
     return {
       currentLine: null,
       nextLine,
       lineProgress: 0,
       sectionProgress: 0,
-      currentSection: nextLine.section || lyrics[0]?.section || "VERSE",
+      currentSection:
+        nextLine?.section ?? (lyrics[0] as LyricLine | undefined)?.section ?? "VERSE",
       timeToNextPhrase: nextLine ? Math.max(0, nextLine.start - elapsed) : 0,
       isPhraseStart: false,
       totalLines: lyrics.length,
@@ -139,7 +142,7 @@ export function computeLrcSync(
   }
   const currentIdx = found;
   const activeLine = lyrics[currentIdx];
-  const nextLine = lyrics[currentIdx + 1] || null;
+  const nextLine = (lyrics[currentIdx + 1] || null) as LyricLine | null;
   const lineDuration = activeLine.end - activeLine.start;
   const lineProgress = lineDuration > 1e-6 ? (elapsed - activeLine.start) / lineDuration : 0;
   // Section progress using precomputed bounds (handles non-contiguous sections)

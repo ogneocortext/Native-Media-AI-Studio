@@ -55,7 +55,9 @@ export function useBeatTimeline(filename: string | null) {
       setAnalysis(null);
       return;
     }
-    let cancelled = false;
+    // Object ref (not a bare `let`) so TS doesn't narrow `cancelled` to `false`
+    // inside the async IIFE — the cleanup closure assigns it later.
+    const cancelled = { current: false };
     setLoading(true);
     setError(null);
     smoothedEnergyRef.current = 0;
@@ -66,27 +68,27 @@ export function useBeatTimeline(filename: string | null) {
         // (same-origin). The full backend URL via getApiBase() hits CORS in
         // dev because the backend on 127.0.0.1:8000 doesn't whitelist the
         // Vite origin on localhost:5173+.
-        const cached = await getAnalysis(filename);
-        if (cancelled) return;
+        const cached = (await getAnalysis(filename)) as AudioAnalysisResult | null;
+        if (cancelled.current) return;
         if (cached) {
           setAnalysis(cached);
         } else {
           setError("Run Audio Analysis first to populate the beat cache");
         }
       } catch (e) {
-        if (!cancelled) {
+        if (!cancelled.current) {
           // 404 throws "No cached analysis found" — turn that into a clear
           // actionable message instead of an opaque error.
           const msg = e instanceof Error ? e.message : "Analysis failed";
           setError(msg.includes("No cached") ? "Run Audio Analysis first" : msg);
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled.current) setLoading(false);
       }
     })();
 
     return () => {
-      cancelled = true;
+      cancelled.current = true;
     };
   }, [filename]);
 
@@ -96,7 +98,8 @@ export function useBeatTimeline(filename: string | null) {
    */
   const getCurrentBeat = useCallback(
     (elapsedSec: number, beatWindowMs: number = DEFAULT_BEAT_WINDOW_MS): BeatState => {
-      const ready = !!analysis && !!analysis.beat_times && analysis.beat_times.length > 0;
+      const ready =
+        !!analysis && Array.isArray(analysis.beat_times) && analysis.beat_times.length > 0;
       if (!ready) {
         return {
           isOnBeat: false,
@@ -120,7 +123,7 @@ export function useBeatTimeline(filename: string | null) {
       const nextBeatIn = getNextBeatInFromArray(beats, elapsedSec);
 
       // Smoothed sub-beat energy from amplitude_envelope (interpolated)
-      if (analysis.amplitude_envelope && analysis.amplitude_envelope.length > 0) {
+      if (Array.isArray(analysis.amplitude_envelope) && analysis.amplitude_envelope.length > 0) {
         const duration = analysis.duration_seconds || 1;
         const envPos = (elapsedSec / duration) * (analysis.amplitude_envelope.length - 1);
         const envIdx = Math.floor(envPos);

@@ -83,6 +83,11 @@ const moduleTooltips: Record<ModuleId, string> = {
   preview: "Output preview clips at different stages",
 };
 
+/** Render an unknown analysis field only when it is a primitive. */
+function fmtAnalysisValue(value: unknown): string {
+  return typeof value === "string" || typeof value === "number" ? String(value) : "";
+}
+
 export function ArtDirection() {
   const [modules, setModules] = useState<ModuleState[]>(defaultModules);
   const [analysis, setAnalysis] = useState<Record<string, unknown> | null>(null);
@@ -411,13 +416,13 @@ export function ArtDirection() {
                             <div className="p-2.5 bg-background rounded-lg">
                               <span className="text-xs text-muted">Key</span>
                               <p className="font-mono font-medium text-sm">
-                                {String(analysis.estimated_key ?? "")}
+                                {fmtAnalysisValue(analysis.estimated_key)}
                               </p>
                             </div>
                             <div className="p-2.5 bg-background rounded-lg">
                               <span className="text-xs text-muted">Loudness</span>
                               <p className="font-mono font-medium text-sm">
-                                {String(analysis.rms_db ?? "")} dB
+                                {fmtAnalysisValue(analysis.rms_db)} dB
                               </p>
                             </div>
                           </div>
@@ -447,7 +452,7 @@ export function ArtDirection() {
                           </p>
                         </div>
                         <div className="flex gap-2">
-                          {(paletteVariants[mod.variant].swatches || []).map((c, i) => (
+                          {paletteVariants[mod.variant].swatches.map((c, i) => (
                             <div key={i} className="flex-1 text-center">
                               <div
                                 className="w-full h-10 rounded-lg border border-white/10 mb-1"

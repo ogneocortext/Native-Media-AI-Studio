@@ -212,8 +212,10 @@ class Logger {
 const loggers = new Map<string, Logger>();
 
 export function getLogger(source: string): Logger {
-  if (!loggers.has(source)) {
-    loggers.set(source, new Logger(source));
+  let logger = loggers.get(source);
+  if (!logger) {
+    logger = new Logger(source);
+    loggers.set(source, logger);
   }
-  return loggers.get(source)!;
+  return logger;
 }

@@ -116,10 +116,15 @@ class SSEService {
     try {
       this.syncChannel = new BroadcastChannel("notifications");
       this.syncChannel.onmessage = (event) => {
-        if (event.data?.type === "sse_event" && event.data?.message) {
-          this._dispatchToListeners(event.data.message);
-        } else if (event.data?.type === "connection_state" && event.data?.state) {
-          this._connectionState = event.data.state;
+        const data = event.data as {
+          type?: string;
+          message?: Record<string, unknown>;
+          state?: "connected" | "reconnecting" | "disconnected";
+        } | null;
+        if (data?.type === "sse_event" && data.message) {
+          this._dispatchToListeners(data.message);
+        } else if (data?.type === "connection_state" && data.state) {
+          this._connectionState = data.state;
           this.emitState(this._connectionState === "connected");
         }
       };
@@ -229,7 +234,7 @@ class SSEService {
       this.eventSource.onmessage = (event) => {
         let message: Record<string, unknown>;
         try {
-          message = JSON.parse(event.data);
+          message = JSON.parse(event.data as string) as Record<string, unknown>;
         } catch {
           return; // ignore non-JSON messages
         }
@@ -245,7 +250,7 @@ class SSEService {
       this.eventSource.addEventListener("connected", (event) => {
         let message: Record<string, unknown>;
         try {
-          message = JSON.parse(event.data);
+          message = JSON.parse(event.data as string) as Record<string, unknown>;
           this._dispatchToListeners(message);
         } catch {
           // ignore

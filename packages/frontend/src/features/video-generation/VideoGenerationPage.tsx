@@ -219,8 +219,8 @@ export function VideoGenerationPage() {
         body: form,
       });
       if (!res.ok) throw new Error(`Image upload failed: ${res.status}`);
-      const data = await res.json();
-      setUploadedImagePath(data.filename);
+      const data = (await res.json()) as { filename?: string };
+      setUploadedImagePath(data.filename ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Image upload failed");
     }
@@ -255,6 +255,7 @@ export function VideoGenerationPage() {
         return "Ready";
       case "failed":
         return "Failed";
+      case undefined:
       default:
         return "Queued";
     }
@@ -264,8 +265,8 @@ export function VideoGenerationPage() {
     setGenerating(true);
     setError(null);
     try {
-      const width = RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.w || 832;
-      const height = RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.h || 480;
+      const width = RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.w ?? 832;
+      const height = RESOLUTION_PRESETS.find((r) => r.label === selectedAspect)?.h ?? 480;
       const body = {
         prompt, // No [enhanced] prepend — backend enriches via enrich_prompt=true
         negative_prompt: negativePrompt,
@@ -291,11 +292,12 @@ export function VideoGenerationPage() {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`Generation failed: ${res.status}`);
-      const data = await res.json();
+      const data = (await res.json()) as { output_path?: string | null; prompt_id: string };
       setResults((prev) => [
         ...prev,
         {
           ...data,
+          output_path: data.output_path ?? undefined,
           status: data.output_path ? "completed" : "queued",
           mode,
           created_at: Date.now(),
@@ -326,7 +328,7 @@ export function VideoGenerationPage() {
   const handleVariation = () => {
     // Create a variation: same prompt, slight motion strength change
     setMotionStrength(Math.min(10, motionStrength + 1));
-    handleGenerate();
+    void handleGenerate();
   };
 
   const handleSelectResult = (jobId: string) => {
@@ -362,7 +364,7 @@ export function VideoGenerationPage() {
         <ServiceOfflineBanner
           service="ComfyUI"
           detail="Video generation requires ComfyUI to be running. Start it, then generate — no need to reload."
-          onStart={handleStartComfy}
+          onStart={() => void handleStartComfy()}
           starting={startingComfy}
           onRetry={() => void refetchModels()}
         />
@@ -371,7 +373,7 @@ export function VideoGenerationPage() {
         <div className={DS.cardError}>
           <span>Failed to load models</span>
           <button
-            onClick={refetchModels}
+            onClick={() => void refetchModels()}
             className="text-xs underline text-red-200 hover:text-white"
           >
             Retry
@@ -398,7 +400,7 @@ export function VideoGenerationPage() {
         <div className={DS.cardWarning}>
           <AlertTriangle size={16} />
           <span className="text-sm">
-            {selectedModelInfo?.name} may exceed 8 GB VRAM. Generation could be slow or fail on this
+            {selectedModelInfo.name} may exceed 8 GB VRAM. Generation could be slow or fail on this
             GPU.
           </span>
         </div>
@@ -500,7 +502,7 @@ export function VideoGenerationPage() {
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) handleImageUpload(file);
+                      if (file) void handleImageUpload(file);
                     }}
                   />
                 </label>
@@ -642,7 +644,7 @@ export function VideoGenerationPage() {
           </div>
 
           <button
-            onClick={handleGenerate}
+            onClick={() => void handleGenerate()}
             disabled={generating || validationIssues.length > 0}
             className={DS.btnFull}
           >
@@ -817,7 +819,7 @@ export function VideoGenerationPage() {
                     <div className="mt-2 flex items-center gap-2">
                       <div className="aspect-video bg-surface rounded border border-border overflow-hidden flex-shrink-0">
                         <video
-                          src={`/output/video/${(r.output_path || r.job_id).split("/").pop()}`}
+                          src={`/output/video/${(r.output_path ?? r.job_id).split("/").pop()}`}
                           className="w-32 h-20 object-cover"
                           preload="metadata"
                           poster=""

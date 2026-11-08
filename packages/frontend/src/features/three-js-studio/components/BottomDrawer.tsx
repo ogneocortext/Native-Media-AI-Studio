@@ -3,7 +3,9 @@ import { Box } from "lucide-react";
 import { InspectorTab } from "./InspectorTab";
 import { ObjectsTab } from "./ObjectsTab";
 import { SceneTab } from "./SceneTab";
-import type { AnimObject, CameraMode } from "../types";
+import type { AnimObject, CameraMode, ParticleConfig, SceneConfig } from "../types";
+import type { SceneTemplate } from "../sceneTemplates";
+import type { CharacterAnimationState } from "./InspectorTab";
 
 interface BottomDrawerProps {
   open: boolean;
@@ -13,9 +15,9 @@ interface BottomDrawerProps {
   selectedObject: string | null;
   activeTemplateId: string | null;
   selectedObj: AnimObject | undefined;
-  characterAnimState: any;
-  sceneConfig: any;
-  particleConfig: any;
+  characterAnimState: CharacterAnimationState | undefined;
+  sceneConfig: SceneConfig;
+  particleConfig: ParticleConfig;
   cameraMode: CameraMode;
   fps: number;
   backgroundImageUrl: string;
@@ -29,9 +31,9 @@ interface BottomDrawerProps {
   ) => void;
   onRemoveObject: (id: string) => void;
   onUpdateObject: (id: string, updates: Partial<AnimObject>) => void;
-  onLoadTemplate: (template: any) => void;
-  onSceneConfigChange: (config: any) => void;
-  onParticleConfigChange: (config: any) => void;
+  onLoadTemplate: (template: SceneTemplate) => void;
+  onSceneConfigChange: (config: SceneConfig) => void;
+  onParticleConfigChange: (config: ParticleConfig) => void;
   onCameraModeChange: (mode: CameraMode) => void;
   onFpsChange: (fps: number) => void;
   onBackgroundImageChange: (url: string) => void;

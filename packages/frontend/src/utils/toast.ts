@@ -214,7 +214,10 @@ const NOOP_HANDLE: ToastHandle = {
 };
 
 function isDomAvailable(): boolean {
-  return typeof document !== "undefined" && document.body !== null;
+  return (
+    typeof document !== "undefined" &&
+    (document.body as HTMLElement | null) !== null
+  );
 }
 
 export function showToast(

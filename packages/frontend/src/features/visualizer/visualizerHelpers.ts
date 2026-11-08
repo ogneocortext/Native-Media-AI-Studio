@@ -161,7 +161,11 @@ export const CANVAS_2D_MODE_SHORT_LABELS: Record<Canvas2DMode, string> = {
 
 /** Short label for a mode, falling back to the full label. */
 export function shortModeLabel(mode: Canvas2DMode): string {
-  return CANVAS_2D_MODE_SHORT_LABELS[mode] ?? CANVAS_2D_MODE_LABELS[mode] ?? mode;
+  // Mode lookups can miss at runtime despite the Record index type.
+  const short = CANVAS_2D_MODE_SHORT_LABELS[mode] as string | undefined;
+  if (short) return short;
+  const full = CANVAS_2D_MODE_LABELS[mode] as string | undefined;
+  return full ?? mode;
 }
 
 /** Stage mode cycle order for the ←/→ keyboard shortcuts. */
@@ -240,11 +244,20 @@ export function toAnalysisData(raw: unknown): AudioAnalysisData | null {
   return {
     tempo_bpm: r.tempo_bpm,
     beat_count: typeof r.beat_count === "number" ? r.beat_count : r.beat_times.length,
-    beat_times: r.beat_times,
-    onset_times: Array.isArray(r.onset_times) ? r.onset_times : [],
-    energy_curve: r.energy_curve,
-    amplitude_envelope: Array.isArray(r.amplitude_envelope) ? r.amplitude_envelope : [],
-    sections: Array.isArray(r.sections) ? r.sections : [],
+    beat_times: r.beat_times.filter((v): v is number => typeof v === "number"),
+    onset_times: Array.isArray(r.onset_times)
+      ? r.onset_times.filter((v): v is number => typeof v === "number")
+      : [],
+    energy_curve: r.energy_curve.filter((v): v is number => typeof v === "number"),
+    amplitude_envelope: Array.isArray(r.amplitude_envelope)
+      ? r.amplitude_envelope.filter((v): v is number => typeof v === "number")
+      : [],
+    sections: Array.isArray(r.sections)
+      ? r.sections.filter(
+          (v): v is { type: string; start: number; end: number; energy: number } =>
+            typeof v === "object" && v !== null,
+        )
+      : [],
     confidence: typeof r.confidence === "number" ? r.confidence : 0,
     duration_seconds: r.duration_seconds,
     spectral_centroid: spectralCentroid,

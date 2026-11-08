@@ -18,6 +18,8 @@ interface PageHeaderProps {
 export function PageHeader({ hook }: PageHeaderProps) {
   const navigate = useNavigate();
   const { status3d, statusLoading, loadStatus, comfyRunning } = hook;
+  const generatedCount =
+    (status3d.generated_count as string | number | boolean | null | undefined) ?? 0;
 
   return (
     <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
@@ -46,14 +48,14 @@ export function PageHeader({ hook }: PageHeaderProps) {
             <HardDrive size={12} /> {String((status3d.model_path as string) || "hunyuan3d-2mini")}
           </span>
           <span className="flex items-center gap-1">
-            <FileBox size={12} /> {String((status3d.generated_count as number) ?? 0)} generated
+            <FileBox size={12} /> {String(generatedCount)} generated
           </span>
           {statusLoading && <Loader2 size={12} className="animate-spin" />}
         </div>
       </div>
       <div className="flex gap-2">
         <button
-          onClick={loadStatus}
+          onClick={() => void loadStatus()}
           disabled={statusLoading}
           className="px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl text-sm text-gray-300 flex items-center gap-2"
           title="Refresh status"
@@ -61,7 +63,9 @@ export function PageHeader({ hook }: PageHeaderProps) {
           <RefreshCw size={14} className={statusLoading ? "animate-spin" : ""} /> Refresh
         </button>
         <button
-          onClick={async () => navigate("/music-video-wizard")}
+          onClick={() => {
+            void navigate("/music-video-wizard");
+          }}
           className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-semibold flex items-center gap-2"
         >
           <Wand2 size={14} /> Open Wizard <ArrowRight size={14} />

@@ -87,8 +87,8 @@ export function LogAnalytics() {
       ]);
       setSummary(summaryData);
       setPatterns(patternsData);
-      setErrorPatterns(errorsData.errors || []);
-      setEvents(eventsData.events || []);
+      setErrorPatterns(errorsData.errors);
+      setEvents(eventsData.events);
       setLastRefreshed(new Date());
     } catch (e) {
       console.error("Failed to refresh log analytics:", e);
@@ -175,7 +175,7 @@ export function LogAnalytics() {
     [levelCounts],
   );
 
-  const topErrors = useMemo(() => (errorPatterns || []).slice(0, 10), [errorPatterns]);
+  const topErrors = useMemo(() => errorPatterns.slice(0, 10), [errorPatterns]);
 
   return (
     <div className="p-6 animate-fade-in h-full flex flex-col">
@@ -191,15 +191,19 @@ export function LogAnalytics() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="btn btn-sm btn-primary" onClick={handleIngest} disabled={ingesting}>
+          <button
+            className="btn btn-sm btn-primary"
+            onClick={() => void handleIngest()}
+            disabled={ingesting}
+          >
             {ingesting ? <RefreshCw size={14} className="animate-spin" /> : <Activity size={14} />}
             {ingesting ? "Ingesting..." : "Ingest Logs"}
           </button>
-          <button className="btn btn-sm btn-ghost" onClick={handleCleanup}>
+          <button className="btn btn-sm btn-ghost" onClick={() => void handleCleanup()}>
             <Trash2 size={14} />
             Cleanup
           </button>
-          <button className="btn btn-sm btn-ghost" onClick={refreshAll}>
+          <button className="btn btn-sm btn-ghost" onClick={() => void refreshAll()}>
             <RefreshCw size={14} />
           </button>
         </div>
@@ -305,15 +309,19 @@ export function LogAnalytics() {
           <option value="queue">queue.log</option>
           <option value="comfyui">comfyui.log</option>
         </select>
-        <button className="btn btn-sm btn-primary" onClick={handleIngest} disabled={ingesting}>
+        <button
+          className="btn btn-sm btn-primary"
+          onClick={() => void handleIngest()}
+          disabled={ingesting}
+        >
           {ingesting ? <RefreshCw size={14} className="animate-spin" /> : <Activity size={14} />}
           {ingesting ? "Ingesting..." : "Ingest Logs"}
         </button>
-        <button className="btn btn-sm btn-ghost" onClick={handleCleanup}>
+        <button className="btn btn-sm btn-ghost" onClick={() => void handleCleanup()}>
           <Trash2 size={14} />
           Cleanup
         </button>
-        <button className="btn btn-sm btn-ghost" onClick={refreshAll}>
+        <button className="btn btn-sm btn-ghost" onClick={() => void refreshAll()}>
           <RefreshCw size={14} />
         </button>
         <label className="flex items-center gap-1.5 text-[10px] text-muted cursor-pointer select-none">
@@ -375,7 +383,7 @@ export function LogAnalytics() {
                     tick={{ fontSize: 10 }}
                     stroke="#6b7280"
                     width={30}
-                    tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : v)}
+                    tickFormatter={(v: number) => (v >= 1000 ? `${v / 1000}k` : String(v))}
                   />
                   <Tooltip
                     contentStyle={{
@@ -384,9 +392,10 @@ export function LogAnalytics() {
                       borderRadius: "8px",
                       fontSize: "12px",
                     }}
-                    formatter={(value: unknown, name: unknown) => {
-                      if (name === "errors") return [`${value} errors`, "Errors"];
-                      return [`${value} entries`, "Logs"];
+                    formatter={(value, name) => {
+                      const text = String(value);
+                      if (name === "errors") return [`${text} errors`, "Errors"];
+                      return [`${text} entries`, "Logs"];
                     }}
                   />
                   <Area
@@ -452,7 +461,7 @@ export function LogAnalytics() {
                         borderRadius: "8px",
                         fontSize: "12px",
                       }}
-                      formatter={(value: unknown) => [`${value} entries`, ""]}
+                      formatter={(value) => [`${String(value)} entries`, ""]}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -504,7 +513,7 @@ export function LogAnalytics() {
                     tick={{ fontSize: 10 }}
                     stroke="#6b7280"
                     width={110}
-                    tickFormatter={(v) => (v.length > 14 ? v.slice(0, 12) + "…" : v)}
+                    tickFormatter={(v: string) => (v.length > 14 ? v.slice(0, 12) + "…" : v)}
                   />
                   <Tooltip
                     contentStyle={{
@@ -513,7 +522,7 @@ export function LogAnalytics() {
                       borderRadius: "8px",
                       fontSize: "12px",
                     }}
-                    formatter={(value: unknown) => [`${value} events`, "Count"]}
+                    formatter={(value) => [`${String(value)} events`, "Count"]}
                   />
                   <Bar
                     dataKey="count"

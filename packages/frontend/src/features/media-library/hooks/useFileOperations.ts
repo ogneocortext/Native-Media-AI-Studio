@@ -18,7 +18,7 @@ export function useFileOperations() {
         body: JSON.stringify({ paths }),
       });
       if (!res.ok) throw new Error(`bulk-delete ${res.status}`);
-      const data = await res.json();
+      const data = (await res.json()) as { deleted?: number; failed?: number };
       return { deleted: data.deleted ?? paths.length, failed: data.failed ?? 0 };
     } catch (e) {
       setOperationError(e instanceof Error ? e.message : "Bulk delete failed");

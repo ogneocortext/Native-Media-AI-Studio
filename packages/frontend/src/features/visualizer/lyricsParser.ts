@@ -159,7 +159,9 @@ export function parseLrcContent(lrcContent: string): LyricLine[] {
         const wDiv = wFrac.length === 3 ? 1000 : wFrac.length === 1 ? 10 : 100;
         const wStart = wMins * 60 + wSecs + parseInt(wFrac, 10) / wDiv + offsetMs / 1000;
         // Text between this tag and next tag (or end) is the word
-        const tagEnd = (wt as any).index + wt[0].length;
+        // RegExpMatchArray.index is optional in the type but always set for
+        // matchAll results.
+        const tagEnd = wt.index + wt[0].length;
         const nextTagIdx = text.indexOf("<", tagEnd);
         const wordText =
           (nextTagIdx >= 0 ? text.slice(tagEnd, nextTagIdx) : text.slice(tagEnd))
@@ -327,7 +329,7 @@ export function generateTimedLyrics(lyricsText: string, duration: number): Lyric
     );
 
     for (const part of parts) {
-      const trimmed = part?.trim();
+      const trimmed = part.trim();
       if (!trimmed) continue;
 
       // Check if this part is a section marker

@@ -61,7 +61,8 @@ export class AsciiArtVitestReporter implements Reporter {
     const diagnostic = testCase.diagnostic();
     const rawError =
       result.state === 'failed'
-        ? (result.errors?.[0] as { message?: string } | undefined)?.message
+        ? ((result.errors as unknown[] | undefined)?.[0] as { message?: string } | undefined)
+            ?.message
         : undefined;
     this.tests.push({
       name: testCase.fullName,

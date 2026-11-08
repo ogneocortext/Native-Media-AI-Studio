@@ -1,6 +1,22 @@
 import type React from "react";
 import { useCallback, useRef } from "react";
 import * as THREE from "three";
+import type { ThreeModule } from "./types";
+
+/** Shape of one entry in a generated scene JSON description
+ *  (`{ objects: [...] }` produced by the AI scene generator). All
+ *  fields optional — the JSON is untrusted input. */
+interface GeneratedObjectDesc {
+  type?: string;
+  color?: string;
+  metalness?: number;
+  roughness?: number;
+  emissive?: string;
+  emissiveIntensity?: number;
+  position?: [number, number, number];
+  scale?: [number, number, number];
+  rotation?: [number, number, number];
+}
 
 export function useCodeApplier({
   sceneRef,
@@ -12,8 +28,9 @@ export function useCodeApplier({
   const generatedSceneUpdateRef = useRef<((time: number, delta: number) => void) | null>(null);
   const generatedSceneInitRef = useRef<(() => void) | null>(null);
 
-  const createSceneObject = useCallback((objDesc: any, THREE: any, scene: any) => {
-    let geometry: any;
+  const createSceneObject = useCallback(
+    (objDesc: GeneratedObjectDesc, THREE: ThreeModule, scene: THREE.Scene) => {
+    let geometry: THREE.BufferGeometry;
     const t = objDesc.type;
     if (t === "sphere") geometry = new THREE.SphereGeometry(0.8, 32, 32);
     else if (t === "box") geometry = new THREE.BoxGeometry(1.2, 1.2, 1.2);
@@ -56,8 +73,8 @@ export function useCodeApplier({
       );
       gem.position.y = 0.3;
       group.add(gem);
-      const gpos = (objDesc.position as [number, number, number]) || [0, 0.5, 0];
-      const gscl = (objDesc.scale as [number, number, number]) || [1, 1, 1];
+      const gpos = objDesc.position ?? [0, 0.5, 0];
+      const gscl = objDesc.scale ?? [1, 1, 1];
       group.position.set(gpos[0], gpos[1], gpos[2]);
       group.scale.set(gscl[0], gscl[1], gscl[2]);
       group.castShadow = true;
@@ -95,11 +112,11 @@ export function useCodeApplier({
       head.position.y = 1.6;
       group.add(body, head);
       group.castShadow = true;
-      const gpos = (objDesc.position as [number, number, number]) || [0, 0, 0];
-      const gscl = (objDesc.scale as [number, number, number]) || [1.5, 1.5, 1.5];
+      const gpos = objDesc.position ?? [0, 0, 0];
+      const gscl = objDesc.scale ?? [1.5, 1.5, 1.5];
       group.position.set(gpos[0], gpos[1], gpos[2]);
       group.scale.set(gscl[0], gscl[1], gscl[2]);
-      if (objDesc.rotation) group.rotation.set(...(objDesc.rotation as [number, number, number]));
+      if (objDesc.rotation) group.rotation.set(...objDesc.rotation);
       scene.add(group);
       return;
     } else if (t === "text" || t === "particle_field" || t === "light_rays" || t === "lens_flare") {
@@ -114,11 +131,11 @@ export function useCodeApplier({
       emissiveIntensity: objDesc.emissiveIntensity ?? 0.1,
     });
     const mesh = new THREE.Mesh(geometry, mat);
-    const pos = (objDesc.position as [number, number, number]) || [0, 0.5, 0];
-    const scl = (objDesc.scale as [number, number, number]) || [1, 1, 1];
+    const pos = objDesc.position ?? [0, 0.5, 0];
+    const scl = objDesc.scale ?? [1, 1, 1];
     mesh.position.set(pos[0], pos[1], pos[2]);
     mesh.scale.set(scl[0], scl[1], scl[2]);
-    if (objDesc.rotation) mesh.rotation.set(...(objDesc.rotation as [number, number, number]));
+    if (objDesc.rotation) mesh.rotation.set(...objDesc.rotation);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     scene.add(mesh);
@@ -158,13 +175,18 @@ export function useCodeApplier({
           // Match the first `[` or `{` that starts the JSON payload.
           const startIdx = jsonStr.search(/[[{]/);
           if (startIdx >= 0) jsonStr = jsonStr.substring(startIdx);
-          const sceneDesc = JSON.parse(jsonStr);
+          const sceneDesc = JSON.parse(jsonStr) as { objects?: GeneratedObjectDesc[] };
           {
             const scene = sceneRef.current;
-            const toRemove: any[] = [];
-            scene.traverse((child: any) => {
-              if (child.isMesh && child.geometry && child.geometry.type !== "PlaneGeometry") {
-                toRemove.push(child);
+            const toRemove: THREE.Object3D[] = [];
+            scene.traverse((child) => {
+              // `instanceof` on the generic Mesh class instantiates its
+              // type params as any — re-cast to the default Mesh shape.
+              if (child instanceof THREE.Mesh) {
+                const mesh = child as THREE.Mesh;
+                if (mesh.geometry.type !== "PlaneGeometry") {
+                  toRemove.push(mesh);
+                }
               }
             });
             toRemove.forEach((obj) => scene.remove(obj));
@@ -176,8 +198,8 @@ export function useCodeApplier({
           }
           generatedSceneUpdateRef.current = null;
           generatedSceneInitRef.current = null;
-          (window as any).__sceneUpdate = null;
-          (window as any).__sceneInit = null;
+          window.__sceneUpdate = null;
+          window.__sceneInit = null;
           return;
         } catch {
           // fall through to JS path
@@ -202,19 +224,18 @@ export function useCodeApplier({
           return;
         }
 
-        const disposeGroup = (g: any) => {
-          if (!g) return;
-          g.traverse((c: any) => {
-            if (c.geometry) {
+        const disposeGroup = (g: THREE.Object3D) => {
+          g.traverse((c) => {
+            if (c instanceof THREE.Mesh) {
+              // See note above: instanceof on generic Mesh → any type args.
+              const mesh = c as THREE.Mesh;
               try {
-                c.geometry.dispose();
+                mesh.geometry.dispose();
               } catch {
                 // Geometry already disposed or locked by the renderer — safe to ignore.
               }
-            }
-            if (c.material) {
-              const mats = Array.isArray(c.material) ? c.material : [c.material];
-              mats.forEach((m: any) => {
+              const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+              mats.forEach((m) => {
                 try {
                   m.dispose();
                 } catch {
@@ -224,21 +245,21 @@ export function useCodeApplier({
             }
           });
         };
-        const scene = sceneRef.current;
+        const scene = sceneRef.current as THREE.Scene | null;
         if (!scene) return;
         const oldGroup = scene.getObjectByName("__aiGenerated");
         if (oldGroup) {
           disposeGroup(oldGroup);
           scene.remove(oldGroup);
         }
-        scene.children.slice().forEach((c: any) => {
-          if (c.userData?.__ai) {
+        scene.children.slice().forEach((c) => {
+          if (c.userData.__ai) {
             disposeGroup(c);
             scene.remove(c);
           }
         });
-        (window as any).__sceneUpdate = null;
-        (window as any).__sceneInit = null;
+        window.__sceneUpdate = null;
+        window.__sceneInit = null;
         generatedSceneUpdateRef.current = null;
         generatedSceneInitRef.current = null;
 
@@ -301,16 +322,30 @@ export function useCodeApplier({
         }
       `;
 
-        const fn = new Function("scene", "camera", "renderer", "THREE", wrapped);
-        fn(
-          sceneRef.current,
-          (window as any).__camera,
-          (window as any).__renderer,
-          (window as any).THREE,
-        );
+        // `new Function` is intentional: AI-generated scene code is an
+        // untrusted string that must run in a sandboxed wrapper with the
+        // scene/camera/renderer/THREE injected as parameters. The input
+        // is sanitized above (rAF/setTimeout/eval/fetch/localStorage
+        // calls are stripped), which is the mitigation for the implied
+        // eval. No safer API can execute user-provided JS source.
+        // eslint-disable-next-line @typescript-eslint/no-implied-eval -- see comment above
+        const fn = new Function("scene", "camera", "renderer", "THREE", wrapped) as unknown as (
+          scene: THREE.Scene,
+          camera: THREE.PerspectiveCamera | undefined,
+          renderer: THREE.WebGLRenderer | undefined,
+          threeNs: unknown,
+        ) => void;
+        // NOTE: `window.THREE` is intentionally passed through untouched —
+        // generated code may read it, and historically it has been unset.
+        fn(scene, window.__camera, window.__renderer, window.THREE);
 
-        const upd = (window as any).__sceneUpdate;
-        const init = (window as any).__sceneInit;
+        // The `window.__sceneUpdate = null` assignments above narrow the
+        // property type to `null` for TS, but the generated code run by
+        // `fn` may install real callbacks — re-widen at the read. (`as`
+        // is required: a plain annotation would keep the `null` flow
+        // type of the initializer.)
+        const upd = window.__sceneUpdate as Window["__sceneUpdate"];
+        const init = window.__sceneInit as Window["__sceneInit"];
         if (typeof upd === "function") {
           generatedSceneUpdateRef.current = upd;
           generatedSceneInitRef.current = typeof init === "function" ? init : null;

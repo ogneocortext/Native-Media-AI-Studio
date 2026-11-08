@@ -57,7 +57,7 @@ export function TrackManager({ onSelectTrack }: TrackManagerProps) {
     try {
       const res = await fetchWithTimeout("/api/data/tracks/", { timeout: 30000 });
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as Track[];
         setTracks(data);
       }
     } catch (err) {
@@ -94,7 +94,7 @@ export function TrackManager({ onSelectTrack }: TrackManagerProps) {
         timeout: 30000,
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as { imported: number };
         alert(`Imported ${data.imported} tracks from CSV!`);
         void loadTracks();
       }
@@ -177,14 +177,14 @@ export function TrackManager({ onSelectTrack }: TrackManagerProps) {
         <h3 className="text-sm font-medium text-gray-300">Tracks ({tracks.length})</h3>
         <div className="flex items-center gap-2">
           <button
-            onClick={importFromCsv}
+            onClick={() => void importFromCsv()}
             className="px-3 py-1 bg-green-600/30 border border-green-600/50 text-green-200 rounded text-xs flex items-center gap-1 hover:bg-green-600/50"
           >
             <Upload className="w-3 h-3" />
             Import CSV
           </button>
           <button
-            onClick={importTracks}
+            onClick={() => void importTracks()}
             className="px-3 py-1 bg-blue-600/30 border border-blue-600/50 text-blue-200 rounded text-xs flex items-center gap-1 hover:bg-blue-600/50"
           >
             <RefreshCw className="w-3 h-3" />
@@ -357,7 +357,7 @@ export function TrackManager({ onSelectTrack }: TrackManagerProps) {
                       </button>
                     )}
                     <button
-                      onClick={async () => deleteTrack(track.id)}
+                      onClick={() => void deleteTrack(track.id)}
                       className="p-1 text-red-400 hover:bg-red-900/30 rounded"
                       title="Delete"
                     >

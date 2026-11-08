@@ -297,6 +297,7 @@ export function buildStoryboard(
     end: number;
   }
   const runs: Run[] = [];
+  const runSection = (r: Run | null): string | undefined => r?.section;
 
   if (lyrics.length) {
     let cur: Run | null = null;
@@ -308,10 +309,16 @@ export function buildStoryboard(
       // runs (a 10 s+ hole is an editorial cut in disguise — e.g. verse 1 →
       // verse 2 across a breakdown, even when the tag repeats).
       const gapSplit = cur !== null && cur.lines.length > 0 && gap > 8 && cur.end - cur.start > 30;
-      if (!cur || cur.section !== sec || gapSplit) {
+      // Read through a function boundary: CFA narrows `cur` to `null` at
+      // this point in the loop, which makes `cur?.section` a `never`.
+      const sectionChanged = runSection(cur) !== sec;
+      if (sectionChanged || gapSplit) {
         if (cur) runs.push(cur);
         cur = { section: sec, lines: [], start: line.start, end: line.end };
       }
+      // Non-null here (continued run or just reassigned); ??= keeps the type
+      // honest without a non-null assertion.
+      cur ??= { section: sec, lines: [], start: line.start, end: line.end };
       cur.lines.push(line);
       cur.end = Math.max(cur.end, line.end);
       prevEnd = line.end;

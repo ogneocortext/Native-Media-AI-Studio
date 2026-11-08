@@ -14,7 +14,7 @@ import type { LyricLine } from "../features/visualizer/components/KineticPresets
 
 export interface TrackLyricSection {
   name: string;
-  lines: string[];
+  lines?: string[];
 }
 
 export type LyricsStatus = "complete" | "missing";
@@ -48,7 +48,7 @@ export interface TrackLyricsDoc {
   lyricsStatus: LyricsStatus;
   provenance?: string;
   notes?: string;
-  sections: TrackLyricSection[];
+  sections?: TrackLyricSection[];
 }
 
 const BASE = "/track-lyrics";

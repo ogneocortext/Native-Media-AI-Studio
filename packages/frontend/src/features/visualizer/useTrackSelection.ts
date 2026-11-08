@@ -30,34 +30,36 @@ import type { LrcSyncData } from "./useLrcSync";
 import { consumePendingTrack } from "../../utils/pendingTrack";
 import type { ToastOptions, ToastType } from "../../utils/toast";
 
+// Function-typed properties (not method shorthand) so destructuring `api`
+// can't trip unbound-method — these collaborators never use `this`.
 export interface UseTrackSelectionApi {
-  ensureAnalysis(fileRef: string): Promise<{ analysis?: unknown } | null>;
-  ensureAudioContext(): Promise<void>;
-  cleanTrackName(fileRef: string): string;
-  encodeAudioRef(fileRef: string): string;
-  audioRefForFile(file: LibraryFile): string;
-  showToast(message: string, typeOrOptions?: ToastType | ToastOptions): void;
-  selectPresetForTrack(cleanName: string, energy: number): string;
-  matchReactivityGenrePreset(names: string[]): ReactivityGenrePreset | null;
-  resolveTrackVisualProfile(cleanName: string): TrackVisualProfile | null;
-  selectVisualPreset(
+  ensureAnalysis: (fileRef: string) => Promise<{ analysis?: unknown } | null>;
+  ensureAudioContext: () => Promise<void>;
+  cleanTrackName: (fileRef: string) => string;
+  encodeAudioRef: (fileRef: string) => string;
+  audioRefForFile: (file: LibraryFile) => string;
+  showToast: (message: string, typeOrOptions?: ToastType | ToastOptions) => void;
+  selectPresetForTrack: (cleanName: string, energy: number) => string;
+  matchReactivityGenrePreset: (names: string[]) => ReactivityGenrePreset | null;
+  resolveTrackVisualProfile: (cleanName: string) => TrackVisualProfile | null;
+  selectVisualPreset: (
     cleanName: string,
     kineticPreset: string | undefined,
     energy: number,
     realBpm: number | undefined,
-  ): string;
-  visualizationStyleToPresetId(style: string): string | null;
+  ) => string;
+  visualizationStyleToPresetId: (style: string) => string | null;
   visualPresets: Record<string, VisualPreset>;
-  buildTunedPreset(profile: TrackVisualProfile): VisualPreset;
-  selectVizMode(
+  buildTunedPreset: (profile: TrackVisualProfile) => VisualPreset;
+  selectVizMode: (
     cleanName: string,
     kineticPreset: string | undefined,
     energy: number,
     realBpm: number | undefined,
-  ): VizMode;
-  toAnalysisData(raw: unknown): AudioAnalysisData | null;
-  resetClock(): void;
-  resetGraph(): void;
+  ) => VizMode;
+  toAnalysisData: (raw: unknown) => AudioAnalysisData | null;
+  resetClock: () => void;
+  resetGraph: () => void;
 }
 
 export interface UseTrackSelectionOptions {
@@ -114,17 +116,18 @@ export interface UseTrackSelectionOptions {
   api: UseTrackSelectionApi;
 }
 
+// Function-typed properties so destructuring can't trip unbound-method.
 export interface UseTrackSelectionResult {
-  handleFile(file: File): void;
-  handleSelectLibraryTrack(fileRef: string): Promise<void>;
-  parseLyricsForTrack(trackName: string, folder?: string): Promise<LyricLine[]>;
-  deriveTrackMeta(analysis: AudioAnalysisData | null): {
+  handleFile: (file: File) => void;
+  handleSelectLibraryTrack: (fileRef: string) => Promise<void>;
+  parseLyricsForTrack: (trackName: string, folder?: string) => Promise<LyricLine[]>;
+  deriveTrackMeta: (analysis: AudioAnalysisData | null) => {
     bpm?: number;
     energy?: number;
     duration_seconds?: number;
   } | null;
   /** Reset per-track derived audio state so a new track never inherits stale beats/peaks/lyrics timing. */
-  resetAudioDerivedState(): void;
+  resetAudioDerivedState: () => void;
 }
 
 export function useTrackSelection({
@@ -316,23 +319,34 @@ export function useTrackSelection({
       // New track: an A-B loop from the previous track makes no sense.
       setLoopRegion(null);
       setLoopAnchor(null);
-      // New track: the manual genre-preset guard resets so auto-apply
-      // may run again (a pick made mid-load still wins — see below).
-      userPickedGenrePresetRef.current = false;
-      // Q4 — reset the manual-viz-mode guard so auto-selection can run
-      // for the new track (a manual pick on the previous track doesn't
-      // carry over).
-      userPickedVizModeRef.current = false;
+      // New track: the manual genre-preset and viz-mode guards reset so
+      // auto-apply may run again (a pick made mid-load still wins — see
+      // below). Done via a helper: assigning `.current = false` inline
+      // would let TS narrow the refs to `false` for the rest of this
+      // callback and flag the mid-load guards as dead — they are not,
+      // because UI events can flip them during the awaits.
+      const clearManualPickGuards = () => {
+        userPickedGenrePresetRef.current = false;
+        userPickedVizModeRef.current = false;
+      };
+      clearManualPickGuards();
       const trackFolder = fileRef.includes("/") ? fileRef.slice(0, fileRef.lastIndexOf("/")) : "";
       const cleanName = cleanTrackName(fileRef);
       // Lyrics fetch runs concurrently with analysis — presets used to wait
       // on the slow sequential path (analysis → lyrics) before applying.
       const lyricsPromise = parseLyricsForTrack(cleanName, trackFolder);
-      let analysis: AudioAnalysisData | null = analysisData[fileRef] ?? null;
+      // Record index signatures don't include `undefined` (no
+      // noUncheckedIndexedAccess), but a missing key really can be absent —
+      // widen the lookup so the null checks below stay meaningful.
+      const cachedAnalysis = analysisData[fileRef] as AudioAnalysisData | undefined;
+      let analysis: AudioAnalysisData | null = cachedAnalysis ?? null;
+      const cachedMeta = trackMetadata[fileRef] as
+        | { bpm?: number; duration?: number }
+        | undefined;
       // Cached/hydrated analyses carry tempo_bpm too — don't lose the BPM
       // hint just because trackMetadata hasn't been populated yet.
       let realBpm =
-        trackMetadata[fileRef]?.bpm ??
+        cachedMeta?.bpm ??
         (analysis?.tempo_bpm ? Math.round(analysis.tempo_bpm) : undefined);
       if (!analysis) {
         // Surface progress: a fresh analysis can take a while, during which the
@@ -368,7 +382,7 @@ export function useTrackSelection({
       setLyrics(trackLyrics);
       setLyricsVisible(trackLyrics.length > 0);
 
-      const energy = analysis?.energy_curve?.length
+      const energy = analysis?.energy_curve.length
         ? analysis.energy_curve.reduce((a, b) => a + b, 0) / analysis.energy_curve.length
         : 0.5;
       // Kinetic preset resolution happens ONCE below: the visual preset
@@ -421,14 +435,24 @@ export function useTrackSelection({
         (analysis.suggested_visualization_confidence ?? 0) > 0.55
       ) {
         const styleMapped = visualizationStyleToPresetId(analysis.suggested_visualization);
-        if (styleMapped && visualPresets[styleMapped]) {
+        // Record index signatures hide `undefined` — annotate so the
+        // existence check below stays meaningful (missing keys are real).
+        const mappedPreset: VisualPreset | undefined = styleMapped
+          ? visualPresets[styleMapped]
+          : undefined;
+        if (styleMapped && mappedPreset) {
           visualPresetId = styleMapped;
           usedBackendVisualFallback = true;
         }
       }
-      let visualPreset = visualPresets[visualPresetId];
+      // `visualPresets[...]` can really miss — widen the expression itself
+      // (a `T | undefined` annotation alone is narrowed back to `T`).
+      let visualPreset = visualPresets[visualPresetId] as VisualPreset | undefined;
       let tunedTitle: string | null = null;
-      if (trackProfile && visualPresets[trackProfile.basePresetId]) {
+      const tunedBasePreset: VisualPreset | undefined = trackProfile
+        ? visualPresets[trackProfile.basePresetId]
+        : undefined;
+      if (trackProfile && tunedBasePreset) {
         visualPreset = buildTunedPreset(trackProfile);
         visualPresetId = trackProfile.basePresetId;
         tunedTitle = trackProfile.title;

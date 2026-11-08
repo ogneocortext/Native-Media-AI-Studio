@@ -38,7 +38,15 @@ function summaryDetails(data: Record<string, unknown> | null): string[] {
     const value = data[key];
     if (key === "message" && typeof value === "string" && value) continue;
     if (value === undefined || value === null || value === "") continue;
-    const rendered = typeof value === "object" ? JSON.stringify(value) : String(value);
+    const rendered =
+      typeof value === "object"
+        ? JSON.stringify(value)
+        : typeof value === "string" ||
+            typeof value === "number" ||
+            typeof value === "boolean" ||
+            typeof value === "bigint"
+          ? String(value)
+          : "";
     out.push(`${key}: ${rendered}`);
   }
   return out;

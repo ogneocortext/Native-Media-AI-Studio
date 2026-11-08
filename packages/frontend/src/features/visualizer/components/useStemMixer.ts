@@ -283,7 +283,8 @@ export function useStemMixer({
         segment_size: segmentSize,
         denoise: true,
       });
-      if (!result.success || Object.keys(result.stems || {}).length === 0) {
+      const stems = result.stems as Record<string, string> | undefined;
+      if (!result.success || Object.keys(stems ?? {}).length === 0) {
         throw new Error(result.error ?? "Separation produced no stems");
       }
       const data = await getAudioStems(audioFilename);
@@ -303,7 +304,6 @@ export function useStemMixer({
   // Load + wire audio graph when stems resolve
   useEffect(() => {
     if (!stems) return;
-    let cancelled = false;
     const created: LoadedStem[] = [];
     void (() => {
       try {
@@ -328,7 +328,7 @@ export function useStemMixer({
             );
             continue;
           }
-          const eq = createEQ(ctx, eqBands[name] || []);
+          const eq = createEQ(ctx, eqBands[name]);
           const spatial = createStemSpatialProcessor(ctx, name);
           const gain = ctx.createGain();
           const analyser = ctx.createAnalyser();
@@ -351,15 +351,6 @@ export function useStemMixer({
             spatial,
           });
         }
-        if (cancelled) {
-          created.forEach((s) => {
-            s.element.pause();
-            if (s.eq) s.eq.dispose();
-          });
-          // ctx is the shared prop/singleton — never closed here.
-          ctxRef.current = null;
-          return;
-        }
         loadedRef.current = created;
         if (created.length === 0) {
           setError("No stems could be loaded — check server logs");
@@ -372,12 +363,11 @@ export function useStemMixer({
       }
     })();
     return () => {
-      cancelled = true;
       loadedRef.current.forEach((s) => {
         s.element.pause();
         s.element.src = "";
         if (s.eq) s.eq.dispose();
-        if (s.spatial) s.spatial.dispose();
+        s.spatial.dispose();
       });
       loadedRef.current = [];
       // ctx is the shared prop/singleton — never closed here.

@@ -29,6 +29,7 @@ import { useAudioAnalysisWorker } from "./useAudioAnalysisWorker";
 import { computeLrcSync, computeSectionBounds, EMPTY_LRC_SYNC } from "./useLrcSync";
 import type { LrcSyncData } from "./useLrcSync";
 import { getStoryState } from "./storyboard";
+import { isWebGPURendererInstance } from "./viz-styles/helpers";
 import type { StoryBeat, Storyboard } from "./storyboard";
 import type { LyricLine } from "./components/LyricOverlay";
 import { getSectionIntensity } from "./sectionHelpers";
@@ -57,7 +58,7 @@ function PostFXSelector({
   } | null;
 }) {
   const { gl } = useThree();
-  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+  const isWebGPU = isWebGPURendererInstance(gl);
   if (isWebGPU) {
     return (
       <WebGPUPostFX
@@ -248,7 +249,7 @@ export function VisualizerScene({
     <group visible={active}>
       <>
         {vizParams.fogEnabled && (
-          <fogExp2 attach="fog" args={[bgColor ?? "#050505", vizParams.fogDensity]} />
+          <fogExp2 attach="fog" args={[bgColor, vizParams.fogDensity]} />
         )}
         {/* IBL studio environment (local Lightformers — no HDR fetch) gives metals
             and clearcoat materials real reflections; 2026 standard lighting rig. */}

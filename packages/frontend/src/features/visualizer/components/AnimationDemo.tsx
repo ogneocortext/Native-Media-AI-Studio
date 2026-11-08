@@ -7,11 +7,17 @@
  */
 import { useEffect, useRef, useState } from "react";
 
+import type { animate as animeAnimate, stagger as animeStagger } from "animejs";
+import type { getProject as theatreGetProject } from "@theatre/core";
+
 interface Libs {
-  animate: (targets: any, params: any) => any;
-  stagger: (val: number, opts?: any) => any;
-  getProject: (name: string) => any;
+  animate: typeof animeAnimate;
+  stagger: typeof animeStagger;
+  getProject: typeof theatreGetProject;
 }
+
+type TheatreProject = ReturnType<Libs["getProject"]>;
+type TheatreSheet = ReturnType<TheatreProject["sheet"]>;
 
 interface Props {
   visible: boolean;
@@ -25,8 +31,8 @@ export function AnimationDemo({ visible, onClose }: Props) {
   const [activeDemo, setActiveDemo] = useState<"anime" | "theatre" | null>(null);
   const [libs, setLibs] = useState<Libs | null>(null);
   const [loading, setLoading] = useState(false);
-  const theatreProject = useRef<any>(null);
-  const theatreSheet = useRef<any>(null);
+  const theatreProject = useRef<TheatreProject | null>(null);
+  const theatreSheet = useRef<TheatreSheet | null>(null);
 
   // Lazy-load heavy animation libs only when this demo is actually visible
   useEffect(() => {
@@ -112,11 +118,13 @@ export function AnimationDemo({ visible, onClose }: Props) {
     const el = titleRef.current;
     if (!el) return;
 
-    obj.onValuesChange((values: { x: number; opacity: number; scale: number }) => {
+    obj.onValuesChange((values) => {
       el.style.transform = `translateX(${values.x}px) scale(${values.scale})`;
       el.style.opacity = `${values.opacity}`;
     });
-    obj.value = { x: 0, opacity: 1, scale: 1 };
+    // `value` is read-only on IObject; `initialValue` is the writable
+    // accessor for setting an object's props outside the sequence editor.
+    obj.initialValue = { x: 0, opacity: 1, scale: 1 };
   };
 
   useEffect(() => {

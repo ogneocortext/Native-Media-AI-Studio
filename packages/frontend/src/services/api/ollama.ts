@@ -266,7 +266,7 @@ export async function* parseOllamaStream(stream: ReadableStream<Uint8Array>): As
   let lastEvent = "";
 
   try {
-    while (true) {
+    for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -279,7 +279,7 @@ export async function* parseOllamaStream(stream: ReadableStream<Uint8Array>): As
           lastEvent = line.slice(7).trim();
         } else if (line.startsWith("data: ")) {
           try {
-            const data = JSON.parse(line.slice(6));
+            const data = JSON.parse(line.slice(6)) as unknown;
 
             if (lastEvent === "content") {
               yield { type: "content", data };

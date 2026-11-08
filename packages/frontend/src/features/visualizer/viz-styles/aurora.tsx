@@ -7,8 +7,9 @@ import {
   updateTerrainMaterial,
   makeTerrainMaterialTSL,
   updateTerrainMaterialTSL,
+  type TerrainTSLMaterial,
 } from "../VisualizationFX";
-import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
+import { useDisposeOnUnmount, getStemEnergy, isWebGPURendererInstance } from "./helpers";
 import { beatSnap, energyHue } from "./vizMotion";
 
 // =============================================================================
@@ -25,7 +26,7 @@ export function AuroraRibbon({
   const meshRef = useRef<THREE.Mesh>(null);
   const ribbon2Ref = useRef<THREE.Mesh>(null);
   const { gl } = useThree();
-  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+  const isWebGPU = isWebGPURendererInstance(gl);
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   // 2026: aurora as a shader curtain — soft volumetric falloff, no hard plane edges
@@ -106,14 +107,14 @@ export function AuroraRibbon({
 
     if (isWebGPU) {
       updateTerrainMaterialTSL(
-        mat,
+        mat as TerrainTSLMaterial,
         t,
         { bass, mid, treble, energy },
         vizParams.glowIntensity * 0.8 * (1 + snap * 0.4),
       );
     } else {
       updateTerrainMaterial(
-        mat,
+        mat as THREE.ShaderMaterial,
         t,
         { bass, mid, treble, energy },
         vizParams.glowIntensity * 0.8 * (1 + snap * 0.4),
@@ -128,14 +129,14 @@ export function AuroraRibbon({
     if (ribbon2Ref.current) {
       if (isWebGPU) {
         updateTerrainMaterialTSL(
-          mat2,
+          mat2 as TerrainTSLMaterial,
           t * 0.7,
           { bass, mid, treble, energy },
           vizParams.glowIntensity * 0.5 * (1 + snap * 0.3),
         );
       } else {
         updateTerrainMaterial(
-          mat2,
+          mat2 as THREE.ShaderMaterial,
           t * 0.7,
           { bass, mid, treble, energy },
           vizParams.glowIntensity * 0.5 * (1 + snap * 0.3),
@@ -147,7 +148,7 @@ export function AuroraRibbon({
       ribbon2Ref.current.position.z = -1.5;
       // Tint the secondary curtain toward the energy hue
       const m2 = ribbon2Ref.current.material as THREE.MeshStandardMaterial;
-      if (m2.color) m2.color.setHSL(eHue + 0.2, 0.7, 0.5);
+      m2.color.setHSL(eHue + 0.2, 0.7, 0.5);
     }
   });
 

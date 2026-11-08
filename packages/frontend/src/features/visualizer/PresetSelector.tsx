@@ -64,7 +64,7 @@ function PresetPreview({ preset }: { preset: VisualPreset }) {
   return (
     <div className="kt-preset-preview">
       <div className="kt-preset-preview-colors">
-        {Object.entries(preset.theme)
+        {(Object.entries(preset.theme) as [string, string][])
           .filter(([key]) => key !== "background" && key !== "text")
           .map(([key, color]) => (
             <div

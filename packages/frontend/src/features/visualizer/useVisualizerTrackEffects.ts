@@ -32,7 +32,7 @@ export interface UseVisualizerTrackEffectsOptions {
   };
   setters: Pick<VisualizerStateSetters, "setStemsData">;
   api: {
-    getStemsAnalysis(filename: string): Promise<StemsAnalysisResponse>;
+    getStemsAnalysis: (filename: string) => Promise<StemsAnalysisResponse>;
   };
 }
 

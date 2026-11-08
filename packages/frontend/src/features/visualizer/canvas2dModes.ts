@@ -822,7 +822,7 @@ export function renderWaveform(
 
   state.lastMs ??= modeCtx.nowMs();
   const now = modeCtx.nowMs();
-  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
+  const dt = Math.max(0, now - state.lastMs) / 1000;
   state.lastMs = now;
 
   if (state.waveEnvelope?.length !== state.smoothed.length) {
@@ -1322,7 +1322,7 @@ export function renderParticles(
   const { particles } = state;
   state.lastMs ??= modeCtx.nowMs();
   const now = modeCtx.nowMs();
-  const dt = Math.max(0, now - (state.lastMs ?? now)) / 1000;
+  const dt = Math.max(0, now - state.lastMs) / 1000;
   state.lastMs = now;
   updateAndDrawParticles(
     ctx,

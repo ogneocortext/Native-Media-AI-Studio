@@ -411,7 +411,7 @@ Guidelines:
 
 The current user request is: "${userMessage}"`;
 
-  const systemPromptFinal = systemPrompt || defaultSystemPrompt;
+  const systemPromptFinal = systemPrompt?.length ? systemPrompt : defaultSystemPrompt;
 
   // Build conversation history
   const messages: ChatMessage[] = [
@@ -441,8 +441,8 @@ The current user request is: "${userMessage}"`;
 
       // Check if the model made tool calls
       const rawResponse = response as {
-        tool_details?: { name: string; arguments: Record<string, unknown>; result: string }[];
-        toolDetails?: { name: string; arguments: Record<string, unknown>; result: string }[];
+        tool_details?: { name: string; arguments?: Record<string, unknown>; result: string }[];
+        toolDetails?: { name: string; arguments?: Record<string, unknown>; result: string }[];
       };
       const toolDetails = rawResponse.tool_details ?? rawResponse.toolDetails ?? [];
       if (toolDetails.length > 0) {
@@ -452,14 +452,14 @@ The current user request is: "${userMessage}"`;
           content: stripMarkdownFences(response.response) || "I'll use tools to help with that.",
           tool_calls: toolDetails.map((tc) => ({
             name: tc.name,
-            arguments: tc.arguments,
+            arguments: tc.arguments ?? {},
           })),
         });
 
         // Execute each tool call
         for (const toolCall of toolDetails) {
           const toolName = toolCall.name;
-          const toolArgs: Record<string, unknown> = toolCall.arguments || {};
+          const toolArgs: Record<string, unknown> = toolCall.arguments ?? {};
 
           emitTurn({
             type: "tool_call",

@@ -110,7 +110,7 @@ export function MusicVideoWizard() {
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      const file = e.dataTransfer.files[0];
+      const file = e.dataTransfer.files.item(0);
       if (file && isAudioFile(file)) handleFileUpload(file);
       else setError("Please upload an audio file (MP3, WAV, FLAC)");
     },
@@ -126,11 +126,13 @@ export function MusicVideoWizard() {
       formData.append("file", audioFile);
       const res = await fetch("/api/audio/analyze", { method: "POST", body: formData });
       if (!res.ok) {
-        const detail = await res.json().catch(() => ({ detail: res.statusText }));
+        const detail = (await res.json().catch(() => ({ detail: res.statusText }))) as {
+          detail?: string;
+        };
         throw new Error(detail.detail ?? `Analysis failed (${res.status})`);
       }
-      const data: AudioAnalysis = await res.json();
-      if (!data.sections || data.sections.length === 0)
+      const data = (await res.json()) as AudioAnalysis;
+      if (data.sections.length === 0)
         throw new Error("Analysis returned no sections");
       setAnalysis(data);
       setCurrentStep("analyze");
@@ -165,13 +167,22 @@ export function MusicVideoWizard() {
       while ((Date.now() - start) / 1000 < maxWait) {
         const r = await fetch(`/api/jobs/${jobId}`);
         if (!r.ok) throw new Error(`Job poll failed ${r.status}`);
-        const job = await r.json();
-        if (job.status === "completed")
+        const job = (await r.json()) as {
+          status?: string;
+          output_path?: string | null;
+          result?: Record<string, unknown> | null;
+          error?: string | null;
+        };
+        if (job.status === "completed") {
+          const resultPath = job.result?.output_path;
+          const fromResult = typeof resultPath === "string" ? resultPath : "";
+          const outPath = job.output_path ?? "";
           return (
-            (job.output_path as string) ||
-            (job.result?.output_path as string) ||
+            outPath ||
+            fromResult ||
             `output/video/${sectionLabel}_${jobId}.mp4`
           );
+        }
         if (job.status === "failed") throw new Error(job.error ?? `Section ${sectionLabel} failed`);
         await new Promise((res) => setTimeout(res, 1200));
       }
@@ -201,10 +212,12 @@ export function MusicVideoWizard() {
           }),
         });
         if (!res.ok) {
-          const detail = await res.json().catch(() => ({ detail: res.statusText }));
+          const detail = (await res.json().catch(() => ({ detail: res.statusText }))) as {
+            detail?: string;
+          };
           throw new Error(detail.detail ?? `Queue failed for ${section.type}`);
         }
-        const data = await res.json();
+        const data = (await res.json()) as { job_id?: string };
         const jobId: string | undefined = data.job_id;
         if (!jobId) throw new Error(`No job_id for ${section.type}`);
         const out = await pollJob(jobId, section.type);
@@ -228,10 +241,12 @@ export function MusicVideoWizard() {
               }),
             });
             if (!lsRes.ok) {
-              const detail = await lsRes.json().catch(() => ({ detail: lsRes.statusText }));
+              const detail = (await lsRes.json().catch(() => ({ detail: lsRes.statusText }))) as {
+                detail?: string;
+              };
               throw new Error(detail.detail ?? "Lip-sync queue failed");
             }
-            const lsData = await lsRes.json();
+            const lsData = (await lsRes.json()) as { job_id?: string };
             if (!lsData.job_id) throw new Error("No job_id for lip-sync");
             finalOut = await pollJob(lsData.job_id, `${section.type}-lipsync`);
           } catch (lsErr) {
@@ -295,7 +310,7 @@ export function MusicVideoWizard() {
             audioUrl={audioUrl}
             onDrop={handleDrop}
             onFileSelect={handleFileUpload}
-            onNext={async () => audioFile && analyzeAudio()}
+            onNext={() => void analyzeAudio()}
             analyzing={analyzing}
           />
         );
@@ -325,7 +340,7 @@ export function MusicVideoWizard() {
             progress={generationProgress}
             analysis={analysis}
             config={config}
-            onStart={generateVideo}
+            onStart={() => void generateVideo()}
             onConfigChange={setConfig}
           />
         );
@@ -344,7 +359,7 @@ export function MusicVideoWizard() {
                   setConfig((prev) => ({
                     ...prev,
                     prompt,
-                    negativePrompt: negative || prev.negativePrompt,
+                    negativePrompt: negative,
                   }));
                 }}
               />
@@ -439,7 +454,7 @@ export function MusicVideoWizard() {
       <div className="flex justify-between mt-4">
         <button
           onClick={() => {
-            const prev = STEPS[currentStepIndex - 1];
+            const prev = STEPS.at(currentStepIndex - 1);
             if (prev) setCurrentStep(prev.id);
           }}
           disabled={currentStepIndex === 0}
@@ -449,7 +464,7 @@ export function MusicVideoWizard() {
         </button>
         <button
           onClick={() => {
-            const next = STEPS[currentStepIndex + 1];
+            const next = STEPS.at(currentStepIndex + 1);
             if (next) setCurrentStep(next.id);
           }}
           disabled={currentStepIndex === STEPS.length - 1 || !audioFile}

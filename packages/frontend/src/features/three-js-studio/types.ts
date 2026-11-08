@@ -1,3 +1,5 @@
+import type * as THREE from "three";
+
 /**
  * Shared types for the Three.js Studio
  *
@@ -66,3 +68,62 @@ export interface SceneConfig {
 }
 
 export type CameraMode = "static" | "orbit" | "dolly" | "handheld";
+
+/** One keyframe sample in a {@link KeyframeTrack}. `target`-less pose
+ *  channels stay undefined so the render loop only writes what the
+ *  keyframe actually animates. */
+export interface KeyframePoint {
+  time: number;
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: [number, number, number];
+}
+
+/** A per-object keyframe track consumed by the render loop's keyframe
+ *  pass. `target` is the {@link AnimObject.id} the track drives. */
+export interface KeyframeTrack {
+  target: string;
+  keyframes?: KeyframePoint[];
+}
+
+/**
+ * Material shape the studio's generated meshes actually carry
+ * (`MeshStandardMaterial` / `MeshBasicMaterial`). The base
+ * `THREE.Material` type does not declare the PBR fields, and applied
+ * scene code can attach arbitrary texture maps — every field is
+ * optional so duck-typed access stays honest.
+ */
+export interface StudioMaterial extends THREE.Material {
+  color?: THREE.Color;
+  emissive?: THREE.Color;
+  map?: THREE.Texture | null;
+  metalness?: number;
+  roughness?: number;
+  emissiveIntensity?: number;
+}
+
+/** Per-character animation bookkeeping. The mesh factory writes it
+ *  when a GLB with clips loads; the object manager reads it for the
+ *  Inspector's play/pause/seek/clip controls. */
+export interface CharacterAnimData {
+  mixer: THREE.AnimationMixer;
+  action: THREE.AnimationAction | null;
+  clips: string[];
+}
+
+declare global {
+  interface Window {
+    /** Camera captured by mountThreeScene; the code applier passes it
+     *  to `applyScene(scene, camera, renderer, THREE)`. */
+    __camera?: THREE.PerspectiveCamera;
+    /** Renderer captured alongside {@link Window.__camera}. */
+    __renderer?: THREE.WebGLRenderer;
+    /** Per-frame updater installed by applied AI scene code. */
+    __sceneUpdate?: ((time: number, delta: number) => void) | null;
+    /** One-shot initializer installed by applied AI scene code. */
+    __sceneInit?: (() => void) | null;
+    /** Legacy hook read by the code applier when invoking generated
+     *  scene code (the THREE namespace is also passed positionally). */
+    THREE?: unknown;
+  }
+}

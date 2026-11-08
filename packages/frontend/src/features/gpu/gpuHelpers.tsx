@@ -198,17 +198,25 @@ export function niceTempTicks(min: number, max: number): number[] {
 // ---------------------------------------------------------------------------
 // Tooltip component
 // ---------------------------------------------------------------------------
+export interface ChartTipEntry {
+  name?: string;
+  value?: string | number;
+  color?: string;
+  str?: string;
+  unit?: string;
+  payload?: { time?: number };
+}
+
 export interface ChartTipProps {
   active?: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  payload?: any[];
+  payload?: ChartTipEntry[];
   label?: number | string;
   unit?: string;
 }
 
 export function ChartTooltip({ active, payload, label }: ChartTipProps) {
   if (!active || !payload?.length) return null;
-  const ms = typeof label === "number" ? label : payload[0]?.payload?.time;
+  const ms = typeof label === "number" ? label : payload[0].payload?.time;
   return (
     <div
       style={{
@@ -236,7 +244,7 @@ export function ChartTooltip({ active, payload, label }: ChartTipProps) {
               width: 8,
               height: 8,
               borderRadius: 4,
-              background: p.color || (p.str ?? ""),
+              background: p.color ?? p.str ?? "",
               marginRight: 6,
             }}
           />

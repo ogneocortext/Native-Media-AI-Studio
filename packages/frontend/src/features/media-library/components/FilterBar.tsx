@@ -5,7 +5,7 @@ import type { Tag } from "../../../services/api";
 
 export interface FilterState {
   query: string;
-  fileType: string | "all";
+  fileType: string;
   tagFilter: string | null;
   sortBy: "name" | "size" | "date";
   sortOrder: "asc" | "desc";

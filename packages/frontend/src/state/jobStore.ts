@@ -310,13 +310,14 @@ function handleSSEMessage(
   // some legacy senders use { data: { job_id, ...fields } } or a bare job object.
   const nestedJob = data.job as Record<string, unknown> | undefined;
   const jobId =
-    (data.job_id as string) || (data.id as string) || ((nestedJob?.id as string) ?? undefined);
+    (data.job_id as string) || (data.id as string) || (nestedJob?.id as string | undefined);
   if (!jobId) return;
 
   // Route to toast based on priority
   const shouldToast = priority === "urgent" || priority === "high";
   if (shouldToast) {
-    const jobStatus = nestedJob?.status ?? data.status ?? eventName;
+    const jobStatusRaw: unknown = nestedJob?.status ?? data.status ?? eventName;
+    const jobStatus = typeof jobStatusRaw === "string" ? jobStatusRaw : String(jobStatusRaw);
     const toastType = priority === "urgent" ? "error" : "success";
     const toastMessage =
       typeof nestedJob?.message === "string"

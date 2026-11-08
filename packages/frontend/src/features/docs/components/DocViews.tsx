@@ -19,7 +19,6 @@ function JsonView({ text, filePath }: { text: string; filePath?: string }) {
     filePath?.endsWith(".canvas") &&
     parsed &&
     typeof parsed === "object" &&
-    parsed !== null &&
     "nodes" in (parsed as Record<string, unknown>)
   ) {
     const canvas = parsed as {
@@ -215,8 +214,7 @@ export function MarkdownView({ text, filePath }: { text: string; filePath?: stri
     tableBuffer = null;
   };
 
-  for (let idx = 0; idx < lines.length; idx++) {
-    const raw = lines[idx];
+  for (const raw of lines) {
     const line = raw.trimEnd();
 
     // Code fence

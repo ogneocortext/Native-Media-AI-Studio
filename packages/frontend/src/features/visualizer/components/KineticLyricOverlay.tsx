@@ -83,7 +83,9 @@ export function KineticLyricOverlay({
   // (VERSE→cinematic, CHORUS→dubstep, etc.) was the primary source of
   // "incredibly buggy" flicker, as the entire animation preset would snap
   // mid-song. Section-derived colors/intensity still vary via getSectionColors.
-  const preset = kineticPresets[presetId] || kineticPresets.cinematic;
+  const preset =
+    (kineticPresets[presetId] as (typeof kineticPresets)[string] | undefined) ??
+    kineticPresets.cinematic;
 
   // Track animation handles so overlapping triggers don't stack and cause jank.
   const lineAnimRef = useRef<ReturnType<typeof animate> | null>(null);
@@ -123,9 +125,11 @@ export function KineticLyricOverlay({
         } catch {
           /* already finished */
         }
-        // `animate` returns a JSAnimatable; keep handle so beat/section don't pile up.
-        // Cast to any — animejs v4 types are loose.
-        lineAnimRef.current = preset.enterAnimation(el as HTMLElement) as any;
+        // enterAnimation is typed `=> void` but the presets actually fire
+        // animejs `animate()` calls; keep the loose cast out of `any`.
+        lineAnimRef.current = preset.enterAnimation(el as HTMLElement) as unknown as ReturnType<
+          typeof animate
+        >;
       }
     }
   }, [displayLine, preset]);
@@ -145,7 +149,9 @@ export function KineticLyricOverlay({
       } catch {
         /* already finished */
       }
-      beatAnimRef.current = preset.beatAnimation(el as HTMLElement) as any;
+      beatAnimRef.current = preset.beatAnimation(el as HTMLElement) as unknown as ReturnType<
+        typeof animate
+      >;
     }
   }, [beat, preset, features.energy, displayLine, isGapPreview]);
 

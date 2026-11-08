@@ -47,7 +47,7 @@ export function ToolEditor({
               value={JSON.stringify(editingTool.parameters, null, 2)}
               onChange={(e) => {
                 try {
-                  const params = JSON.parse(e.target.value);
+                  const params = JSON.parse(e.target.value) as Tool["parameters"];
                   setEditingTool({ ...editingTool, parameters: params });
                   setToolJsonValid(true);
                 } catch {

@@ -225,6 +225,7 @@ export function AnimationStudio() {
 
   useEffect(() => {
     let cancelled = false;
+    const isCancelled = () => cancelled;
     let unsubscribe: (() => void) | undefined;
     void (async () => {
       const studioMod = await import("@theatre/studio");
@@ -238,7 +239,7 @@ export function AnimationStudio() {
       } catch {
         // UI hide not available (repo convention: own controls only).
       }
-      if (cancelled) return;
+      if (isCancelled()) return;
       unsubscribe = initSheet();
     })();
     return () => {

@@ -14,20 +14,22 @@ export function useMCPContextSync(patch: Partial<MCPContext>) {
   useEffect(() => {
     pendingRef.current = { ...pendingRef.current, ...patch };
     if (syncTimer) return;
-    syncTimer = window.setTimeout(async () => {
-      syncTimer = null;
-      const next = pendingRef.current;
-      pendingRef.current = {};
-      if (Object.keys(next).length === 0) return;
-      const key = JSON.stringify(next);
-      if (key === lastSentRef.current) return;
-      lastSentRef.current = key;
-      try {
-        await updateMCPContext(next);
-      } catch {
-        // non-fatal: MCP context sync is best-effort
-        lastSentRef.current = "";
-      }
+    syncTimer = window.setTimeout(() => {
+      void (async () => {
+        syncTimer = null;
+        const next = pendingRef.current;
+        pendingRef.current = {};
+        if (Object.keys(next).length === 0) return;
+        const key = JSON.stringify(next);
+        if (key === lastSentRef.current) return;
+        lastSentRef.current = key;
+        try {
+          await updateMCPContext(next);
+        } catch {
+          // non-fatal: MCP context sync is best-effort
+          lastSentRef.current = "";
+        }
+      })();
     }, SYNC_INTERVAL_MS);
   }, [patch]);
 }

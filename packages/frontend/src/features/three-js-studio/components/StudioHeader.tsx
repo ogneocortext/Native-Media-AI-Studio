@@ -64,8 +64,10 @@ export function StudioHeader({
   onViewportReset,
 }: StudioHeaderProps) {
   const metaFor = (filename: string) => {
-    const m = trackMetadata[filename];
-    return m?.bpm && m?.duration ? ` (${m.bpm} BPM, ${m.duration}s)` : "";
+    const m = trackMetadata[filename] as
+      | { bpm?: number; duration?: number }
+      | undefined;
+    return m?.bpm && m.duration ? ` (${m.bpm} BPM, ${m.duration}s)` : "";
   };
 
   return (

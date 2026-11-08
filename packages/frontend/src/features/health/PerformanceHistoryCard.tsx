@@ -226,9 +226,9 @@ export function PerformanceHistoryCard() {
                           minute: "2-digit",
                           second: "2-digit",
                         })
-                      : String(ms)
+                      : String(ms as string)
                   }
-                  formatter={(value) => [`${value}${activeMetric.unit}`, activeMetric.label]}
+                  formatter={(value) => [`${String(value)}${activeMetric.unit}`, activeMetric.label]}
                 />
                 <Area
                   type="monotone"
@@ -256,7 +256,7 @@ export function PerformanceHistoryCard() {
                 >
                   <span className="text-[10px] text-gray-400 block">{m.label}</span>
                   <span className="text-sm font-bold tabular-nums" style={{ color: m.statColor }}>
-                    {last.toFixed(0) ?? "—"}
+                    {last.toFixed(0)}
                     {m.unit}
                   </span>
                 </button>

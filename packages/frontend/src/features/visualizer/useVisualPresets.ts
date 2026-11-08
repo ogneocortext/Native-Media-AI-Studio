@@ -25,8 +25,16 @@ import type { AudioAnalysisData, VizParams } from "./types";
 import { DEFAULT_VIZ_PARAMS } from "./types";
 import type { ReactivityGenrePreset } from "./reactivityGenrePresets";
 import type { VizMode } from "./visualizerHelpers";
-import type { VisualPreset } from "./aiPresetCatalog";
-import { visualPresets } from "./visualPresets";
+import type { VisualizationStyle } from "./trackConceptAnalyzer";
+import type {
+  AudioReactivityConfig,
+  ColorTheme,
+  LyricAnimationConfig,
+  PostProcessingConfig,
+  VisualPreset,
+  VisualizerConfig,
+} from "./aiPresetCatalog";
+import { visualPresets, type VisualPreset as TrackVisualPreset } from "./visualPresets";
 import { toVisualPreset } from "./visualizerHelpers";
 import type { VisualizerStateSetters } from "./useVisualizerState";
 
@@ -62,13 +70,29 @@ export interface UseVisualPresetsOptions {
   };
 }
 
+/**
+ * `toVisualPreset()` only validates `name` — AI-generated and hand-loaded
+ * presets may omit or mistype every nested section. This view types the
+ * fields `applyPreset` actually reads as optional/partial so the runtime
+ * guards stay honest instead of casting to `any`.
+ */
+interface LoosePresetView {
+  visualizer?: Partial<VisualizerConfig> & { style?: string };
+  theme?: Partial<ColorTheme>;
+  postfx?: Partial<PostProcessingConfig> & { vignette?: number };
+  lyrics?: Partial<LyricAnimationConfig> & { style?: string };
+  audioReactivity?: AudioReactivityConfig;
+  camera?: VisualPreset["camera"];
+}
+
+// Function-typed properties so destructuring can't trip unbound-method.
 export interface UseVisualPresetsResult {
-  handleGenrePresetSelect(preset: ReactivityGenrePreset): void;
-  applyPreset(preset: VisualPreset, trackAnalysis?: AudioAnalysisData | null): void;
-  handleVisualPresetSelect(presetId: string): void;
-  handlePresetLoaded(preset: VisualPreset): void;
-  handleClearPreset(): void;
-  handleEnhanceWithAI(): Promise<void>;
+  handleGenrePresetSelect: (preset: ReactivityGenrePreset) => void;
+  applyPreset: (preset: VisualPreset, trackAnalysis?: AudioAnalysisData | null) => void;
+  handleVisualPresetSelect: (presetId: string) => void;
+  handlePresetLoaded: (preset: VisualPreset) => void;
+  handleClearPreset: () => void;
+  handleEnhanceWithAI: () => Promise<void>;
 }
 
 export function useVisualPresets({
@@ -117,8 +141,11 @@ export function useVisualPresets({
         return;
       }
 
+      // VisualPreset is assignable to the looser view — no cast needed.
+      const loose: LoosePresetView = incoming;
+
       // Map visualizer style → VisualizationStyle (expanded mapping)
-      const styleMap: Record<string, string> = {
+      const styleMap: Record<string, VisualizationStyle> = {
         particles: "particles",
         waveform: "waveform",
         pulse: "pulse",
@@ -136,13 +163,20 @@ export function useVisualPresets({
         embers: "inferno",
         shockwave: "storm",
       };
-      if (incoming.visualizer.style && styleMap[incoming.visualizer.style]) {
-        setVisualizationStyle(styleMap[incoming.visualizer.style] as any);
+      const vizStyle = loose.visualizer?.style;
+      // Record lookups can really miss — widen the expression itself so
+      // the existence check below isn't narrowed away by the initializer.
+      const mappedStyle = vizStyle
+        ? (styleMap[vizStyle] as VisualizationStyle | undefined)
+        : undefined;
+      if (mappedStyle) {
+        setVisualizationStyle(mappedStyle);
       }
 
       // Apply theme colors
-      if (incoming.theme.background) setBgColor(incoming.theme.background);
-      if (incoming.theme.primary) setMeshColor(incoming.theme.primary);
+      const theme = loose.theme;
+      if (theme?.background) setBgColor(theme.background);
+      if (theme?.primary) setMeshColor(theme.primary);
 
       // Compute track-aware multipliers
       const bpm = trackAnalysis?.tempo_bpm ?? 120;
@@ -154,7 +188,7 @@ export function useVisualPresets({
       const energyFactor = 0.5 + energyAvg;
 
       // Apply postfx simulation via fog and light intensity
-      const postfx = (incoming as any).postfx ?? {};
+      const postfx = loose.postfx ?? {};
       const bloomIntensity = clampNum(postfx.bloom, 0, 1, 0);
       // Accept both `vignette` (built-in catalog) and `vignetteStrength` (AI-generated presets)
       const vignetteStrength = clampNum(postfx.vignette ?? postfx.vignetteStrength, 0, 1, 0);
@@ -167,19 +201,19 @@ export function useVisualPresets({
         ...prev,
         particleCount: Math.round(
           clampNum(
-            incoming.visualizer.particleCount ?? prev.particleCount,
+            loose.visualizer?.particleCount ?? prev.particleCount,
             50,
             2000,
             prev.particleCount,
           ) * clampNum(energyFactor, 0.5, 1.5, 1),
         ),
-        scale: clampNum(incoming.visualizer.scale ?? prev.scale, 0.1, 5, prev.scale),
-        glowIntensity: incoming.visualizer.glow
+        scale: clampNum(loose.visualizer?.scale ?? prev.scale, 0.1, 5, prev.scale),
+        glowIntensity: loose.visualizer?.glow
           ? Math.min(1.0, 0.8 * energyFactor + bloomIntensity * 0.2)
           : 0.2,
-        rotationSpeed: clampNum((incoming.visualizer.rotation ? 1.0 : 0.0) * bpmFactor, -5, 5, 0),
+        rotationSpeed: clampNum((loose.visualizer?.rotation ? 1.0 : 0.0) * bpmFactor, -5, 5, 0),
         colorShift: clampNum(
-          incoming.visualizer.intensity ?? prev.colorShift,
+          loose.visualizer?.intensity ?? prev.colorShift,
           0,
           3,
           prev.colorShift,
@@ -208,8 +242,12 @@ export function useVisualPresets({
         shake: "phonk",
         disappear: "ambient",
       };
-      if (incoming.lyrics.style && kineticMap[incoming.lyrics.style]) {
-        setKineticPreset(kineticMap[incoming.lyrics.style]);
+      const lyricStyle = loose.lyrics?.style;
+      const kineticId = lyricStyle
+        ? (kineticMap[lyricStyle] as string | undefined)
+        : undefined;
+      if (kineticId) {
+        setKineticPreset(kineticId);
       }
 
       // Store a COPY with alignment attached — the input object is left untouched.
@@ -222,9 +260,9 @@ export function useVisualPresets({
           beatTimes: trackAnalysis?.beat_times,
           onsetTimes: trackAnalysis?.onset_times,
           sections: trackAnalysis?.sections,
-          postfx: (incoming as any).postfx,
-          audioReactivity: (incoming as any).audioReactivity,
-          camera: (incoming as any).camera,
+          postfx: loose.postfx,
+          audioReactivity: loose.audioReactivity,
+          camera: loose.camera,
         },
       } as VisualPreset);
     },
@@ -233,7 +271,10 @@ export function useVisualPresets({
 
   const handleVisualPresetSelect = useCallback(
     (presetId: string) => {
-      const preset = visualPresets[presetId];
+      // Catalog lookup can really miss — widen so the guard stays live.
+      // visualPresets.ts defines its own VisualPreset (vizParams/bgColor/…),
+      // distinct from the aiPresetCatalog VisualPreset imported above.
+      const preset = visualPresets[presetId] as TrackVisualPreset | undefined;
       if (!preset) return;
       visualPresetLockRef.current++;
       setActiveVisualPresetId(presetId);
@@ -276,8 +317,10 @@ export function useVisualPresets({
     try {
       const cleanName = cleanTrackName(currentFilename ?? "") || "track";
       const concept = csvContent ? getVisualizationForTrack(cleanName, csvContent) : null;
-      const desc = (concept as any)?.prompt ?? (concept as any)?.visualConcept ?? cleanName;
-      const genre = (concept as any)?.genre?.join(", ") ?? "";
+      // TrackConcept has no `visualConcept` field — the old `as any` chain
+      // could never reach it, so `prompt ?? cleanName` is the same result.
+      const desc = concept?.prompt ?? cleanName;
+      const genre = concept?.genre.join(", ") ?? "";
       const energy = currentAnalysisData.energy_curve.length
         ? currentAnalysisData.energy_curve.reduce((a, b) => a + b, 0) /
           currentAnalysisData.energy_curve.length
@@ -285,7 +328,7 @@ export function useVisualPresets({
       // Dynamic import keeps Ollama out of the critical module graph.
       const { generateVisualizerPreset } = await import("../../services/api");
       const res = await generateVisualizerPreset(
-        `${desc} — ${genre} — mood: ${(concept as any)?.mood?.join(", ") ?? "auto"}`.trim(),
+        `${desc} — ${genre} — mood: ${concept?.mood.join(", ") ?? "auto"}`.trim(),
         undefined,
         0.7,
         {
@@ -302,7 +345,9 @@ export function useVisualPresets({
         const beforeCount = vizParamsRef.current.particleCount;
         applyPreset(preset, currentAnalysisData);
         showToast(
-          `AI applied: "${preset.name}" (was ${beforeCount} particles → ${preset.visualizer.particleCount ?? "?"})`,
+          `AI applied: "${preset.name}" (was ${beforeCount} particles → ${
+            (preset.visualizer as Partial<VisualizerConfig> | undefined)?.particleCount ?? "?"
+          })`,
           "success",
         );
       } else {

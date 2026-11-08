@@ -5,7 +5,7 @@ import type { VizProps } from "./types";
 import { InstancedParticles } from "./instancedParticles";
 import { DEFAULT_VIZ_PARAMS } from "../types";
 import { makeAudioReactiveMaterialTSL, updateAudioReactiveMaterialTSL } from "../VisualizationFX";
-import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
+import { useDisposeOnUnmount, getStemEnergy, isWebGPURendererInstance } from "./helpers";
 import { attackRelease, beatSnap, rolloff } from "./vizMotion";
 
 // =============================================================================
@@ -20,7 +20,7 @@ export function InfernoViz({
 }: VizProps) {
   const coreRef = useRef<THREE.Mesh>(null);
   const { gl } = useThree();
-  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+  const isWebGPU = isWebGPURendererInstance(gl);
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
   const emberPulseRef = useRef(0);
 

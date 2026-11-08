@@ -3,7 +3,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
 import { makeAudioReactiveMaterialTSL, updateAudioReactiveMaterialTSL } from "../VisualizationFX";
-import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
+import { useDisposeOnUnmount, getStemEnergy, isWebGPURendererInstance } from "./helpers";
 import { attackRelease, beatSnap, energyHue, gammaDrive, rolloff } from "./vizMotion";
 
 // =============================================================================
@@ -24,7 +24,7 @@ export function PulseRings({
   const beatPulseRef = useRef(0);
 
   const { gl } = useThree();
-  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+  const isWebGPU = isWebGPURendererInstance(gl);
 
   const ringMat = useMemo(
     () =>
@@ -145,7 +145,7 @@ export function SpectrumBars({
   const smoothH = useRef<Float32Array>(new Float32Array(48));
 
   const { gl } = useThree();
-  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+  const isWebGPU = isWebGPURendererInstance(gl);
 
   const barMat = useMemo(
     () =>

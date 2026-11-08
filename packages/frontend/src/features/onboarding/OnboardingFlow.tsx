@@ -227,7 +227,7 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
-            const f = e.dataTransfer.files[0];
+            const f = e.dataTransfer.files.item(0);
             if (f) handleFile(f);
           }}
           data-testid="onboarding-drop"
@@ -347,7 +347,7 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
               clipStart={state.clipWindow?.start ?? null}
             />
             <QuickExportButton
-              onExport={handleExport}
+              onExport={() => void handleExport()}
               clipStart={state.clipWindow?.start ?? null}
             />
           </div>
@@ -371,7 +371,7 @@ export function OnboardingFlow({ onExit, onComplete }: OnboardingFlowProps) {
           outputUrl={state.outputUrl}
           filename={state.filename ?? ""}
           onSave={() => undefined}
-          onOpenStudio={async () => navigate("/visualizer")}
+          onOpenStudio={() => void navigate("/visualizer")}
           onMakeAnother={() => setState((s) => startOver(s))}
         />
       )}
@@ -482,7 +482,7 @@ function PreviewStage({
 
 /** Mean energy of the analysed track, 0..1. */
 function averageEnergy(analysis: AudioAnalysisResult): number | null {
-  if (!analysis.energy_curve || analysis.energy_curve.length === 0) return null;
+  if (analysis.energy_curve.length === 0) return null;
   const sum = analysis.energy_curve.reduce((a, b) => a + b, 0);
   return sum / analysis.energy_curve.length;
 }
@@ -508,7 +508,12 @@ async function pollJob(jobId: string, maxWaitSeconds = 180): Promise<string> {
   while ((Date.now() - start) / 1000 < maxWaitSeconds) {
     const res = await fetch(`/api/jobs/${jobId}`);
     if (!res.ok) throw new Error(`Job poll failed (${res.status})`);
-    const job = await res.json();
+    const job = (await res.json()) as {
+      status?: string;
+      output_path?: string;
+      result?: { output_path?: string };
+      error?: string;
+    };
     if (job.status === "completed") {
       const path: string =
         job.output_path ?? job.result?.output_path ?? `output/video/${jobId}.mp4`;

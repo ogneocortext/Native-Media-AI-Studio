@@ -83,7 +83,7 @@ export async function fetchOutputsFromAPI(
   offset = 0,
   extra?: { search?: string; dateFrom?: string; dateTo?: string },
 ): Promise<OutputsAPIResponse> {
-  const base = await getBackendUrl();
+  const base = getBackendUrl();
   let url = base + "/api/outputs?limit=" + limit + "&offset=" + offset;
   if (fileType && fileType !== "all") url += "&file_type=" + fileType;
   if (extra?.search) url += "&search=" + encodeURIComponent(extra.search);
@@ -95,7 +95,7 @@ export async function fetchOutputsFromAPI(
 }
 
 export async function fetchRecentOutputsFromAPI(limit = 10): Promise<OutputFile[]> {
-  const base = await getBackendUrl();
+  const base = getBackendUrl();
   const res = await fetchWithTimeout(base + "/api/outputs/recent?limit=" + limit, {
     timeout: 30000,
   });
@@ -107,7 +107,7 @@ export async function fetchOutputsByTypeFromAPI(
   fileType: "images" | "video" | "audio" | "3d",
   limit = 200,
 ): Promise<OutputFile[]> {
-  const base = await getBackendUrl();
+  const base = getBackendUrl();
   const res = await fetchWithTimeout(
     base + "/api/outputs?file_type=" + fileType + "&limit=" + limit,
     { timeout: 30000 },
@@ -143,7 +143,7 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
       // zeroes out every non-active category (e.g. "Audio 0" while the
       // Videos tab is selected) on every refresh, rename, delete or
       // extract that calls fetchOutputs.
-      // eslint-disable-next-line @typescript-eslint/await-thenable
+       
       const response = await fetchOutputsFromAPI(undefined, filter.limit || 200, filter.offset);
       set({
         outputs: response.outputs,
@@ -168,7 +168,7 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
   fetchRecent: async (limit = 10) => {
     set({ isLoading: true, error: null });
     try {
-      // eslint-disable-next-line @typescript-eslint/await-thenable
+       
       const recentOutputs = await fetchRecentOutputsFromAPI(limit);
       set({ recentOutputs, error: null });
     } catch (error) {
@@ -183,7 +183,7 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
   fetchByType: async (type) => {
     set({ isLoading: true, error: null });
     try {
-      // eslint-disable-next-line @typescript-eslint/await-thenable
+       
       const outputs = await fetchOutputsByTypeFromAPI(type);
       set({ outputs, error: null });
     } catch (error) {
@@ -196,12 +196,12 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
   },
 
   deleteOutput: async (relativePath: string) => {
-    // eslint-disable-next-line @typescript-eslint/await-thenable
+     
     const base = getBackendUrlSync();
     // Preserve "/" separators in nested paths (audio/Suno-V6-Mini/x.m4a):
     // encode each segment so the router's {file_path:path} still matches.
     const encoded = relativePath.split("/").map(encodeURIComponent).join("/");
-    // eslint-disable-next-line @typescript-eslint/await-thenable
+     
     const res = await fetchWithTimeout(base + "/api/outputs/" + encoded, {
       method: "DELETE",
       timeout: 30000,
@@ -215,10 +215,10 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
   },
 
   renameOutput: async (relativePath: string, newName: string) => {
-    // eslint-disable-next-line @typescript-eslint/await-thenable
+     
     const base = getBackendUrlSync();
     const encoded = relativePath.split("/").map(encodeURIComponent).join("/");
-    // eslint-disable-next-line @typescript-eslint/await-thenable
+     
     const res = await fetchWithTimeout(base + "/api/outputs/" + encoded + "/rename", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -226,25 +226,25 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
       timeout: 30000,
     });
     if (!res.ok) {
-      // eslint-disable-next-line @typescript-eslint/await-thenable, @typescript-eslint/no-unsafe-return
-      const err = await res.json().catch(() => ({ detail: "Rename failed" }));
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
-      const detail = (err as { detail?: string }).detail;
+       
+      const err = (await res.json().catch(() => ({ detail: "Rename failed" }))) as {
+        detail?: string;
+      };
+      const detail = err.detail;
       throw new Error(detail ?? "Rename failed");
     }
     // Refresh after rename
-    // eslint-disable-next-line @typescript-eslint/await-thenable
+     
     await get().fetchOutputs();
-    // eslint-disable-next-line @typescript-eslint/await-thenable
+     
     await get().fetchRecent(12);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return res.json();
+    return res.json() as Promise<unknown>;
   },
 
   bulkDelete: async (paths: string[]) => {
-    // eslint-disable-next-line @typescript-eslint/await-thenable
+     
     const base = getBackendUrlSync();
-    // eslint-disable-next-line @typescript-eslint/await-thenable
+     
     const res = await fetchWithTimeout(base + "/api/outputs/bulk-delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -252,27 +252,27 @@ export const useOutputStore = create<OutputState>()((set, get) => ({
       timeout: 30000,
     });
     if (!res.ok) throw new Error("Bulk delete failed");
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/await-thenable
+     
     const data = await res.json() as { 
       deleted: number; 
       failed: string[] 
     };
-    // eslint-disable-next-line @typescript-eslint/await-thenable
+     
     await get().fetchOutputs();
-    // eslint-disable-next-line @typescript-eslint/await-thenable
+     
     await get().fetchRecent(12);
     return data;
   },
 
   fetchDuplicates: async (quick = true) => {
-    // eslint-disable-next-line @typescript-eslint/await-thenable
+     
     const base = getBackendUrlSync();
-    // eslint-disable-next-line @typescript-eslint/await-thenable
+     
     const res = await fetchWithTimeout(base + "/api/outputs/duplicates/groups?quick=" + quick, {
       timeout: 30000,
     });
     if (!res.ok) throw new Error("Failed to fetch duplicates");
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+     
     return res.json() as Promise<
       {
         hash: string;

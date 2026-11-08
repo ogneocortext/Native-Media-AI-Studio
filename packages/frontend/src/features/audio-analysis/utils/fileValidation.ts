@@ -4,10 +4,6 @@
 import { isAudioFile } from "../../../utils/audioProbe";
 
 export function validateAudioFile(file: File): { valid: boolean; error?: string } {
-  if (!file) {
-    return { valid: false, error: "No file selected" };
-  }
-
   if (!isAudioFile(file)) {
     return { valid: false, error: "Please select an audio file (MP3, WAV, FLAC, etc.)" };
   }

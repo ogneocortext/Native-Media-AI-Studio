@@ -172,7 +172,7 @@ export function AgentChat() {
           ? {
               ...m,
               retryCount: (m.retryCount ?? 0) + 1,
-              content: `Re-calling \`${skillDisplayName(m.toolName || "")}\`...`,
+              content: `Re-calling \`${skillDisplayName(m.toolName ?? "")}\`...`,
             }
           : m,
       ),
@@ -269,15 +269,17 @@ export function AgentChat() {
       const toolCallMessageIds = new Map<string, string>();
 
       for await (const event of eventStream) {
-        if (abortControllerRef.current?.signal.aborted) break;
+        if (abortControllerRef.current.signal.aborted) break;
 
         switch (event.type) {
           case "connected":
             break;
 
           case "content": {
-            const raw = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
-            const data = raw as { content?: string; thinking?: string };
+            const raw = (typeof event.data === "string"
+              ? JSON.parse(event.data)
+              : event.data) as unknown;
+            const data = raw as { content?: string; thinking?: string } | null;
             const text =
               data?.content ??
               (typeof event.data === "string" ? event.data : JSON.stringify(event.data));
@@ -300,11 +302,12 @@ export function AgentChat() {
           }
 
           case "tool_calls": {
-            const calls =
-              typeof event.data === "string"
-                ? JSON.parse(event.data)
-                : (event.data as { tool_calls: { name: string; arguments: unknown }[] });
-            const toolCalls = calls.tool_calls || [];
+            const calls = (typeof event.data === "string"
+              ? JSON.parse(event.data)
+              : event.data) as {
+              tool_calls?: { name: string; arguments: unknown }[];
+            };
+            const toolCalls = calls.tool_calls ?? [];
 
             for (const tc of toolCalls) {
               const toolId = Math.random().toString(36).slice(2);
@@ -321,15 +324,21 @@ export function AgentChat() {
           }
 
           case "tool_result": {
-            const raw = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
-            const toolResult = raw as { name?: string; tool_name?: string; result?: unknown };
-            const toolName = toolResult.name || toolResult.tool_name || "unknown";
-            const resultData = toolResult.result;
+            const raw = (typeof event.data === "string"
+              ? JSON.parse(event.data)
+              : event.data) as unknown;
+            const toolResult = raw as {
+              name?: string;
+              tool_name?: string;
+              result?: unknown;
+            } | null;
+            const toolName = toolResult?.name ?? toolResult?.tool_name ?? "unknown";
+            const resultData = toolResult?.result;
             const execResult: ExecuteToolResponse =
               resultData && typeof resultData === "object" && "success" in resultData
                 ? (resultData as ExecuteToolResponse)
                 : { success: true, result: resultData };
-            const success = execResult.success ?? false;
+            const success = execResult.success;
             const error = execResult.error;
 
             // Extract media paths for inline rendering
@@ -342,7 +351,7 @@ export function AgentChat() {
                 type: "tool_result",
                 content: success
                   ? `Generated with \`${skillDisplayName(toolName)}\``
-                  : `Tool \`${skillDisplayName(toolName)}\` failed: ${error || "Unknown error"}`,
+                  : `Tool \`${skillDisplayName(toolName)}\` failed: ${error ?? "Unknown error"}`,
                 toolName,
                 toolResult: {
                   success,
@@ -357,7 +366,7 @@ export function AgentChat() {
                 type: "tool_result",
                 content: success
                   ? `Generated with \`${skillDisplayName(toolName)}\``
-                  : `Tool \`${skillDisplayName(toolName)}\` failed: ${error || "Unknown error"}`,
+                  : `Tool \`${skillDisplayName(toolName)}\` failed: ${error ?? "Unknown error"}`,
                 toolName,
                 toolResult: {
                   success,
@@ -378,7 +387,7 @@ export function AgentChat() {
             const errMsg =
               typeof event.data === "string"
                 ? event.data
-                : (event.data as { message?: string }).message || "Stream error";
+                : ((event.data as { message?: string } | null)?.message ?? "Stream error");
             addMessage({ type: "error", content: errMsg });
             break;
           }
@@ -390,12 +399,12 @@ export function AgentChat() {
       setStreaming(false);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      if (!abortControllerRef.current?.signal.aborted) {
+      if (!abortControllerRef.current.signal.aborted) {
         addMessage({ type: "error", content: `Agent error: ${errMsg}` });
       }
       setStreaming(false);
     } finally {
-      if (!abortControllerRef.current?.signal.aborted) {
+      if (!abortControllerRef.current.signal.aborted) {
         setStreaming(false);
       }
       scrollToBottom();
@@ -502,7 +511,7 @@ export function AgentChat() {
                         <>
                           <Loader2 className="w-3 h-3 animate-spin" />
                           <span className="text-purple-400">
-                            {skillDisplayName(msg.toolName || "")}
+                            {skillDisplayName(msg.toolName ?? "")}
                           </span>
                         </>
                       )}
@@ -516,7 +525,7 @@ export function AgentChat() {
                           <span
                             className={`text-xs ${msg.toolResult?.success ? "text-emerald-400" : "text-destructive"}`}
                           >
-                            {skillDisplayName(msg.toolName || "")}
+                            {skillDisplayName(msg.toolName ?? "")}
                           </span>
                         </>
                       )}
@@ -669,7 +678,10 @@ export function AgentChat() {
 
         {/* Input */}
         <div className="p-4 border-t bg-background">
-          <form onSubmit={handleSubmit} className="flex gap-2">
+          <form
+            onSubmit={(e) => void handleSubmit(e)}
+            className="flex gap-2"
+          >
             <input
               type="text"
               value={input}

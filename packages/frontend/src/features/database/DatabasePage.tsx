@@ -382,7 +382,8 @@ export function DatabasePage() {
             <div className="text-xs text-muted">
               Last run:{" "}
               <span className="text-white">
-                {ACTION_LABELS[lastRun.action as DatabaseMaintenanceAction] ?? lastRun.action}
+                {(ACTION_LABELS as Record<string, string | undefined>)[lastRun.action] ??
+                  lastRun.action}
               </span>{" "}
               in {lastRun.duration_ms} ms
               {lastRun.freed_bytes > 0 && <> · freed {formatBytes(lastRun.freed_bytes)}</>}

@@ -106,7 +106,9 @@ export function ExportMatrixPanel({ sourcePath, onComplete }: Props) {
       </div>
 
       <button
-        onClick={handleBuild}
+        onClick={() => {
+          void handleBuild();
+        }}
         disabled={running}
         className="w-full py-2 rounded-lg bg-violet-600/80 hover:bg-violet-500 disabled:bg-gray-700 disabled:cursor-wait text-white text-sm flex items-center justify-center gap-2 transition-colors"
       >

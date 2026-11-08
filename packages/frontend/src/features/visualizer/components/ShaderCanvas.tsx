@@ -71,7 +71,9 @@ function glUseProgram(
 }
 
 function createFBO(gl: WebGLRenderingContext, width: number, height: number): FBO | null {
-  const texture = gl.createTexture();
+  // WebGL can return null on allocation failure even though the DOM types
+  // declare these non-nullable.
+  const texture = gl.createTexture() as WebGLTexture | null;
   if (!texture) return null;
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -81,7 +83,7 @@ function createFBO(gl: WebGLRenderingContext, width: number, height: number): FB
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
   glCheckError(gl, "createFBO texImage2D");
 
-  const framebuffer = gl.createFramebuffer();
+  const framebuffer = gl.createFramebuffer() as WebGLFramebuffer | null;
   if (!framebuffer) return null;
   gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
@@ -142,7 +144,7 @@ export async function loadTextureFromImage(
     anisotropic?: boolean;
   } = {},
 ): Promise<{ texture: WebGLTexture; width: number; height: number } | null> {
-  const texture = gl.createTexture();
+  const texture = gl.createTexture() as WebGLTexture | null;
   if (!texture) return null;
   gl.bindTexture(gl.TEXTURE_2D, texture);
 
@@ -172,7 +174,9 @@ export async function loadTextureFromImage(
           "EXT_texture_filter_anisotropic",
         );
         if (ext) {
-          const maxAniso = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+          const maxAniso = gl.getParameter(
+            ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT,
+          ) as number;
           gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, maxAniso);
         }
       }
@@ -219,7 +223,7 @@ export function setAnisotropicFiltering(
   maxAniso = 16,
 ): number {
   if (!ext) return 0;
-  const supported = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+  const supported = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT) as number;
   const level = Math.min(maxAniso, supported);
   gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, level);
   glCheckError(gl, "setAnisotropicFiltering");
@@ -238,7 +242,9 @@ function createTextureUnitTracker(
   active: (unit: number) => void;
   getBound: (unit: number) => WebGLTexture | null;
 } {
-  const bindings: (WebGLTexture | null)[] = new Array(maxUnits).fill(null);
+  const bindings: (WebGLTexture | null)[] = new Array<WebGLTexture | null>(maxUnits).fill(
+    null,
+  );
   let activeUnit = 0;
 
   const doActive = (unit: number) => {
@@ -388,7 +394,7 @@ export function ShaderCanvas({
 
     // Initialize texture unit tracker for efficient multi-texture binding
     const maxUnits = Math.min(
-      gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS),
+      gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS) as number,
       32, // WebGL2 guarantees at least 16 fragment units; cap tracker at 32
     );
     textureUnitTrackerRef.current = createTextureUnitTracker(gl, maxUnits);
@@ -396,7 +402,9 @@ export function ShaderCanvas({
     // Pre-load anisotropic filtering extension if available
     anisotropicExtRef.current = getAnisotropicExt(gl);
     if (anisotropicExtRef.current && debugRef.current) {
-      const maxAniso = gl.getParameter(anisotropicExtRef.current.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+      const maxAniso = gl.getParameter(
+        anisotropicExtRef.current.MAX_TEXTURE_MAX_ANISOTROPY_EXT,
+      ) as number;
       console.log(`[WebGL2] Anisotropic filtering max: ${maxAniso}x`);
     }
 
@@ -763,7 +771,9 @@ export function ShaderCanvas({
         canvas.clientHeight > 0;
       if (visible) {
         const locs = uniformLocsRef.current;
-        const u = uniformsRef.current;
+        // Uniform slots are populated lazily per preset — absent keys read
+        // as undefined at runtime even though the record type says number.
+        const u = uniformsRef.current as Record<string, number | undefined>;
         const useFeedback = feedbackRef.current && fboRef.current.read && fboRef.current.write;
 
         if (useFeedback) {
@@ -806,7 +816,7 @@ export function ShaderCanvas({
           gl.viewport(0, 0, canvas.width, canvas.height);
           const compProgram = compositeProgramRef.current;
           const compLocs = compositeUniformLocsRef.current;
-          if (compProgram && compLocs) {
+          if (compProgram) {
             glUseProgram(gl, compProgram, currentProgramRef);
             gl.uniform1f(compLocs.u_feedback_decay, feedbackDecayRef.current);
             gl.uniform1f(compLocs.u_feedback_zoom, feedbackZoomRef.current);

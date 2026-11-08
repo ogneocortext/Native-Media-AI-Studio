@@ -27,7 +27,7 @@ export function getNotificationPreferences(): NotificationPreferences {
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...defaultPreferences(), ...JSON.parse(raw) };
+    if (raw) return { ...defaultPreferences(), ...(JSON.parse(raw) as Partial<NotificationPreferences>) };
   } catch {
     // ignore corrupt storage
   }
@@ -58,7 +58,7 @@ export async function fetchNotifications(limit = 50): Promise<NotificationItem[]
     { timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to fetch notifications");
-  return res.json();
+  return res.json() as Promise<NotificationItem[]>;
 }
 
 export async function fetchEventsSince(
@@ -70,7 +70,7 @@ export async function fetchEventsSince(
     { timeout: 15000 },
   );
   if (!res.ok) throw new Error("Failed to fetch events");
-  return res.json();
+  return res.json() as Promise<{ id: string; data: Record<string, unknown> | null }[]>;
 }
 
 export async function subscribePush(
@@ -84,7 +84,7 @@ export async function subscribePush(
     timeout: 15000,
   });
   if (!res.ok) throw new Error("Failed to subscribe push");
-  return res.json();
+  return res.json() as Promise<{ status: string }>;
 }
 
 export async function unsubscribePush(subscription: {
@@ -98,7 +98,7 @@ export async function unsubscribePush(subscription: {
     timeout: 15000,
   });
   if (!res.ok) throw new Error("Failed to unsubscribe push");
-  return res.json();
+  return res.json() as Promise<{ status: string }>;
 }
 
 export interface PushSubscriptionJSON {

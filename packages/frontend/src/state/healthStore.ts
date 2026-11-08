@@ -90,6 +90,17 @@ const EMPTY_GRANULAR: GranularHealthData = {
 };
 
 /**
+ * First truthy candidate, preserving `a || b || fallback` semantics
+ * (empty strings and other falsy values fall through, unlike `??`).
+ */
+function firstTruthy<T>(...candidates: (T | undefined)[]): T | undefined {
+  for (const candidate of candidates) {
+    if (candidate) return candidate;
+  }
+  return undefined;
+}
+
+/**
  * Sync the `atomic_chat_enabled` setting with ComfyUI lifecycle.
  * When ComfyUI starts, Atomic Chat is disabled to free GPU VRAM.
  * When ComfyUI stops, Atomic Chat is re-enabled.
@@ -215,14 +226,16 @@ export const useHealthStore = create<HealthState>((set, get) => ({
 
         const health: AggregateHealth = {
           backend:
-            (healthData.backend as "online" | "offline") ||
-            (healthData.status as "online" | "offline") ||
-            "offline",
+            firstTruthy<"online" | "offline">(
+              healthData.backend as "online" | "offline" | undefined,
+              healthData.status as "online" | "offline" | undefined,
+            ) ?? "offline",
           overall:
-            (healthData.overall as AggregateHealth["overall"]) ||
-            (healthData.status as AggregateHealth["overall"]) ||
-            "unhealthy",
-          adapters: (healthData.adapters as Record<string, AdapterHealth>) || {},
+            firstTruthy<AggregateHealth["overall"]>(
+              healthData.overall as AggregateHealth["overall"] | undefined,
+              healthData.status as AggregateHealth["overall"] | undefined,
+            ) ?? "unhealthy",
+          adapters: (healthData.adapters as Record<string, AdapterHealth> | undefined) ?? {},
           timestamp: (healthData.timestamp as string | undefined) ?? new Date().toISOString(),
         };
 

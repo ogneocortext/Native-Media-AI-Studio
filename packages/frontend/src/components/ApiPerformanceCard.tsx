@@ -34,7 +34,9 @@ export function ApiPerformanceCard() {
     } else if (metric === "count") {
       entry.count = stats.count;
       // Count errors (tags.success = "false")
-      const errorStats = metrics[`${name.replace(".count", ".duration")}.false`];
+      const errorStats = metrics[
+        `${name.replace(".count", ".duration")}.false`
+      ] as (typeof metrics)[string] | undefined;
       if (errorStats) {
         entry.errors = errorStats.count;
       }

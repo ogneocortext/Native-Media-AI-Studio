@@ -29,7 +29,7 @@ export function TrashPanel({
 
   if (!isOpen) return null;
 
-  const handleEmpty = async () => {
+  const handleEmpty = () => {
     if (!window.confirm("Empty the trash? This cannot be undone.")) return;
     setEmptying(true);
     try {

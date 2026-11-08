@@ -265,14 +265,14 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
             <option value="">— select a track —</option>
             {tracks.map((t) => (
               <option key={t.filename} value={t.filename}>
-                {t.optionLabel ?? t.filename}
+                {t.optionLabel}
               </option>
             ))}
           </select>
         </div>
         <div className="flex items-end">
           <button
-            onClick={handleMeasure}
+            onClick={() => void handleMeasure()}
             disabled={measuring || mastering || !selectedTrack}
             className={`${DS.btnSecondarySm} ${measuring ? "opacity-60 cursor-not-allowed" : ""}`}
             aria-busy={measuring}
@@ -515,7 +515,7 @@ export function MasteringPanel({ onMastered }: MasteringPanelProps) {
           {/* Action buttons */}
           <div className="flex gap-2">
             <button
-              onClick={handleMaster}
+              onClick={() => void handleMaster()}
               disabled={mastering || !selectedTrack}
               className={`${DS.btnPrimary} ${
                 mastering || !selectedTrack ? "opacity-60 cursor-not-allowed" : ""

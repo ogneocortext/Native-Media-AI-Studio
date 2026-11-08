@@ -267,7 +267,7 @@ export function StoryboardPage() {
         name: selected.name,
         title: selected.title,
         storyboard: buildCompilePayload(selected, scenes),
-        audio_path: audioFilename || undefined,
+        audio_path: audioFilename,
         audio_data: audioData,
       });
       setCompileResult(result);
@@ -607,7 +607,7 @@ export function StoryboardPage() {
             }}
             onOpen3D={() => handleOpenIn3DStudio(selected)}
             onGenerateScene={(idx) => handleGenerateScene(selected, idx)}
-            onCompile={handleCompile}
+            onCompile={() => void handleCompile()}
             compiling={compiling}
             compileResult={compileResult}
             compileError={compileError}
@@ -678,7 +678,7 @@ function TracksTab({
             size="sm"
             action={{
               label: "Upload track",
-              onClick: async () => navigate("/audio-analysis"),
+              onClick: () => void navigate("/audio-analysis"),
               icon: <Upload size={14} />,
             }}
           />

@@ -48,7 +48,7 @@ export function AudioAnalysisPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    getCudaStatus().then((status) => setCudaAvailable(!!status.available));
+    void getCudaStatus().then((status) => setCudaAvailable(!!status.available));
   }, []);
 
   const handleFileSelect = (selectedFile: File) => {
@@ -104,7 +104,7 @@ export function AudioAnalysisPage() {
     if (!audio.summary?.filename) return;
 
     setPendingTrack(audio.summary.filename);
-    navigate("/video-generation");
+    void navigate("/video-generation");
   };
 
   const beatDensityData = audio.analysis
@@ -112,7 +112,7 @@ export function AudioAnalysisPage() {
     : [];
 
   const energyData =
-    audio.analysis?.energy_curve?.map((v, i) => ({
+    audio.analysis?.energy_curve.map((v, i) => ({
       time: i,
       energy: v,
     })) ?? [];
@@ -121,7 +121,10 @@ export function AudioAnalysisPage() {
   // and is NOT a valid input for /api/audio/file/{filename}, which resolves under
   // output/audio/. Prefer the output-relative path, then the bare filename.
   const filename =
-    audio.analysis?.relative_path || audio.summary?.filename || audio.analysis?.stored_path || null;
+    audio.analysis?.relative_path ??
+    audio.summary?.filename ??
+    audio.analysis?.stored_path ??
+    null;
   const audioUrl = filename ? `/api/audio/file/${encodeURIComponent(filename)}` : null;
 
   return (
@@ -164,7 +167,7 @@ export function AudioAnalysisPage() {
               <div className="mt-3 flex items-center justify-between">
                 <span className="text-sm text-muted">{file.name}</span>
                 <button
-                  onClick={async () => handleAnalyze(cudaAvailable)}
+                  onClick={() => void handleAnalyze(cudaAvailable)}
                   disabled={analyzing}
                   className={DS.btnPrimarySm}
                 >
@@ -184,7 +187,7 @@ export function AudioAnalysisPage() {
             <LibraryTrackList onSelect={handleLibrarySelect} />
             {libraryTrack && (
               <button
-                onClick={async () => handleAnalyze(cudaAvailable)}
+                onClick={() => void handleAnalyze(cudaAvailable)}
                 disabled={analyzing}
                 className={DS.btnFull}
               >
@@ -225,7 +228,7 @@ export function AudioAnalysisPage() {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-3">
-            <button onClick={handleSeparateStems} className={DS.btnSecondary}>
+            <button onClick={() => void handleSeparateStems()} className={DS.btnSecondary}>
               <Scissors size={16} />
               Separate Stems
             </button>

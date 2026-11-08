@@ -20,12 +20,12 @@ export function ResourceCard({
   subtext,
 }: ResourceCardProps) {
   // Static class map to avoid Tailwind purging dynamic classes
-  const colorMap: Record<string, { bg: string; text: string }> = {
-    blue: { bg: "bg-blue-500/20", text: "text-blue-400" },
+  const FALLBACK_COLORS = { bg: "bg-blue-500/20", text: "text-blue-400" };
+  const colorMap: Partial<Record<string, { bg: string; text: string }>> = {
     purple: { bg: "bg-purple-500/20", text: "text-purple-400" },
     amber: { bg: "bg-amber-500/20", text: "text-amber-400" },
   };
-  const colors = colorMap[iconColor] || colorMap.blue;
+  const colors = colorMap[iconColor] ?? FALLBACK_COLORS;
 
   return (
     <Card className="resource-card">

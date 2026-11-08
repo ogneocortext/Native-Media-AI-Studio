@@ -79,8 +79,13 @@ export async function queuePrompt(
     // in the response body — surface them instead of the generic statusText.
     let detail = response.statusText;
     try {
-      const errBody = await response.json();
-      if (errBody?.error) detail = String(errBody.error);
+      const errBody = (await response.json()) as {
+        error?: unknown;
+        node_errors?: unknown;
+      } | null;
+      // `detail` is only ever interpolated into the thrown message below, so
+      // assigning the raw value preserves String() coercion semantics exactly.
+      if (errBody?.error) detail = errBody.error as string;
       const nodeErrors = errBody?.node_errors as Record<string, unknown> | undefined;
       if (nodeErrors && Object.keys(nodeErrors).length > 0) {
         const nodeSummary = Object.entries(nodeErrors)
@@ -97,11 +102,11 @@ export async function queuePrompt(
     throw new ComfyUIError(`ComfyUI queue failed: ${detail}`, response.status);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as { prompt_id?: string };
   if (!data.prompt_id) {
     throw new ComfyUIError("ComfyUI returned no prompt_id");
   }
-  return data;
+  return data as { prompt_id: string };
 }
 
 /**
@@ -112,11 +117,11 @@ export async function getQueueStatus(): Promise<{
   queue_pending: unknown[];
 }> {
   const COMFYUI_URL = getComfyuiUrl();
-  const response = await checkResponse(
+  const response = checkResponse(
     await fetchWithTimeout(`${COMFYUI_URL}/queue`, { timeout: 8000 }),
     "queue status",
   );
-  return response.json();
+  return response.json() as Promise<{ queue_running: unknown[]; queue_pending: unknown[] }>;
 }
 
 /**
@@ -134,11 +139,21 @@ export async function getSystemStats(): Promise<{
   }[];
 }> {
   const COMFYUI_URL = getComfyuiUrl();
-  const response = await checkResponse(
+  const response = checkResponse(
     await fetchWithTimeout(`${COMFYUI_URL}/system_stats`, { timeout: 8000 }),
     "system stats",
   );
-  return response.json();
+  return response.json() as Promise<{
+    system: { os: string; ram_total: number; ram_free: number };
+    devices: {
+      name: string;
+      type: string;
+      vram_total: number;
+      vram_free: number;
+      torch_vram_total: number;
+      torch_vram_free: number;
+    }[];
+  }>;
 }
 
 /**
@@ -214,7 +229,7 @@ export async function getAvailableModels(): Promise<AvailableModels> {
   }
 
   try {
-    const response = await checkResponse(
+    const response = checkResponse(
       await fetchWithTimeout(`${COMFYUI_URL}/object_info`, { timeout: 15000 }),
       "object_info",
     );
@@ -342,7 +357,7 @@ export async function getImage(filename: string, subfolder = "", type = "output"
     .join("/");
   const params = new URLSearchParams({ filename: safeName, subfolder: safeSub, type });
   try {
-    const response = await checkResponse(
+    const response = checkResponse(
       await fetchWithTimeout(`${COMFYUI_URL}/view?${params}`, { timeout: 30000 }),
       "fetch image",
     );
@@ -415,7 +430,7 @@ export async function interrupt(): Promise<ComfyUIInterruptResult> {
   if (!response.ok) {
     throw new ComfyUIError(`ComfyUI interrupt failed: ${response.statusText}`, response.status);
   }
-  return response.json();
+  return response.json() as Promise<ComfyUIInterruptResult>;
 }
 
 /**
@@ -429,7 +444,7 @@ export async function listInput(): Promise<ComfyUIInputListing> {
   if (!response.ok) {
     throw new ComfyUIError(`ComfyUI input listing failed: ${response.statusText}`, response.status);
   }
-  return response.json();
+  return response.json() as Promise<ComfyUIInputListing>;
 }
 
 /**
@@ -446,7 +461,7 @@ export async function listOutput(): Promise<ComfyUIOutputListing> {
       response.status,
     );
   }
-  return response.json();
+  return response.json() as Promise<ComfyUIOutputListing>;
 }
 
 /**
@@ -466,7 +481,7 @@ export async function uploadAudio(
   if (!response.ok) {
     throw new ComfyUIError(`ComfyUI audio upload failed: ${response.statusText}`, response.status);
   }
-  return response.json();
+  return response.json() as Promise<{ success: boolean; filename: string; comfyui_response: unknown; message: string }>;
 }
 
 /**
@@ -486,7 +501,7 @@ export async function uploadVideo(
   if (!response.ok) {
     throw new ComfyUIError(`ComfyUI video upload failed: ${response.statusText}`, response.status);
   }
-  return response.json();
+  return response.json() as Promise<{ success: boolean; filename: string; comfyui_response: unknown; message: string }>;
 }
 
 /**
@@ -495,23 +510,25 @@ export async function uploadVideo(
  * Calls `onProgress` with { status, step, total_steps, prompt_id } on each
  * update. Returns an unsubscribe function.
  */
+export interface ComfyUIProgressUpdate {
+  status: string;
+  step?: number;
+  total_steps?: number;
+  prompt_id?: string;
+  outputs?: string[];
+  error?: string;
+}
+
 export function subscribeToProgress(
   promptId: string,
-  onProgress: (update: {
-    status: string;
-    step?: number;
-    total_steps?: number;
-    prompt_id?: string;
-    outputs?: string[];
-    error?: string;
-  }) => void,
+  onProgress: (update: ComfyUIProgressUpdate) => void,
 ): () => void {
   const wsUrl = getComfyuiWsUrl();
   const ws = new WebSocket(`${wsUrl}?prompt_id=${promptId}`);
 
   ws.onmessage = (event) => {
     try {
-      const data = JSON.parse(event.data);
+      const data = JSON.parse(event.data as string) as ComfyUIProgressUpdate;
       onProgress(data);
     } catch {
       // Ignore malformed messages

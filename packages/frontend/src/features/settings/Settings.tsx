@@ -145,7 +145,9 @@ export function Settings() {
         }),
       });
       if (!res.ok) {
-        const detail = await res.json().catch(() => ({ detail: res.statusText }));
+        const detail = (await res
+          .json()
+          .catch(() => ({ detail: res.statusText }))) as { detail?: string };
         throw new Error(detail.detail ?? "Failed to save settings");
       }
       setSaved(true);
@@ -272,7 +274,7 @@ export function Settings() {
                 <button
                   className="btn btn-secondary"
                   title="Test Connection"
-                  onClick={async () => testConnection(settings.comfyui_url, "comfyui")}
+                  onClick={() => void testConnection(settings.comfyui_url, "comfyui")}
                   disabled={connectionTests[`comfyui-${settings.comfyui_url}`].status === "testing"}
                 >
                   {connectionTests[`comfyui-${settings.comfyui_url}`].status === "testing" ? (
@@ -366,7 +368,7 @@ export function Settings() {
                 <button
                   className="btn btn-secondary"
                   title="Test Connection"
-                  onClick={async () => testConnection(settings.ollama_url, "ollama")}
+                  onClick={() => void testConnection(settings.ollama_url, "ollama")}
                   disabled={connectionTests[`ollama-${settings.ollama_url}`].status === "testing"}
                 >
                   {connectionTests[`ollama-${settings.ollama_url}`].status === "testing" ? (
@@ -444,7 +446,7 @@ export function Settings() {
                       !settings.atomic_chat_enabled ||
                       connectionTests["atomic-chat"].status === "testing"
                     }
-                    onClick={testAtomicChat}
+                    onClick={() => void testAtomicChat()}
                   >
                     {connectionTests["atomic-chat"].status === "testing" ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -571,7 +573,7 @@ export function Settings() {
         <Card>
           <button
             className={`btn w-full ${saved ? "btn-primary" : "btn-primary"}`}
-            onClick={handleSave}
+            onClick={() => void handleSave()}
             disabled={saving}
           >
             {saving ? (
@@ -857,13 +859,17 @@ function PushNotificationRow({
       <div className="flex items-center gap-2">
         {status && <span className="text-xs text-muted">{status}</span>}
         {preferences.push.subscribed ? (
-          <button className="btn btn-secondary text-xs" onClick={unsubscribe} disabled={loading}>
+          <button
+            className="btn btn-secondary text-xs"
+            onClick={() => void unsubscribe()}
+            disabled={loading}
+          >
             {loading ? "..." : "Disable"}
           </button>
         ) : (
           <button
             className="btn btn-secondary text-xs"
-            onClick={requestPermission}
+            onClick={() => void requestPermission()}
             disabled={loading}
           >
             {loading ? "..." : "Enable"}

@@ -83,7 +83,7 @@ function buildBars(
     return {
       id: `bar-${i}`,
       name: `Bar ${i + 1}`,
-      type: "bars" as any, // special type — see animation loop
+      type: "bars", // special type — see animation loop
       position: [x, y, 0],
       rotation: [0, 0, 0],
       scale: [1, 1, 1],

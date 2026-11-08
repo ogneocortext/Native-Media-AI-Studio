@@ -54,10 +54,10 @@ export function VizTopbar({
   libraryError = null,
   onBrowseLibrary,
 }: VizTopbarProps) {
-  const preset =
-    activeVisualPresetId && visualPresets[activeVisualPresetId]
-      ? visualPresets[activeVisualPresetId]
-      : null;
+  // Record lookups can miss at runtime despite the index type.
+  const preset = activeVisualPresetId
+    ? (visualPresets[activeVisualPresetId] as (typeof visualPresets)[string] | undefined)
+    : null;
 
   return (
     <div className="viz-topbar-row">
@@ -84,8 +84,9 @@ export function VizTopbar({
           {libraryFiles.map((f) => {
             const ref = audioRefForFile(f);
             const name = optionLabelForFile(f);
-            const meta = trackMetadata[ref];
-            const badge = analysisData[ref] ? " ✓" : "";
+            const meta = trackMetadata[ref] as (typeof trackMetadata)[string] | undefined;
+            const analyzed = analysisData[ref] as (typeof analysisData)[string] | undefined;
+            const badge = analyzed ? " ✓" : "";
             const metaStr = meta?.bpm ? ` (${meta.bpm} BPM)` : "";
             return (
               <option key={ref} value={ref}>

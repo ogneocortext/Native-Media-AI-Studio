@@ -21,7 +21,9 @@ export function MusicGenPage() {
   const refreshStatus = useCallback(async () => {
     try {
       const r = await fetch(`${api}/api/music-gen/status`);
-      const j = await r.json();
+      const j = (await r.json()) as {
+        services?: { ace?: { running?: boolean } };
+      } | null;
       setRunning(!!j?.services?.ace?.running);
     } catch (e) {
       setError(String(e));
@@ -79,7 +81,7 @@ export function MusicGenPage() {
           display_name: outputName || undefined,
         }),
       });
-      const j = await r.json();
+      const j = (await r.json()) as { detail?: string; output_name?: string };
       if (!r.ok) throw new Error(j.detail ?? r.statusText);
       const name = j.output_name ?? outputName;
       if (name) setAudioUrl(`${api}/api/music-gen/audio/${name}`);
@@ -103,7 +105,7 @@ export function MusicGenPage() {
           <p className={DS.pageSubtitle}>Generate music with ACE-Step engine</p>
         </div>
         <button
-          onClick={refreshStatus}
+          onClick={() => void refreshStatus()}
           disabled={busy}
           className="btn btn-ghost"
           title="Refresh status"
@@ -123,11 +125,11 @@ export function MusicGenPage() {
               </span>
             </div>
             <div className="flex gap-2">
-              <button onClick={startService} disabled={busy} className={DS.btnPrimary}>
+              <button onClick={() => void startService()} disabled={busy} className={DS.btnPrimary}>
                 <Play size={14} />
                 Start
               </button>
-              <button onClick={stopService} disabled={busy} className={DS.btnSecondary}>
+              <button onClick={() => void stopService()} disabled={busy} className={DS.btnSecondary}>
                 <Square size={14} />
                 Stop
               </button>
@@ -191,7 +193,7 @@ export function MusicGenPage() {
               </div>
 
               <button
-                onClick={generate}
+                onClick={() => void generate()}
                 disabled={busy || !style || !lyrics || !running}
                 className={DS.btnFull}
               >

@@ -15,27 +15,39 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef, useEffect } from "react";
 import { Fn, float, uniform, vec2, vec3, pass, renderOutput, screenUV, texture } from "three/tsl";
+import type { Node, PassNode, TextureNode } from "three/webgpu";
+
+/**
+ * The post-FX chain passes `vec4` color nodes between stages. `texture()`'s
+ * typings only accept `Texture | TextureNode`, but at runtime any node in the
+ * chain is a valid sample source — narrow once at the boundary.
+ */
+type EffectColorNode = Node<"vec4">;
+
+function sampleNode(input: Node, uvNode: Node): TextureNode {
+  return texture(input as unknown as TextureNode, uvNode);
+}
 
 // ---------------------------------------------------------------------------
 // TSL effect functions
 // ---------------------------------------------------------------------------
 
-const bloomEffect = Fn(([input, strength, radius]: [any, any, any]) => {
+const bloomEffect = Fn(([input, strength, radius]: [EffectColorNode, Node<"float">, Node<"float">]) => {
   const uv = screenUV;
-  const lumR = float(0.2126).mul(input.r) as any;
-  const lumG = float(0.7152).mul(input.g) as any;
-  const lumB = float(0.0722).mul(input.b) as any;
+  const lumR = float(0.2126).mul(input.r);
+  const lumG = float(0.7152).mul(input.g);
+  const lumB = float(0.0722).mul(input.b);
   const lum = lumR.add(lumG).add(lumB);
-  const bright = float(1).sub(float(1).div(float(1).add(lum.mul(float(20))))) as any;
+  const bright = float(1).sub(float(1).div(float(1).add(lum.mul(float(20)))));
 
-  const o00 = texture(input, uv.add(vec2(-1, -1).mul(radius))).mul(bright) as any;
-  const o01 = texture(input, uv.add(vec2(0, -1).mul(radius))).mul(bright) as any;
-  const o02 = texture(input, uv.add(vec2(1, -1).mul(radius))).mul(bright) as any;
-  const o03 = texture(input, uv.add(vec2(-1, 0).mul(radius))).mul(bright) as any;
-  const o04 = texture(input, uv.add(vec2(1, 0).mul(radius))).mul(bright) as any;
-  const o05 = texture(input, uv.add(vec2(-1, 1).mul(radius))).mul(bright) as any;
-  const o06 = texture(input, uv.add(vec2(0, 1).mul(radius))).mul(bright) as any;
-  const o07 = texture(input, uv.add(vec2(1, 1).mul(radius))).mul(bright) as any;
+  const o00 = sampleNode(input, uv.add(vec2(-1, -1).mul(radius))).mul(bright);
+  const o01 = sampleNode(input, uv.add(vec2(0, -1).mul(radius))).mul(bright);
+  const o02 = sampleNode(input, uv.add(vec2(1, -1).mul(radius))).mul(bright);
+  const o03 = sampleNode(input, uv.add(vec2(-1, 0).mul(radius))).mul(bright);
+  const o04 = sampleNode(input, uv.add(vec2(1, 0).mul(radius))).mul(bright);
+  const o05 = sampleNode(input, uv.add(vec2(-1, 1).mul(radius))).mul(bright);
+  const o06 = sampleNode(input, uv.add(vec2(0, 1).mul(radius))).mul(bright);
+  const o07 = sampleNode(input, uv.add(vec2(1, 1).mul(radius))).mul(bright);
 
   const blurred = o00
     .add(o01)
@@ -49,34 +61,40 @@ const bloomEffect = Fn(([input, strength, radius]: [any, any, any]) => {
   return input.add(blurred.mul(strength));
 });
 
-const chromaticAberrationEffect = Fn(([input, strength]: [any, any]) => {
+const chromaticAberrationEffect = Fn(([input, strength]: [EffectColorNode, Node<"float">]) => {
   const uv = screenUV;
   const center = vec2(0.5, 0.5);
   const dir = uv.sub(center);
   const dist = dir.length();
   const offset = dir.mul(dist).mul(strength);
 
-  const r = texture(input, uv.add(offset)).r;
-  const g = texture(input, uv).g;
-  const b = texture(input, uv.sub(offset)).b;
+  const r = sampleNode(input, uv.add(offset)).r;
+  const g = sampleNode(input, uv).g;
+  const b = sampleNode(input, uv.sub(offset)).b;
 
-  return vec3(r, g, b);
+  // The chain consumes this as a vec4 color node; vec3 is the honest node
+  // type here, so widen once at the boundary (same runtime node).
+  return vec3(r, g, b) as unknown as EffectColorNode;
 });
 
-const vignetteEffect = Fn(([input, strength, smoothness]: [any, any, any]) => {
-  const uv = screenUV.sub(vec2(0.5, 0.5));
-  const dist = uv.length();
-  const vig = float(1).sub(dist.mul(strength)).smoothstep(float(0), smoothness);
-  return input.mul(vig);
-});
+const vignetteEffect = Fn(
+  ([input, strength, smoothness]: [EffectColorNode, Node<"float">, Node<"float">]) => {
+    const uv = screenUV.sub(vec2(0.5, 0.5));
+    const dist = uv.length();
+    const vig = float(1).sub(dist.mul(strength)).smoothstep(float(0), smoothness);
+    return input.mul(vig);
+  },
+);
 
-const grainEffect = Fn(([input, amount, time]: [any, any, any]) => {
+const grainEffect = Fn(([input, amount, time]: [EffectColorNode, Node<"float">, Node<"float">]) => {
+  // `Math.sin` runs at graph-build time on the node (pre-existing behavior —
+  // preserved verbatim); the cast only satisfies the `number` signature.
   const noise = float(
     Math.sin(
-      screenUV.x
+      (screenUV.x
         .mul(127.1)
         .add(screenUV.y.mul(311.7))
-        .add(time.mod(float(100))) as any,
+        .add(time.mod(float(100)))) as unknown as number,
     ),
   )
     .fract()
@@ -115,7 +133,7 @@ export function WebGPUPostFX({ audioData, lrcSync, lrcSyncRef, postfx }: WebGPUP
   // Build the TSL post-FX graph once.
   const postFXGraph = useMemo(() => {
     try {
-      const scenePass = pass(scene, camera);
+      const scenePass: PassNode = pass(scene, camera);
 
       const bloomStrength = uniform(0.35);
       const bloomRadius = uniform(0.4);
@@ -125,13 +143,13 @@ export function WebGPUPostFX({ audioData, lrcSync, lrcSyncRef, postfx }: WebGPUP
       const grainAmount = uniform(0.04);
       const timeUniform = uniform(0);
 
-      let color: any = scenePass;
+      let color: EffectColorNode = scenePass;
       color = bloomEffect(color, bloomStrength, bloomRadius);
       color = chromaticAberrationEffect(color, chromaticStrength);
       color = vignetteEffect(color, vignetteStrength, vignetteSmoothness);
       color = grainEffect(color, grainAmount, timeUniform);
 
-      const output = renderOutput(color) as any;
+      const output = renderOutput(color);
 
       return {
         output: output,
@@ -156,15 +174,21 @@ export function WebGPUPostFX({ audioData, lrcSync, lrcSyncRef, postfx }: WebGPUP
   // (scene/camera change) left the renderer pointing at a disposed pass node —
   // the canvas then renders through a dead pipeline.
   useEffect(() => {
-    const renderer = gl as any;
-    if (!renderer || !postFXGraph) return;
+    // R3F types `gl` as WebGLRenderer, but the opt-in factory can hand us a
+    // WebGPURenderer — probe the two WebGPU-only members through a narrow
+    // local shape instead of `any`.
+    const renderer = gl as typeof gl & {
+      isWebGPURenderer?: boolean;
+      outputNode?: Node | null;
+    };
+    if (!postFXGraph) return;
 
     if (renderer.isWebGPURenderer) {
       renderer.outputNode = postFXGraph.output;
       return () => {
         if (renderer.outputNode === postFXGraph.output) renderer.outputNode = null;
         try {
-          (postFXGraph.output as { dispose?: () => void }).dispose?.();
+          postFXGraph.output.dispose();
         } catch {
           /* node already released with the renderer */
         }

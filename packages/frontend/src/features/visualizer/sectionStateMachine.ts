@@ -81,7 +81,9 @@ const SECTION_PRESET_MAP: Record<SectionType, SectionPresetMapping> = {
 
 export function getSectionPreset(sectionType: string): SectionPresetMapping {
   const key = sectionType.toLowerCase() as SectionType;
-  return SECTION_PRESET_MAP[key] ?? SECTION_PRESET_MAP.verse;
+  // Unknown section types are absent at runtime despite the Record index type.
+  const mapping = SECTION_PRESET_MAP[key] as SectionPresetMapping | undefined;
+  return mapping ?? SECTION_PRESET_MAP.verse;
 }
 
 export function getAllSectionPresets(): Record<SectionType, SectionPresetMapping> {

@@ -3,9 +3,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useUIStore } from "../../state/uiStore";
 import { getApiBase } from "../../services/api";
+import type { AudioAnalysisResult } from "../../services/api";
+import type { BeatState } from "../../hooks/useBeatTimeline";
 import { showToast } from "../../utils/toast";
 import { AISceneGenerator } from "./components/AISceneGenerator";
-import type { AnimObject, CameraMode, ParticleConfig, SceneConfig } from "./types";
+import type {
+  AnimObject,
+  CameraMode,
+  CharacterAnimData,
+  KeyframeTrack,
+  ParticleConfig,
+  SceneConfig,
+} from "./types";
 import { DEFAULT_OBJECTS, DEFAULT_PARTICLES, DEFAULT_SCENE } from "./threeStudioConfig";
 import { SCENE_TEMPLATES } from "./sceneTemplates";
 import { StudioHeader } from "./components/StudioHeader";
@@ -101,7 +110,7 @@ export function ThreeJSStudio() {
   const [beatActive, setBeatActive] = useState(false);
   const [animationTime, setAnimationTime] = useState(0);
   const [animationDuration, _setAnimationDuration] = useState(30);
-  const [keyframeTracks, _setKeyframeTracks] = useState<any[]>([]);
+  const [keyframeTracks, _setKeyframeTracks] = useState<KeyframeTrack[]>([]);
   const [codePanelOpen, setCodePanelOpen] = useState(false);
   const [pastedCode, setPastedCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
@@ -124,34 +133,31 @@ export function ThreeJSStudio() {
   // ---- Three scene engine ----
   // beatAnalysis is read via ref (set by useTrackManager below) to avoid
   // hook-order conflict with useObjectManager which depends on useTrackManager.
-  const beatAnalysisRef = useRef<any>(null);
+  const beatAnalysisRef = useRef<AudioAnalysisResult | null>(null);
   // F4: the scene engine is built before useTrackManager (hook order),
   // but its beat source is the track manager's `getCurrentBeat`. These
   // late-bound refs let the scene read the real beat timeline — the
   // previous never-ready stub left every beat-driven path (F4's
   // beat-phrased pulse) dormant.
-  const sceneGetBeatRef = useRef<((elapsedSec: number) => any) | null>(null);
+  const sceneGetBeatRef = useRef<((elapsedSec: number) => BeatState) | null>(null);
   const scenePlayheadRef = useRef<(() => number | null) | null>(null);
   // Set from useTrackManager's beat timeline below (hook order).
-  const beatTimelineRef = useRef<((elapsedSec: number) => any) | null>(null);
-  const BEAT_NOT_READY = {
+  const beatTimelineRef = useRef<((elapsedSec: number) => BeatState) | null>(null);
+  const BEAT_NOT_READY: BeatState = {
     ready: false,
     isOnBeat: false,
+    nextBeatIn: 0,
     timeSinceLastBeat: 0,
+    lastBeatIndex: -1,
     beatWindowSec: 0,
+    smoothedEnergy: 0,
   };
   // F2: section-aware motion driver. Reads the analysis through the ref
   // above (it lands after the scene engine is built) and is created here
   // so the scene engine can consume it on its first frame.
   const sectionDriver = useSectionDriver(
-    () =>
-      (beatAnalysisRef.current?.sections ?? []) as {
-        type: string;
-        start: number;
-        end: number;
-        energy: number;
-      }[],
-    () => (beatAnalysisRef.current?.beat_times ?? []) as readonly number[],
+    () => beatAnalysisRef.current?.sections ?? [],
+    () => beatAnalysisRef.current?.beat_times ?? [],
   );
   const activeTemplate = activeTemplateId
     ? SCENE_TEMPLATES.find((t) => t.id === activeTemplateId)
@@ -249,7 +255,7 @@ export function ThreeJSStudio() {
     setObjects,
     selectedObject,
     setSelectedObject,
-    characterAnimDataRef: { current: new Map() },
+    characterAnimDataRef: { current: new Map<string, CharacterAnimData>() },
     cameraRef,
     rendererRef,
     setParticleConfig,
@@ -436,7 +442,7 @@ export function ThreeJSStudio() {
         libraryTracks={libraryTracks}
         trackMetadata={trackMetadata}
         onExportFrame={exportFrame}
-        onExportVideo={handleExportVideo}
+        onExportVideo={() => void handleExportVideo()}
         videoExportBusy={videoExportBusy}
         videoExportLabel={videoExportLabel}
         onToggleCodePanel={() => setCodePanelOpen((v) => !v)}
@@ -527,7 +533,7 @@ export function ThreeJSStudio() {
             setRenderPlaying(false);
             setAnimationTime(0);
           }}
-          onAudioPlayPause={toggleAudio}
+          onAudioPlayPause={() => void toggleAudio()}
           onAudioStop={() => {
             setIsAudioPlaying(false);
             setIsPlaying(false);

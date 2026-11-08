@@ -122,7 +122,8 @@ export function createEQ(ctx: AudioContext, bands: EQBand[] = []): EQInstance {
     // Reuse existing + add new
     for (let i = 0; i < next.length; i++) {
       const b = next[i];
-      let filter = filters[i];
+      // Sparse indexing: filters may be shorter than next at runtime.
+      let filter = filters[i] as BiquadFilterNode | undefined;
       if (!filter) {
         filter = new BiquadFilterNode(ctx, {
           type: b.type,
@@ -165,7 +166,8 @@ export function createEQ(ctx: AudioContext, bands: EQBand[] = []): EQInstance {
   };
 
   const applyPreset = (name: string) => {
-    const preset = DEFAULT_EQ_PRESETS[name];
+    // Unknown preset names resolve to undefined at runtime.
+    const preset = DEFAULT_EQ_PRESETS[name] as EQBand[] | undefined;
     if (!preset) return;
     setBands(
       preset.map((b) => ({

@@ -3,7 +3,7 @@ import { ollamaChatStream } from "../../../services/api";
 
 export interface StreamMessage {
   type: "content" | "tool_calls" | "done" | "connected" | "error";
-  data: any;
+  data: unknown;
 }
 
 export function useOllamaStream() {
@@ -79,19 +79,15 @@ export function useOllamaStream() {
         useTools = ollamaOptionsOrUseTools;
       } else if (ollamaOptionsOrUseTools && typeof ollamaOptionsOrUseTools === "object") {
         // fallback: treat any plain object as options if not matched above but looks like options
-        // avoid misclassifying; only if next arg is function/boolean
-        if (
-          typeof onMessageOrUseTools === "function" ||
-          typeof onMessageOrUseTools === "boolean" ||
-          onMessageOrUseTools === undefined
-        ) {
-          ollamaOptions = ollamaOptionsOrUseTools;
-          if (typeof onMessageOrUseTools === "function") {
-            onMessage = onMessageOrUseTools;
-            useTools = useToolsArg;
-          } else if (typeof onMessageOrUseTools === "boolean") {
-            useTools = onMessageOrUseTools;
-          }
+        // avoid misclassifying; only if next arg is function/boolean/absent.
+        // (The next arg can only be function | boolean | undefined here,
+        //  so the guard is unconditional — kept flat for clarity.)
+        ollamaOptions = ollamaOptionsOrUseTools;
+        if (typeof onMessageOrUseTools === "function") {
+          onMessage = onMessageOrUseTools;
+          useTools = useToolsArg;
+        } else if (typeof onMessageOrUseTools === "boolean") {
+          useTools = onMessageOrUseTools;
         }
       }
 
@@ -107,7 +103,7 @@ export function useOllamaStream() {
         let buffer = "";
         let lastEvent = "";
 
-        while (true) {
+        for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
@@ -121,11 +117,11 @@ export function useOllamaStream() {
               lastEvent = line.slice(7).trim();
             } else if (line.startsWith("data: ")) {
               try {
-                const data = JSON.parse(line.slice(6));
+                const data = JSON.parse(line.slice(6)) as Record<string, unknown>;
                 let msg: StreamMessage | null = null;
 
                 if (lastEvent === "content") {
-                  const content = data.content ?? "";
+                  const content = typeof data.content === "string" ? data.content : "";
                   if (content) {
                     msg = { type: "content", data: content };
                     outputRef.current += content;
@@ -151,15 +147,17 @@ export function useOllamaStream() {
             }
           }
         }
-      } catch (err: any) {
+      } catch (err) {
         // Don't treat aborted or incomplete streams as fatal errors
-        if (err.name === "AbortError") {
+        const errName = err instanceof Error ? err.name : undefined;
+        const errMessage = err instanceof Error ? err.message : undefined;
+        if (errName === "AbortError") {
           // User cancelled - keep what we have
-        } else if (err.name === "TypeError" && err.message.includes("network")) {
+        } else if (errName === "TypeError" && errMessage?.includes("network")) {
           // Network error mid-stream - we may have partial content
           console.warn("Stream interrupted, using partial content");
-        } else if (err.name !== "AbortError") {
-          setOutput((prev) => prev + `\n\nError: ${err.message}`);
+        } else if (errName !== "AbortError") {
+          setOutput((prev) => prev + `\n\nError: ${errMessage}`);
         }
       } finally {
         setGenerating(false);

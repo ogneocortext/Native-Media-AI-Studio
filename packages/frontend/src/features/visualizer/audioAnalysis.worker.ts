@@ -283,7 +283,8 @@ self.onmessage = (ev: MessageEvent<AnalyzeMessage | ResetMessage>) => {
     const data = analyze(ev.data);
     const out: ResultMessage = { type: "result", data };
     self.postMessage(out);
-  } else if (ev.data.type === "reset") {
+  } else {
+    // Only "reset" remains after the "analyze" branch above.
     resetState();
   }
 };

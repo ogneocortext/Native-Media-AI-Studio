@@ -4,7 +4,7 @@ import * as THREE from "three";
 import type { VizProps } from "./types";
 import { getTrackFeatures } from "../trackFeatures";
 import { makeAudioReactiveMaterialTSL, updateAudioReactiveMaterialTSL } from "../VisualizationFX";
-import { setPositionAttribute, useDisposeOnUnmount, getStemEnergy } from "./helpers";
+import { setPositionAttribute, useDisposeOnUnmount, getStemEnergy, isWebGPURendererInstance } from "./helpers";
 import { attackRelease, beatSnap, energyHue, gammaDrive, rolloff } from "./vizMotion";
 
 /** Link radius (world units) for the connection graph. */
@@ -36,7 +36,7 @@ export function FrequencyRings({
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   const { gl } = useThree();
-  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+  const isWebGPU = isWebGPURendererInstance(gl);
 
   const nodeMat = useMemo(
     () =>

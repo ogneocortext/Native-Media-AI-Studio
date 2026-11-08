@@ -9,6 +9,7 @@ import { ChannelStrip } from "./ChannelStrip";
 import { BusChannel } from "./BusChannel";
 import { MasterChannel } from "./MasterChannel";
 import { COMPRESSOR_PRESETS } from "./types";
+import type { ChannelMeters, ChannelStripState, CompressorPreset, StemName } from "./types";
 import { useProfessionalMixer } from "./useProfessionalMixer";
 import type { BusName } from "./stemBus";
 
@@ -74,12 +75,14 @@ export function ProfessionalMixer({
 
       <div className="flex-1 overflow-x-auto overflow-y-hidden">
         <div className="flex gap-2 h-full min-w-max">
-          {stemEntries.map(([name]) => (
+          {stemEntries.map(([name]) => {
+            const stemName = name as StemName;
+            return (
             <ChannelStrip
               key={name}
-              name={name as any}
+              name={stemName}
               state={
-                (strips as Record<string, any>)[name] ?? {
+                (strips as Record<string, ChannelStripState | undefined>)[name] ?? {
                   volume: 1,
                   pan: 0,
                   muted: false,
@@ -93,35 +96,48 @@ export function ProfessionalMixer({
                   delaySend: 0,
                 }
               }
-              meters={meters[name] || { rms: 0, peak: 0, dBFS: -60 }}
+              meters={
+                meters[name] ?? {
+                  rms: 0,
+                  peak: 0,
+                  dBFS: -60,
+                }
+              }
               soloCount={soloCount}
               routing={routing}
-              onVolume={(v) => setStripVolume(name as any, v)}
-              onPan={(p) => setStripPan(name as any, p)}
-              onMute={() => toggleStripMute(name as any)}
-              onSolo={() => toggleStripSolo(name as any)}
+              onVolume={(v) => setStripVolume(stemName, v)}
+              onPan={(p) => setStripPan(stemName, p)}
+              onMute={() => toggleStripMute(stemName)}
+              onSolo={() => toggleStripSolo(stemName)}
               onCompressorPreset={(preset) => {
-                const params = COMPRESSOR_PRESETS[preset];
+                const params = COMPRESSOR_PRESETS[preset] as CompressorPreset | undefined;
                 if (params)
-                  setStripCompressor(name as any, {
+                  setStripCompressor(stemName, {
                     threshold: params.threshold,
                     ratio: params.ratio,
                     attack: params.attack,
                     release: params.release,
                   });
               }}
-              onSend={(send, v) => setStripSend(name as any, send, v)}
-              onRouting={(bus) => setRouting(name as any, bus)}
+              onSend={(send, v) => setStripSend(stemName, send, v)}
+              onRouting={(bus) => setRouting(stemName, bus)}
               compact={compact}
             />
-          ))}
+            );
+          })}
 
           {ALL_BUSES.map((bus) => (
             <BusChannel
               key={bus}
               name={bus}
               state={buses[bus]}
-              meter={meters[`${bus}_0`] || { rms: 0, peak: 0, dBFS: -60 }}
+              meter={
+                meters[`${bus}_0`] ?? {
+                  rms: 0,
+                  peak: 0,
+                  dBFS: -60,
+                }
+              }
               soloCount={soloCount}
               accent="#a855f7"
               onVolume={(v) => setBusVolume(bus, v)}
@@ -140,7 +156,13 @@ export function ProfessionalMixer({
 
           <MasterChannel
             volume={master.volume}
-            meter={meters.master || { rms: 0, peak: 0, dBFS: -60 }}
+            meter={
+              (meters as Record<string, ChannelMeters | undefined>).master ?? {
+                rms: 0,
+                peak: 0,
+                dBFS: -60,
+              }
+            }
             onVolume={(v) => setMasterVolume(v)}
             compressorThreshold={master.compressorThreshold}
             compressorRatio={master.compressorRatio}

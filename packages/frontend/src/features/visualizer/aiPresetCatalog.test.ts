@@ -57,7 +57,7 @@ describe("createPresetFromCurrent", () => {
 describe("exportPresetToString", () => {
   it("serializes a preset to JSON", () => {
     const json = exportPresetToString(DEFAULT_VISUAL_PRESET);
-    const parsed = JSON.parse(json);
+    const parsed = JSON.parse(json) as { id: string; name: string };
     expect(parsed.id).toBe("default");
     expect(parsed.name).toBe("Default Preset");
   });

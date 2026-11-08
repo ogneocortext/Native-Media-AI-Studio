@@ -86,7 +86,9 @@ export function GoServicesCard() {
       }
     };
     void run();
-    const interval = setInterval(run, 15000);
+    const interval = setInterval(() => {
+      void run();
+    }, 15000);
     return () => {
       cancelled = true;
       controller.abort();
@@ -114,7 +116,9 @@ export function GoServicesCard() {
             <span className="text-[11px] text-muted/60 tabular-nums">{ago}s ago</span>
           )}
           <button
-            onClick={handleRefresh}
+            onClick={() => {
+              void handleRefresh();
+            }}
             className="p-1.5 rounded-lg bg-white/5 text-muted hover:text-white"
             title="Re-check Go services now"
           >

@@ -227,7 +227,7 @@ export function Queue() {
   const [metrics, setMetrics] = useState<QueueMetrics | null>(null);
   // Search/filter state
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<JobStatus | null>(null);
   // Auto-refresh toggle
   const [autoRefresh, setAutoRefresh] = useState(true);
   const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -291,18 +291,20 @@ export function Queue() {
         title: "Cancel Job",
         message: "Are you sure you want to cancel this job? Progress will be lost.",
         confirmLabel: "Cancel Job",
-        onConfirm: async () => {
-          setConfirmDialog(null);
-          setActionLoading(id);
-          try {
-            await cancelJob(id);
-            showToast("Job cancelled", "info");
-          } catch (e) {
-            console.error("Failed to cancel job:", e);
-            showToast("Failed to cancel job", "error");
-          } finally {
-            setActionLoading(null);
-          }
+        onConfirm: () => {
+          void (async () => {
+            setConfirmDialog(null);
+            setActionLoading(id);
+            try {
+              await cancelJob(id);
+              showToast("Job cancelled", "info");
+            } catch (e) {
+              console.error("Failed to cancel job:", e);
+              showToast("Failed to cancel job", "error");
+            } finally {
+              setActionLoading(null);
+            }
+          })();
         },
       });
     },
@@ -332,18 +334,20 @@ export function Queue() {
         message:
           "This will permanently delete this job and its output. This action cannot be undone.",
         confirmLabel: "Delete",
-        onConfirm: async () => {
-          setConfirmDialog(null);
-          setActionLoading(id);
-          try {
-            await deleteJob(id);
-            showToast("Job deleted", "success");
-          } catch (e) {
-            console.error("Failed to delete job:", e);
-            showToast("Failed to delete job", "error");
-          } finally {
-            setActionLoading(null);
-          }
+        onConfirm: () => {
+          void (async () => {
+            setConfirmDialog(null);
+            setActionLoading(id);
+            try {
+              await deleteJob(id);
+              showToast("Job deleted", "success");
+            } catch (e) {
+              console.error("Failed to delete job:", e);
+              showToast("Failed to delete job", "error");
+            } finally {
+              setActionLoading(null);
+            }
+          })();
         },
       });
     },
@@ -356,15 +360,17 @@ export function Queue() {
       title: "Clear Completed",
       message: `This will remove ${count} completed job${count === 1 ? "" : "s"} from the queue.`,
       confirmLabel: "Clear All",
-      onConfirm: async () => {
-        setConfirmDialog(null);
-        try {
-          await clearCompleted();
-          showToast(`Cleared ${count} completed jobs`, "success");
-        } catch (e) {
-          console.error("Failed to clear completed:", e);
-          showToast("Failed to clear completed jobs", "error");
-        }
+      onConfirm: () => {
+        void (async () => {
+          setConfirmDialog(null);
+          try {
+            await clearCompleted();
+            showToast(`Cleared ${count} completed jobs`, "success");
+          } catch (e) {
+            console.error("Failed to clear completed:", e);
+            showToast("Failed to clear completed jobs", "error");
+          }
+        })();
       },
     });
   }, [clearCompleted, stats]);
@@ -375,15 +381,17 @@ export function Queue() {
       title: "Clear Failed",
       message: `This will remove ${count} failed job${count === 1 ? "" : "s"} from the queue.`,
       confirmLabel: "Clear All",
-      onConfirm: async () => {
-        setConfirmDialog(null);
-        try {
-          await clearFailed();
-          showToast(`Cleared ${count} failed jobs`, "success");
-        } catch (e) {
-          console.error("Failed to clear failed:", e);
-          showToast("Failed to clear failed jobs", "error");
-        }
+      onConfirm: () => {
+        void (async () => {
+          setConfirmDialog(null);
+          try {
+            await clearFailed();
+            showToast(`Cleared ${count} failed jobs`, "success");
+          } catch (e) {
+            console.error("Failed to clear failed:", e);
+            showToast("Failed to clear failed jobs", "error");
+          }
+        })();
       },
     });
   }, [clearFailed, stats]);
@@ -457,7 +465,7 @@ export function Queue() {
             <label className="text-xs text-muted">Status:</label>
             <select
               value={statusFilter ?? ""}
-              onChange={(e) => setStatusFilter(e.target.value || null)}
+              onChange={(e) => setStatusFilter((e.target.value || null) as JobStatus | null)}
               className="text-sm bg-gray-800 border border-gray-700 rounded-md text-white focus:border-primary focus:outline-none"
             >
               <option value="">All</option>
@@ -508,7 +516,7 @@ export function Queue() {
             <p className="text-xs text-muted mt-1">
               Try refreshing the page or check the Diagnostics page for more info.
             </p>
-            <button className="btn btn-secondary btn-sm mt-2" onClick={async () => fetchJobs()}>
+            <button className="btn btn-secondary btn-sm mt-2" onClick={() => void fetchJobs()}>
               <RotateCcw size={14} className="inline mr-1" />
               Retry
             </button>
@@ -655,7 +663,7 @@ export function Queue() {
               actionLoading={actionLoading}
               onSelect={setSelectedJob}
               onCancel={handleCancel}
-              onRetry={handleRetry}
+              onRetry={(id) => void handleRetry(id)}
               onDelete={handleDelete}
             />
             <JobListSection
@@ -665,7 +673,7 @@ export function Queue() {
               actionLoading={actionLoading}
               onSelect={setSelectedJob}
               onCancel={handleCancel}
-              onRetry={handleRetry}
+              onRetry={(id) => void handleRetry(id)}
               onDelete={handleDelete}
             />
             <JobListSection
@@ -675,7 +683,7 @@ export function Queue() {
               actionLoading={actionLoading}
               onSelect={setSelectedJob}
               onCancel={handleCancel}
-              onRetry={handleRetry}
+              onRetry={(id) => void handleRetry(id)}
               onDelete={handleDelete}
             />
             <JobListSection
@@ -684,7 +692,7 @@ export function Queue() {
               actionLoading={actionLoading}
               onSelect={setSelectedJob}
               onCancel={handleCancel}
-              onRetry={handleRetry}
+              onRetry={(id) => void handleRetry(id)}
               onDelete={handleDelete}
             />
           </div>
@@ -700,7 +708,7 @@ export function Queue() {
             action={
               searchQuery || statusFilter
                 ? undefined
-                : { label: "Create a video", onClick: async () => navigate("/music-video-wizard") }
+                : { label: "Create a video", onClick: () => void navigate("/music-video-wizard") }
             }
           />
         )}

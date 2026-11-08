@@ -92,7 +92,7 @@ export function Preview() {
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (video.paused) video.play().catch(() => {});
+    if (video.paused) video.play().catch(() => undefined);
     else video.pause();
   }, []);
 

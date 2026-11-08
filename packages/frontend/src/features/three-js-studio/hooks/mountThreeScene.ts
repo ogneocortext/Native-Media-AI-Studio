@@ -13,7 +13,9 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { FilmShader } from "three/examples/jsm/shaders/FilmShader.js";
 import { RGBShiftShader } from "three/examples/jsm/shaders/RGBShiftShader.js";
-import type { AnimObject, CameraMode, ParticleConfig, SceneConfig } from "../types";
+import type { AnimObject, CameraMode, KeyframeTrack, ParticleConfig, SceneConfig } from "../types";
+import type { ThreeModule } from "./types";
+import type { BeatState } from "../../../hooks/useBeatTimeline";
 import {
   beginCameraTransition,
   computeModePose,
@@ -73,24 +75,24 @@ export interface MountContext {
   cameraRef: React.MutableRefObject<THREE.PerspectiveCamera | null>;
   cameraTransitionRef: React.MutableRefObject<CameraTransitionState | null>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
-  characterMixersRef: React.MutableRefObject<Map<string, any>>;
+  characterMixersRef: React.MutableRefObject<Map<string, THREE.AnimationMixer>>;
   clockRef: React.MutableRefObject<THREE.Timer | null>;
   composerRef: React.MutableRefObject<EffectComposer | null>;
   containerRef: React.RefObject<HTMLDivElement | null>;
-  controlsRef: React.MutableRefObject<any>;
+  controlsRef: React.MutableRefObject<OrbitControls | null>;
   exportActiveRef: React.MutableRefObject<boolean>;
   exportClockRef: React.MutableRefObject<{ active: boolean; t: number; dt: number }>;
   finalComposerRef: React.MutableRefObject<EffectComposer | null>;
   frameCountRef: React.MutableRefObject<number>;
   frameRunnerRef: React.MutableRefObject<(() => void) | null>;
   generatedSceneUpdateRef: React.RefObject<((time: number, delta: number) => void) | null>;
-  getCurrentBeatRef: React.MutableRefObject<(elapsed: number) => any>;
+  getCurrentBeatRef: React.MutableRefObject<(elapsed: number) => BeatState>;
   getPlayheadSecRef: React.MutableRefObject<(() => number | null) | undefined>;
   grainPassRef: React.MutableRefObject<ShaderPass | null>;
   initialParticlePositionsRef: React.MutableRefObject<Float32Array | null>;
   isAudioPlayingRef: React.MutableRefObject<boolean>;
   isPlayingRef: React.MutableRefObject<boolean>;
-  keyframeTracksRef: React.MutableRefObject<any[]>;
+  keyframeTracksRef: React.MutableRefObject<KeyframeTrack[]>;
   lastCameraModeRef: React.MutableRefObject<CameraMode>;
   lastUiUpdateRef: React.MutableRefObject<number>;
   objectsMapRef: React.MutableRefObject<Map<string, THREE.Object3D>>;
@@ -112,9 +114,9 @@ export interface MountContext {
   sectionDriverRef: React.MutableRefObject<SectionDriverHandle | null>;
   sectionLightsRef: React.MutableRefObject<{ light: THREE.Light; baseColor: THREE.Color }[] | null>;
   shakeRef: React.MutableRefObject<number>;
-  threeRef: React.MutableRefObject<any>;
+  threeRef: React.MutableRefObject<ThreeModule | null>;
   vignettePassRef: React.MutableRefObject<ShaderPass | null>;
-  createMeshForObject: (obj: AnimObject, THREE: any) => Promise<THREE.Object3D>;
+  createMeshForObject: (obj: AnimObject, THREE: ThreeModule) => Promise<THREE.Object3D>;
   disposeEntry: (id: string, root: THREE.Object3D) => void;
   setSceneLoading: (v: boolean) => void;
   setBeatActive: (v: boolean) => void;
@@ -219,7 +221,7 @@ export function mountThreeScene(ctx: MountContext) {
     camera.position.set(0, 3, 8);
     camera.lookAt(0, 0.5, 0);
     cameraRef.current = camera;
-    (window as any).__camera = camera;
+    window.__camera = camera;
     const renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
@@ -241,7 +243,7 @@ export function mountThreeScene(ctx: MountContext) {
     // with detectSupport bound to this renderer — needed for the backend's
     // Basis-compressed GLB textures.
     registerGLTFRenderer(renderer);
-    (window as any).__renderer = renderer;
+    window.__renderer = renderer;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -337,7 +339,7 @@ export function mountThreeScene(ctx: MountContext) {
     dirLight.shadow.mapSize.set(1024, 1024);
     dirLight.shadow.camera.near = 0.5;
     dirLight.shadow.camera.far = 25;
-    (dirLight.shadow as unknown as { bias: number }).bias = -0.0005;
+    dirLight.shadow.bias = -0.0005;
     scene.add(dirLight);
     const spotLight = new THREE.SpotLight(0x8b5cf6, 18);
     spotLight.position.set(0, 10, 0);
@@ -530,7 +532,7 @@ export function mountThreeScene(ctx: MountContext) {
       shakeRef.current *= 0.75;
       const isPlay = isPlayingRef.current;
       const audioDrivenMode = activeAudioDrivenRef.current;
-      objectsRef.current.forEach((obj: any) => {
+      objectsRef.current.forEach((obj) => {
         const mesh = objectsMapRef.current.get(obj.id);
         if (mesh && obj.visible) {
           if (isPlay) {
@@ -573,7 +575,7 @@ export function mountThreeScene(ctx: MountContext) {
         }
       });
       if (isPlay) {
-        characterMixersRef.current.forEach((mixer: any) => {
+        characterMixersRef.current.forEach((mixer) => {
           mixer.update(delta);
         });
       }
@@ -676,7 +678,7 @@ export function mountThreeScene(ctx: MountContext) {
       }
 
       if (keyframeTracksRef.current.length > 0 && renderPlayingRef.current) {
-        keyframeTracksRef.current.forEach((track: any) => {
+        keyframeTracksRef.current.forEach((track) => {
           const mesh = objectsMapRef.current.get(track.target);
           if (!mesh) return;
           const time = animationTimeRef.current;
@@ -749,9 +751,9 @@ export function mountThreeScene(ctx: MountContext) {
           light.color.copy(baseColor);
         }
       }
-      characterMixersRef.current.forEach((mixer: any) => {
+      characterMixersRef.current.forEach((mixer) => {
         try {
-          mixer.setTime?.(0);
+          mixer.setTime(0);
         } catch {
           /* a mixer without a loaded clip is fine to leave alone */
         }
@@ -788,7 +790,7 @@ export function mountThreeScene(ctx: MountContext) {
       canvas.removeEventListener("pointerup", pointerHandlers.up);
       pointerHandlersRef.current = null;
     }
-    controlsRef.current?.dispose?.();
+    controlsRef.current?.dispose();
     objectsMapRef.current.forEach((mesh, id) => disposeEntry(id, mesh));
     objectsMapRef.current.clear();
     characterMixersRef.current.clear();
@@ -798,7 +800,7 @@ export function mountThreeScene(ctx: MountContext) {
     clockRef.current?.dispose();
     rendererRef.current?.dispose();
     sceneRef.current = null;
-    delete (window as any).__camera;
-    delete (window as any).__renderer;
+    delete window.__camera;
+    delete window.__renderer;
   };
 }

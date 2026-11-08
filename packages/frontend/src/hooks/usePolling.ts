@@ -112,7 +112,9 @@ export function usePolling(
     const schedule = (ms: number) => {
       if (stopped) return;
       if (timer) clearTimeout(timer);
-      timer = setTimeout(tick, ms);
+      timer = setTimeout(() => {
+        void tick();
+      }, ms);
     };
 
     checkLeader();
@@ -121,7 +123,8 @@ export function usePolling(
       try {
         bc = new BroadcastChannel(leaderChannel);
         bc.onmessage = (ev) => {
-          if (ev.data?.type === "leader-heartbeat" && ev.data?.id !== tabId.current) {
+          const data = ev.data as { type?: string; id?: string } | null;
+          if (data?.type === "leader-heartbeat" && data.id !== tabId.current) {
             // Another leader is alive — back off unless its heartbeat goes stale
             if (isLeader) isLeader = false;
           }

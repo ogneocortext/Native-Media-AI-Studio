@@ -133,7 +133,7 @@ export function DocsPage() {
 
   const loadBootstrap = async () => {
     try {
-      const data = (await getDocsBootstrap()) as BootstrapData;
+      const data: BootstrapData = await getDocsBootstrap();
       setBootstrap(data);
       setBootstrapError(null);
     } catch (e) {
@@ -147,7 +147,7 @@ export function DocsPage() {
     try {
       const res = await fetch(`/api/docs/list?vault_only=false`);
       if (!res.ok) throw new Error(`${res.status}`);
-      setDocs(await res.json());
+      setDocs((await res.json()) as DocListEntry[]);
     } catch (e) {
       setDocsError(e instanceof Error ? e.message : "Failed to load docs");
     } finally {
@@ -168,7 +168,7 @@ export function DocsPage() {
             type: "directory",
             children: val.map((n: BackendNode) => backendToTree(n)),
           });
-        } else if (val && typeof val === "object" && "children" in val) {
+        } else if (typeof val === "object" && "children" in val) {
           normalized.push(backendToTree(val));
         } else {
           // fallback
@@ -235,8 +235,8 @@ export function DocsPage() {
     try {
       const res = await fetch(`/api/docs/file?path=${encodeURIComponent(path)}`);
       if (!res.ok) throw new Error("not found");
-      const data = await res.json();
-      setSelectedContent(data.raw_markdown as string);
+      const data = (await res.json()) as { raw_markdown?: string };
+      setSelectedContent(data.raw_markdown ?? null);
     } catch {
       setSelectedContent(`# Not found\n\nCould not load \`${path}\``);
     } finally {
@@ -404,7 +404,7 @@ export function DocsPage() {
             )}
           </div>
           <button
-            onClick={handleSearch}
+            onClick={() => void handleSearch()}
             disabled={searching || !query.trim()}
             className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
           >
@@ -464,7 +464,7 @@ export function DocsPage() {
                   {filteredResults.map((r, i) => (
                     <button
                       key={i}
-                      onClick={async () => openDoc(r.path)}
+                      onClick={() => void openDoc(r.path)}
                       className="w-full text-left p-3 bg-gray-700/30 hover:bg-gray-700/60 rounded-lg border border-transparent hover:border-gray-600 transition-colors group"
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -532,7 +532,7 @@ export function DocsPage() {
               ) : docsError ? (
                 <p className="text-amber-400 text-sm py-6 text-center">
                   Failed to load docs ({docsError}).{" "}
-                  <button onClick={loadDocsList} className="underline hover:text-amber-300">
+                  <button onClick={() => void loadDocsList()} className="underline hover:text-amber-300">
                     Retry
                   </button>
                 </p>
@@ -546,7 +546,7 @@ export function DocsPage() {
                     {browsingDocs.slice(0, visibleCount).map((d) => (
                       <button
                         key={d.path}
-                        onClick={async () => openDoc(d.path)}
+                        onClick={() => void openDoc(d.path)}
                         className={`text-left p-3 rounded-lg border transition-colors group ${
                           selectedPath === d.path
                             ? "bg-purple-600/20 border-purple-500/50"
@@ -713,7 +713,7 @@ export function DocsPage() {
               <p className="text-amber-400 text-sm">
                 Failed to load structure ({structureError}).{" "}
                 <button
-                  onClick={async () => loadStructure()}
+                  onClick={() => void loadStructure()}
                   className="underline hover:text-amber-300"
                 >
                   Retry
@@ -747,11 +747,12 @@ export function DocsPage() {
                 </div>
                 <div className="flex items-center gap-1 shrink-0 ml-2">
                   <button
-                    onClick={async () => {
+                    onClick={() => {
                       if (selectedContent) {
-                        await navigator.clipboard.writeText(selectedContent);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 1500);
+                        void navigator.clipboard.writeText(selectedContent).then(() => {
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1500);
+                        });
                       }
                     }}
                     className="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition-colors"

@@ -213,7 +213,7 @@ export function HealthPage() {
           } else {
             addLog(`Update failed: ${result.message}`, "error");
             if (result.errors) {
-              addLog(`Errors: ${result.errors}`, "error");
+              addLog(`Errors: ${result.errors.join(",")}`, "error");
             }
             if (result.hint) {
               addLog(`Hint: ${result.hint}`, "warning");
@@ -324,7 +324,9 @@ export function HealthPage() {
           )}
         </div>
         <button
-          onClick={handleRefreshAll}
+          onClick={() => {
+            void handleRefreshAll();
+          }}
           disabled={refreshingAll || loading}
           className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-50"
         >
@@ -378,7 +380,9 @@ export function HealthPage() {
             heavy app first, or confirm below.
           </span>
           <button
-            onClick={async () => handleComfyUIAction("start")}
+            onClick={() => {
+              void handleComfyUIAction("start");
+            }}
             disabled={comfyuiLoading}
             className="text-[11px] px-2.5 py-1.5 rounded-md bg-amber-600 text-white hover:bg-amber-500 disabled:opacity-50"
           >
@@ -407,7 +411,9 @@ export function HealthPage() {
           loading={comfyuiLoading}
           action={comfyuiAction}
           vramStatus={vramStatus}
-          onAction={handleComfyUIAction}
+          onAction={(action) => {
+            void handleComfyUIAction(action);
+          }}
         />
 
         {/* Resource Usage - main area */}
@@ -431,18 +437,20 @@ export function HealthPage() {
               />
               {memUsage >= 80 && (
                 <button
-                  onClick={async () => {
-                    addLog("Cleaning system memory...", "info");
-                    try {
-                      const res = await cleanupSystemMemory();
-                      addLog(
-                        `Cleaned: ${res.actions.join(", ") || "no actions"} — ${res.before_percent}% → ${res.after_percent}% (freed ${res.freed_percent}%)`,
-                        "success",
-                      );
-                    } catch (e: unknown) {
-                      const msg = e instanceof Error ? e.message : String(e);
-                      addLog(`Cleanup failed: ${msg}`, "error");
-                    }
+                  onClick={() => {
+                    void (async () => {
+                      addLog("Cleaning system memory...", "info");
+                      try {
+                        const res = await cleanupSystemMemory();
+                        addLog(
+                          `Cleaned: ${res.actions.join(", ") || "no actions"} — ${res.before_percent}% → ${res.after_percent}% (freed ${res.freed_percent}%)`,
+                          "success",
+                        );
+                      } catch (e: unknown) {
+                        const msg = e instanceof Error ? e.message : String(e);
+                        addLog(`Cleanup failed: ${msg}`, "error");
+                      }
+                    })();
                   }}
                   className="absolute -top-2 -right-2 text-xs px-2 py-1 bg-amber-700 hover:bg-amber-600 text-white rounded-full shadow"
                   title="Free RAM: GC + torch cache + old files + Ollama offload if needed"
@@ -668,7 +676,13 @@ function AccessibilityAuditCard() {
         <p className="text-sm text-muted">
           Run WCAG 2.1 AA checks against the current page using axe-core.
         </p>
-        <button onClick={runAudit} disabled={running} className="btn btn-primary">
+        <button
+          onClick={() => {
+            void runAudit();
+          }}
+          disabled={running}
+          className="btn btn-primary"
+        >
           {running ? (
             <>
               <Loader2 size={16} className="animate-spin" /> Running...

@@ -11,17 +11,39 @@
  *   const { studio, ready } = useTheatreStudio();
  */
 
+import type { IStudio } from "@theatre/studio";
+import type { IProject, ISheet, types as theatreCoreTypes } from "@theatre/core";
+
+/**
+ * The slice of `@theatre/core`'s module namespace this service uses.
+ * `types.number` keeps its real signature so `sheet.object()` infers
+ * proper prop types instead of collapsing to `any`.
+ */
+interface TheatreCoreLike {
+  getProject: (id: string) => IProject;
+  types: { number: typeof theatreCoreTypes.number };
+}
+
+/**
+ * Writable view of an ISheetObject. Theatre declares `value` readonly,
+ * but assignment through it is supported at runtime — the panel writes
+ * animated values back through this handle every frame.
+ */
+export interface WritableSheetObject {
+  value: unknown;
+}
+
 // Module-level state
-let initPromise: Promise<any> | null = null;
+let initPromise: Promise<IStudio> | null = null;
 let isReady = false;
-let studioInstance: any = null;
-let theatreCore: any = null;
+let studioInstance: IStudio | null = null;
+let theatreCore: TheatreCoreLike | null = null;
 
 /**
  * Initialize Theatre.js studio. Safe to call multiple times.
  * Uses dynamic imports to avoid the initialization warning on module load.
  */
-export async function getStudio(): Promise<any> {
+export async function getStudio(): Promise<IStudio> {
   if (isReady && studioInstance) return studioInstance;
   if (initPromise) return initPromise;
 
@@ -35,16 +57,15 @@ export async function getStudio(): Promise<any> {
     theatreCore = coreModule;
 
     try {
-      await studioInstance.initialize();
+      // IStudio.initialize() is synchronous (returns void).
+      studioInstance.initialize();
     } catch {
       // Already initialized - safe to ignore
     }
 
     // Hide Theatre.js default UI since we have our own custom panel
     try {
-      if (studioInstance.ui && typeof studioInstance.ui.hide === "function") {
-        studioInstance.ui.hide();
-      }
+      studioInstance.ui.hide();
     } catch {
       // UI hide not available
     }
@@ -67,21 +88,23 @@ export function isStudioReady(): boolean {
  * Create a Theatre.js project. Ensures studio is initialized first.
  */
 export async function createTheatreProject(projectId: string, sheetId = "Scene") {
-  await getStudio();
+  const studio = await getStudio();
+  if (!theatreCore) throw new Error("Theatre.js core failed to initialize");
 
   const project = theatreCore.getProject(projectId);
   const sheet = project.sheet(sheetId);
-  return { project, sheet, studio: studioInstance };
+  return { project, sheet, studio };
 }
 
 /**
  * Create animation tracks on a sheet.
  */
 export function createAnimationTracks(
-  sheet: any,
+  sheet: ISheet,
   trackDefs: { label: string; prop: string; min: number; max: number }[],
-) {
-  const objects: Record<string, any> = {};
+): Record<string, WritableSheetObject> {
+  if (!theatreCore) throw new Error("Theatre.js core failed to initialize");
+  const objects: Record<string, WritableSheetObject> = {};
   for (const def of trackDefs) {
     const obj = sheet.object(def.label, {
       [def.prop]: theatreCore.types.number(0, { range: [def.min, def.max] }),
@@ -94,11 +117,11 @@ export function createAnimationTracks(
 /**
  * Read current values from all objects.
  */
-export function readObjectValues(objects: Record<string, any>): Record<string, number> {
+export function readObjectValues(objects: Record<string, WritableSheetObject>): Record<string, number> {
   const values: Record<string, number> = {};
   for (const [key, obj] of Object.entries(objects)) {
     try {
-      values[key] = (obj.value as Record<string, number>)[key] ?? 0;
+      values[key] = (obj.value as Partial<Record<string, number>>)[key] ?? 0;
     } catch {
       values[key] = 0;
     }
@@ -109,9 +132,13 @@ export function readObjectValues(objects: Record<string, any>): Record<string, n
 /**
  * Write values to objects.
  */
-export function writeObjectValues(objects: Record<string, any>, values: Record<string, number>) {
+export function writeObjectValues(
+  objects: Record<string, WritableSheetObject>,
+  values: Record<string, number>,
+) {
   for (const [key, value] of Object.entries(values)) {
-    const obj = objects[key];
+    // Record lookups can be absent at runtime despite the index type.
+    const obj = objects[key] as WritableSheetObject | undefined;
     if (obj) {
       try {
         obj.value = { [key]: value };

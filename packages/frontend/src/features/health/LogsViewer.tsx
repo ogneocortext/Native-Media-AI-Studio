@@ -171,7 +171,6 @@ export function LogsViewer() {
   const parsedLines = useMemo(() => {
     return logContent
       .map((line) => parseLogLine(line))
-      .filter((parsed): parsed is ParsedLogLine => parsed !== null)
       .filter((parsed) => {
         if (showOnlyErrors && !parsed.isError && !parsed.isWarning) return false;
         if (searchFilter) {
@@ -292,7 +291,9 @@ export function LogsViewer() {
               Errors Only
             </button>
             <button
-              onClick={async () => fetchLogContent()}
+              onClick={() => {
+                void fetchLogContent();
+              }}
               disabled={loading}
               className="btn btn-ghost btn-sm flex items-center gap-1.5"
             >
@@ -386,7 +387,9 @@ export function LogsViewer() {
                             errors, and connection status.
                           </p>
                           <button
-                            onClick={handleStartComfyUI}
+                            onClick={() => {
+                              void handleStartComfyUI();
+                            }}
                             className="btn btn-primary btn-sm inline-flex items-center gap-2"
                           >
                             <Play size={14} />

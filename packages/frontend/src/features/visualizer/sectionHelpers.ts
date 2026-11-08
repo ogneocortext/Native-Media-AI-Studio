@@ -46,7 +46,9 @@ export function getSectionColors(section: string): SectionColors {
     "FINAL DROP": { base: "#f43f5e", glow: "#e11d48", energy: "#fda4af" },
     OUTRO: { base: "#94a3b8", glow: "#64748b", energy: "#cbd5e1" },
   };
-  return sectionColors[section] || sectionColors.VERSE;
+  // Unknown sections are absent at runtime despite the Record index type.
+  const colors = sectionColors[section] as SectionColors | undefined;
+  return colors ?? sectionColors.VERSE;
 }
 
 /**

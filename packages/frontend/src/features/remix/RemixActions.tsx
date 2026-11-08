@@ -74,14 +74,14 @@ export function RemixActions({
     <>
       <div className="flex flex-wrap gap-1.5 pt-1">
         <button
-          onClick={onPreview}
+          onClick={() => void onPreview()}
           disabled={busy !== null}
           className="flex items-center gap-1 px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] text-white disabled:opacity-40"
         >
           {busy === "preview" ? <Loader2 size={10} className="animate-spin" /> : null} Preview
         </button>
         <button
-          onClick={onListen}
+          onClick={() => void onListen()}
           disabled={busy !== null || !hasPlayableSlots}
           className="flex items-center gap-1 px-2 py-1 rounded bg-violet-500/20 hover:bg-violet-500/30 text-[10px] text-violet-100 disabled:opacity-40"
           title="Render a ~30 s excerpt of this arrangement and play it"
@@ -90,7 +90,7 @@ export function RemixActions({
           Audition
         </button>
         <button
-          onClick={onBuild}
+          onClick={() => void onBuild()}
           disabled={busy !== null}
           className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-[10px] text-amber-100 disabled:opacity-40"
         >
@@ -177,7 +177,7 @@ export function RemixActions({
               Hear “{built.name}”{currentVersion !== null ? ` v${currentVersion}` : ""}
             </span>
             <button
-              onClick={onMaster}
+              onClick={() => void onMaster()}
               disabled={busy !== null || built.has_enhanced || versionPick !== null}
               title={
                 versionPick !== null

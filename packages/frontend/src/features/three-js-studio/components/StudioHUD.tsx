@@ -1,9 +1,11 @@
+import type { AnimObject, CameraMode, SceneConfig } from "../types";
+
 interface StudioHUDProps {
-  objects: any[];
-  cameraMode: string;
+  objects: AnimObject[];
+  cameraMode: CameraMode;
   beatSync: boolean;
   bpm: number;
-  sceneConfig: any;
+  sceneConfig: SceneConfig;
   beatActive: boolean;
   focusMode: boolean;
 }

@@ -12,6 +12,20 @@ export interface Disposable {
 }
 
 /**
+ * R3F's `gl` is a `WebGPURenderer` when the opt-in `gl` factory ran
+ * (see `webgpu/WebGPURendererDetector.ts`), otherwise a `WebGLRenderer`.
+ * `isWebGPURenderer` only exists on the WebGPU renderer, so probe it through
+ * this narrow shape instead of casting `gl` to `any`.
+ */
+export function isWebGPURendererInstance(gl: unknown): boolean {
+  return (
+    typeof gl === "object" &&
+    gl !== null &&
+    (gl as { isWebGPURenderer?: unknown }).isWebGPURenderer === true
+  );
+}
+
+/**
  * Dispose manually-created three.js resources when the owning component unmounts.
  *
  * Why this is needed: R3F only auto-disposes objects *it* created from JSX
@@ -25,12 +39,12 @@ export interface Disposable {
  * Safe to pass a module-scoped shared resource (e.g. the particle texture):
  * only call this for instances the component owns.
  */
-export function useDisposeOnUnmount(...resources: Disposable[]): void {
+export function useDisposeOnUnmount(...resources: (Disposable | null | undefined)[]): void {
   useEffect(() => {
     return () => {
       for (const resource of resources) {
         try {
-          resource.dispose?.();
+          resource?.dispose?.();
         } catch {
           /* already disposed / renderer gone */
         }

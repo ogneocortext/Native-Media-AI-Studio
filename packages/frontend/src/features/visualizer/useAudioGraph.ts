@@ -88,9 +88,19 @@ export function useAudioGraph(audioElRef: React.RefObject<HTMLMediaElement | nul
       sourceRef.current = null;
       connectedElements.current = new WeakSet();
     }
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({
+    // window.AudioContext is typed non-optional but absent on legacy WebKit;
+    // webkitAudioContext is the prefixed fallback.
+    const audioWindow = window as unknown as {
+      AudioContext?: typeof AudioContext;
+      webkitAudioContext?: typeof AudioContext;
+    };
+    const AudioContextCtor = audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
+    if (!AudioContextCtor) throw new Error("Web Audio API is not supported in this browser");
+    const ctx = new AudioContextCtor({
+      // renderSizeHint is a non-standard Chromium hint kept for hardware
+      // rendering preference; not part of the standard options type.
       renderSizeHint: "hardware",
-    } as any);
+    } as AudioContextOptions);
     audioCtxRef.current = ctx;
     latencyRef.current = estimateOutputLatency(ctx);
     const analyser = ctx.createAnalyser();

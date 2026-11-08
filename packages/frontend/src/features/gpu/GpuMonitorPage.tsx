@@ -178,7 +178,7 @@ export function GpuMonitorPage() {
         mem_mb: p.used_mb ?? 0,
       }));
       const hasSnapshotMemory = snapshotProcs.some((p) => p.mem_mb > 0);
-      setProcesses(hasSnapshotMemory ? snapshotProcs : procs.processes || []);
+      setProcesses(hasSnapshotMemory ? snapshotProcs : procs.processes);
       setLastUpdated(Date.now());
       setNowTick(Date.now());
       setConsecutiveErrors(0);
@@ -240,7 +240,7 @@ export function GpuMonitorPage() {
 
   const filtered = useMemo(() => {
     let list = processes;
-    if (!showIdle && snapshot?.memory_available) list = list.filter((p) => (p.mem_mb ?? 0) > 1);
+    if (!showIdle && snapshot?.memory_available) list = list.filter((p) => p.mem_mb > 1);
     if (query.trim()) {
       const q = query.toLowerCase();
       list = list.filter(
@@ -253,7 +253,7 @@ export function GpuMonitorPage() {
     return [...list].sort((a, b) => (b.mem_mb || 0) - (a.mem_mb || 0));
   }, [processes, showIdle, query, snapshot?.memory_available]);
 
-  const hiddenIdleCount = processes.length - processes.filter((p) => (p.mem_mb ?? 0) > 1).length;
+  const hiddenIdleCount = processes.length - processes.filter((p) => p.mem_mb > 1).length;
   const totalAccounted = processes.reduce((a, p) => a + (p.mem_mb || 0), 0);
   const vramTotal = snapshot?.memory_total_mb ?? 0;
   const unaccountedMb = Math.max(0, (snapshot?.memory_used_mb ?? 0) - totalAccounted);
@@ -364,8 +364,8 @@ export function GpuMonitorPage() {
         snapshotName={snapshot.name}
         onSetIntervalSec={setIntervalSec}
         onTogglePaused={() => setPaused((p) => !p)}
-        onRefresh={async () => fetchAll(true)}
-        onSyncDB={async () => hydrateFromDB(range)}
+        onRefresh={() => void fetchAll(true)}
+        onSyncDB={() => void hydrateFromDB(range)}
         syncDisabled={refreshing || initialLoading}
       />
 
@@ -381,7 +381,7 @@ export function GpuMonitorPage() {
               ` (attempt ${consecutiveErrors} — auto-retries every ${intervalSec}s)`}
           </span>
           <button
-            onClick={async () => fetchAll(true)}
+            onClick={() => void fetchAll(true)}
             className="text-[11px] px-2.5 py-1 rounded-md bg-red-500/15 border border-red-500/25 text-red-200 hover:bg-red-500/25"
           >
             Retry now
@@ -409,7 +409,7 @@ export function GpuMonitorPage() {
         utilStats={utilStats}
         onSetRange={setRange}
         onExport={handleExport}
-        onClear={handleClear}
+        onClear={() => void handleClear()}
         confirmClear={confirmClear}
         rangeLabel={rangeLabel}
       />

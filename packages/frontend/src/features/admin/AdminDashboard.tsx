@@ -839,26 +839,26 @@ function TestAnalyticsTab() {
     setError(null);
     try {
       const [summaryRes, trendsRes, checkpointsRes, phasesRes] = await Promise.all([
-        fetch(`/api/test-analytics/summary?days=${days}`).then(async r => {
+        fetch(`/api/test-analytics/summary?days=${days}`).then(async (r): Promise<Record<string, GateSummary>> => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
+          return (await r.json()) as Record<string, GateSummary>;
         }),
-        fetch(`/api/test-analytics/trends/${selectedGate}?days=${days}`).then(async r => {
+        fetch(`/api/test-analytics/trends/${selectedGate}?days=${days}`).then(async (r): Promise<TrendPoint[]> => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
+          return (await r.json()) as TrendPoint[];
         }),
-        fetch(`/api/test-analytics/version-checkpoints?limit=20`).then(async r => {
+        fetch(`/api/test-analytics/version-checkpoints?limit=20`).then(async (r): Promise<{ checkpoints?: VersionCheckpoint[] }> => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
+          return (await r.json()) as { checkpoints?: VersionCheckpoint[] };
         }),
-        fetch(`/api/test-analytics/phase-durations`).then(async r => {
+        fetch(`/api/test-analytics/phase-durations`).then(async (r): Promise<PhaseDuration[]> => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
+          return (await r.json()) as PhaseDuration[];
         }),
       ]);
       setSummary(summaryRes);
       setTrends(trendsRes);
-      setCheckpoints(checkpointsRes.checkpoints || []);
+      setCheckpoints(checkpointsRes.checkpoints ?? []);
       setPhaseDurations(phasesRes);
     } catch (e) {
       console.error("Failed to fetch test analytics:", e);
@@ -869,7 +869,7 @@ function TestAnalyticsTab() {
   }, [days, selectedGate]);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
 
   // Only gates that actually record runs appear in the summary — deriving
@@ -921,7 +921,7 @@ function TestAnalyticsTab() {
               <option value={90}>90</option>
             </select>
           </div>
-          <button onClick={fetchData} disabled={loading} className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50 w-full sm:w-auto">
+          <button onClick={() => { void fetchData(); }} disabled={loading} className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50 w-full sm:w-auto">
             {loading ? "Loading..." : "Refresh"}
           </button>
         </div>
@@ -1013,8 +1013,8 @@ function TestAnalyticsTab() {
                 {checkpoints.map((c) => (
                   <tr key={c.id} className="border-b border-border/50 hover:bg-muted/50">
                     <td className="py-2 px-3 font-mono text-sm">{c.version}</td>
-                    <td className="py-2 px-3"><Badge variant={c.phase || "unknown"}>{c.phase}</Badge></td>
-                    <td className="py-2 px-3 text-sm text-muted-foreground">{c.milestone || "—"}</td>
+                    <td className="py-2 px-3"><Badge variant={(c.phase ?? "") || "unknown"}>{c.phase}</Badge></td>
+                    <td className="py-2 px-3 text-sm text-muted-foreground">{(c.milestone ?? "") || "—"}</td>
                     <td className="py-2 px-3 text-sm text-muted-foreground">{c.started_at ? new Date(c.started_at).toLocaleDateString() : "—"}</td>
                     <td className="py-2 px-3 text-sm text-muted-foreground">{c.completed_at ? new Date(c.completed_at).toLocaleDateString() : "—"}</td>
                     <td className="py-2 px-3 text-sm text-muted-foreground">{formatDuration(c.duration_days)}</td>
@@ -1201,7 +1201,9 @@ export function AdminDashboard() {
   const navigate = useNavigate();
 
   // Keyboard shortcuts
-  useGlobalShortcuts(navigate);
+  useGlobalShortcuts((path) => {
+    void navigate(path);
+  });
 
   // Command palette toggle
   useEffect(() => {

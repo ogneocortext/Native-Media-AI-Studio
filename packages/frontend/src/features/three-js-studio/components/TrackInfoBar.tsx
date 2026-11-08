@@ -1,9 +1,10 @@
 import { Zap } from "lucide-react";
+import type { AudioAnalysisResult } from "../../../services/api";
 
 interface TrackInfoBarProps {
   beatSync: boolean;
   bpm: number;
-  beatAnalysis: any;
+  beatAnalysis: AudioAnalysisResult | null;
   beatLoading: boolean;
   beatError: string | null;
   beatPunch: number;

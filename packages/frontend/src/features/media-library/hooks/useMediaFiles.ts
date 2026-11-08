@@ -27,7 +27,7 @@ export interface MediaFile {
 
 export interface FilterState {
   query: string;
-  fileType: string | "all";
+  fileType: string;
   tagFilter: string | null;
   sortBy: "name" | "size" | "date";
   sortOrder: "asc" | "desc";
@@ -53,8 +53,11 @@ export function useMediaFiles() {
           { timeout: 15000 },
         );
         if (!res.ok) throw new Error(`Failed to load files: ${res.status}`);
-        const data = await res.json();
-        const batch = (data.outputs ?? []) as Record<string, unknown>[];
+        const data = (await res.json()) as {
+          outputs?: Record<string, unknown>[];
+          total?: number;
+        };
+        const batch = data.outputs ?? [];
         if (typeof data.total === "number") total = data.total;
         allRaw.push(...batch);
         if (batch.length < PAGE) break;
@@ -65,14 +68,14 @@ export function useMediaFiles() {
         path: f.path || "",
         relative_path: f.relative_path || "",
         file_type: f.file_type || "unknown",
-        size_bytes: f.size_bytes ?? f.size ?? 0,
+        size_bytes: (f.size_bytes as number | undefined) ?? f.size ?? 0,
         created_at: f.created_at || new Date().toISOString(),
         modified_at: f.modified_at ?? f.modified_time ?? null,
         cover_image: f.cover_image ?? null,
-        has_cover: f.has_cover ?? false,
-        metadata: f.metadata ?? {},
+        has_cover: (f.has_cover as boolean | undefined) ?? false,
+        metadata: (f.metadata as Record<string, unknown> | undefined) ?? {},
         job_id: f.job_id ?? null,
-        size: f.size_bytes ?? f.size ?? 0,
+        size: (f.size_bytes as number | undefined) ?? f.size ?? 0,
         modified_time: f.modified_at ?? f.modified_time ?? undefined,
         duration: f.duration_seconds ?? f.duration,
         loudness: f.loudness_lufs ?? f.loudness,

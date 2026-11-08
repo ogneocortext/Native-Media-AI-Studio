@@ -145,7 +145,7 @@ export async function queueImageJob(
   options: Record<string, unknown> = {},
 ): Promise<{ job_id: string; status: string }> {
   const base = getApiBase();
-  const backend = (options.backend as string) ?? "comfyui";
+  const backend = (options.backend as string | undefined) ?? "comfyui";
 
   return postJson<{ job_id: string; status: string }>(
     `${base}/api/integrations/${backend}/job`,

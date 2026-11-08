@@ -39,7 +39,7 @@ export function useVideoModels() {
         timeout: 15000,
       });
       if (!vmRes.ok) throw new Error(`video-models ${vmRes.status}`);
-      const vmData: { video_models?: RawVideoModel[] } = await vmRes.json();
+      const vmData = (await vmRes.json()) as { video_models?: RawVideoModel[] };
       const raw: RawVideoModel[] = vmData.video_models ?? [];
 
       // Deduplicate by name, prefer entries with variant metadata
@@ -66,7 +66,7 @@ export function useVideoModels() {
       try {
         const healthRes = await fetchWithTimeout("/api/services/comfyui/status", { timeout: 6000 });
         if (healthRes.ok) {
-          const h = await healthRes.json();
+          const h = (await healthRes.json()) as { running?: boolean };
           setComfyStatus(h.running ? "online" : "offline");
         }
       } catch {

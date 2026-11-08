@@ -22,7 +22,7 @@ const matches = (a: string, b: string): boolean =>
  * spelling entered is the one kept, since that is what gets pasted.
  */
 export function toggleTag(selection: readonly string[], tag: string): string[] {
-  const clean = (tag ?? "").trim();
+  const clean = tag.trim();
   if (!clean) return [...selection];
   const existing = selection.findIndex((t) => matches(t, clean));
   if (existing >= 0) return selection.filter((_, i) => i !== existing);

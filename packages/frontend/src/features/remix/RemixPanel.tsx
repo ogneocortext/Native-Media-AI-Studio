@@ -220,9 +220,10 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
     if (!open || !sourcesLoaded || tracks.length === 0) return;
     let live = true;
     const rows: (readonly [string, number, number, number])[] = [];
+    const isLive = () => live;
     void (async () => {
       for (let i = 0; i < tracks.length; i += 6) {
-        if (!live) return;
+        if (!isLive()) return;
         const batch = await Promise.all(
           tracks.slice(i, i + 6).map(async (t) =>
             probeRemixTrack(t)
@@ -232,7 +233,7 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
         );
         rows.push(...batch);
       }
-      if (!live) return;
+      if (!isLive()) return;
       setDurations(Object.fromEntries(rows.map(([t, d]) => [t, d])));
       setFirstAudible(Object.fromEntries(rows.map(([t, , f]) => [t, f])));
       setProbeBpm(Object.fromEntries(rows.map(([t, , , b]) => [t, b])));
@@ -756,7 +757,7 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
           </p>
           {currentTrack ? (
             <button
-              onClick={runSeparate}
+              onClick={() => void runSeparate()}
               disabled={busy !== null}
               className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-[10px] text-amber-100 disabled:opacity-40"
             >

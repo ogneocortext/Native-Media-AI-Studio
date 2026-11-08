@@ -50,7 +50,9 @@ export function useFileFilters(
           comparison = a.filename.localeCompare(b.filename);
           break;
         case "size":
-          comparison = (a.size_bytes ?? a.size ?? 0) - (b.size_bytes ?? b.size ?? 0);
+          comparison =
+            ((a.size_bytes as number | undefined) ?? a.size ?? 0) -
+            ((b.size_bytes as number | undefined) ?? b.size ?? 0);
           break;
         case "date":
           comparison =

@@ -58,6 +58,10 @@ export function SettingsPanel({
       p.genres.some((g) => g.toLowerCase().includes(q))
     );
   });
+  // Record lookups can be absent at runtime despite the index type.
+  const activePreset: (typeof visualPresets)[string] | undefined = activeVisualPresetId
+    ? visualPresets[activeVisualPresetId]
+    : undefined;
   return (
     <aside className="viz-settings">
       <div className="viz-settings-section">
@@ -224,17 +228,16 @@ export function SettingsPanel({
           />
           <span>Ground</span>
         </label>
-        {activeVisualPresetId && visualPresets[activeVisualPresetId] && (
+        {activePreset && (
           <button
             className="viz-reset"
             onClick={() => {
-              const p = visualPresets[activeVisualPresetId];
-              onChange({ ...DEFAULT_VIZ_PARAMS, ...p.vizParams });
-              onBgChange(p.bgColor);
-              onMeshChange(p.meshColor);
+              onChange({ ...DEFAULT_VIZ_PARAMS, ...activePreset.vizParams });
+              onBgChange(activePreset.bgColor);
+              onMeshChange(activePreset.meshColor);
             }}
           >
-            Reset to {visualPresets[activeVisualPresetId].name}
+            Reset to {activePreset.name}
           </button>
         )}
         <button className="viz-reset" onClick={() => onChange(DEFAULT_VIZ_PARAMS)}>

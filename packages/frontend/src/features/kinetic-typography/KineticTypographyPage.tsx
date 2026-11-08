@@ -25,9 +25,15 @@ import {
   kineticPresets,
   kineticPresetList,
   selectPresetForTrack,
+  type KineticPreset,
   type LyricLine,
 } from "../visualizer/components/KineticPresets";
-import { ensureAnalysis, transcribeAudio, getLyricsByFilename } from "../../services/api";
+import {
+  ensureAnalysis,
+  transcribeAudio,
+  getLyricsByFilename,
+  type AudioAnalysisResult,
+} from "../../services/api";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { groupAudioEntries, parseVariantName, variantLabel } from "../../state/audioNaming";
 import { parseLyricsFromCsv, parseLrc } from "../visualizer/lyricsParser";
@@ -117,7 +123,7 @@ interface TrackInfo {
 
 // Helper: find the closest beat time index for a given time
 function findBeatIndex(beatTimes: number[], time: number): number {
-  if (!beatTimes || beatTimes.length === 0) return -1;
+  if (beatTimes.length === 0) return -1;
   let closest = -1;
   let minDist = Infinity;
   for (let i = 0; i < beatTimes.length; i++) {
@@ -226,7 +232,9 @@ export function KineticTypographyPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastBeatIdxRef = useRef(-1);
   const pendingTrackRef = useRef<string | null>(null);
-  const preset = kineticPresets[activePreset] || kineticPresets.cinematic;
+  const preset =
+    (kineticPresets as Record<string, KineticPreset | undefined>)[activePreset] ??
+    kineticPresets.cinematic;
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
 
   // Audio URL for selected track
@@ -243,7 +251,9 @@ export function KineticTypographyPage() {
     // Load the track-lyrics library index (user's own tracks, no LRC needed)
     fetchTrackLyricsIndex()
       .then((idx) => {
-        const complete = (idx.tracks || []).filter((t) => t.lyricsStatus === "complete");
+        const complete = (idx as { tracks?: TrackLyricsIndexEntry[] }).tracks?.filter(
+          (t) => t.lyricsStatus === "complete",
+        ) ?? [];
         libraryTracksRef.current = complete;
         setLibraryTracks(complete);
       })
@@ -362,9 +372,7 @@ export function KineticTypographyPage() {
         el.style.transform = "scaleY(1.25)";
         el.style.transition = "transform 0.08s ease-out";
         setTimeout(() => {
-          if (bassEl) {
-            (bassEl as HTMLElement).style.transform = "scaleY(1)";
-          }
+          (bassEl as HTMLElement).style.transform = "scaleY(1)";
         }, 100);
       }
     }
@@ -452,11 +460,12 @@ export function KineticTypographyPage() {
       // First try to load from database
       try {
         const dbLyrics = await getLyricsByFilename(filename);
-        if (dbLyrics.lines && dbLyrics.lines.length > 0) {
+        const dbLines = (dbLyrics as { lines?: LyricLine[] }).lines;
+        if (dbLines && dbLines.length > 0) {
           // Ensure section is always a string
-          const lines: LyricLine[] = dbLyrics.lines.map((l) => ({
+          const lines: LyricLine[] = dbLines.map((l) => ({
             ...l,
-            section: l.section ?? "VERSE",
+            section: (l as { section?: string }).section ?? "VERSE",
           }));
           setLyrics(lines);
           setLyricsData(legacyToLyricsData(lines));
@@ -550,13 +559,14 @@ export function KineticTypographyPage() {
       setTranscriptionStatus("Transcribing with Whisper...");
       const result = await transcribeAudio(filename);
 
-      if (result.segments && result.segments.length > 0) {
-        const lines: LyricLine[] = result.segments.map((l) => ({
+      const segments = (result as { segments?: LyricLine[] }).segments;
+      if (segments && segments.length > 0) {
+        const lines: LyricLine[] = segments.map((l) => ({
           start: l.start,
           end: l.end,
           text: l.text,
           words: l.words,
-          section: l.section ?? "VERSE",
+          section: (l as { section?: string }).section ?? "VERSE",
         }));
         setLyrics(lines);
         setLyricsData(legacyToLyricsData(lines));
@@ -603,7 +613,7 @@ export function KineticTypographyPage() {
         // Ensure analysis exists (runs if not cached)
         const result = await ensureAnalysis(filename);
         if (trackRequestRef.current !== requestId) return;
-        const analysis = result.analysis;
+        const analysis = result.analysis as AudioAnalysisResult | undefined;
         if (analysis) {
           const energy = analysis.energy_curve.length
             ? analysis.energy_curve.reduce((a: number, b: number) => a + b, 0) /
@@ -614,9 +624,9 @@ export function KineticTypographyPage() {
             bpm: Math.round(analysis.tempo_bpm),
             duration: Math.round(analysis.duration_seconds),
             energy,
-            beatTimes: analysis.beat_times || [],
-            energyCurve: analysis.energy_curve || [],
-            sections: analysis.sections || [],
+            beatTimes: analysis.beat_times,
+            energyCurve: analysis.energy_curve,
+            sections: analysis.sections,
           };
           setSelectedTrack(trackInfo);
           if (autoPreset) {
@@ -928,9 +938,13 @@ export function KineticTypographyPage() {
                   className="kt-select"
                   aria-label="Select track"
                   value={selectedTrack?.filename ?? ""}
-                  onChange={async (e) =>
-                    e.target.value ? handleTrackSelect(e.target.value) : setSelectedTrack(null)
-                  }
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      void handleTrackSelect(e.target.value);
+                    } else {
+                      setSelectedTrack(null);
+                    }
+                  }}
                 >
                   <option value="">Demo Mode (Sample Lyrics)</option>
                   {/* Grouped: a track heads its own block and its preset
@@ -968,7 +982,7 @@ export function KineticTypographyPage() {
                   className="kt-select"
                   aria-label="Select a track from the lyric library"
                   value={selectedLibraryTrackId ?? ""}
-                  onChange={async (e) => handleLibraryTrackSelect(e.target.value)}
+                  onChange={(e) => void handleLibraryTrackSelect(e.target.value)}
                 >
                   <option value="">None — use audio library above</option>
                   {libraryTracks.map((t) => (
@@ -1020,7 +1034,7 @@ export function KineticTypographyPage() {
                 {selectedTrack && (
                   <button
                     className="kt-transcribe-btn"
-                    onClick={async () => handleTranscribe(selectedTrack.filename)}
+                    onClick={() => void handleTranscribe(selectedTrack.filename)}
                     disabled={isTranscribing}
                   >
                     {isTranscribing ? (
@@ -1044,7 +1058,7 @@ export function KineticTypographyPage() {
                 {selectedTrack && (
                   <button
                     className="kt-btn kt-btn-primary"
-                    onClick={handleGenerateVideo}
+                    onClick={() => void handleGenerateVideo()}
                     disabled={isGeneratingVideo}
                   >
                     {isGeneratingVideo ? (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Trash2 } from "lucide-react";
 import { Card } from "../../components/common";
 import { getPrompts, savePrompt, deletePrompt } from "../../services/api/data";
@@ -24,8 +24,8 @@ function load(): SavedPrompt[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as SavedPrompt[]) : [];
   } catch {
     return [];
   }
@@ -49,17 +49,18 @@ export function SavedPromptsPanel() {
   const [copied, setCopied] = useState<string | null>(null);
 
   // Hydrate from backend DB (source of truth) on mount, falling back to localStorage.
+  const mountedRef = useRef(true);
   useEffect(() => {
-    let cancelled = false;
+    mountedRef.current = true;
     void (async () => {
       try {
         const remote = await getPrompts({ prompt_type: "music_prompt", limit: 500 });
-        if (cancelled) return;
+        if (!mountedRef.current) return;
         const parsed: SavedPrompt[] = [];
         for (const r of remote) {
           try {
-            const obj = JSON.parse(r.text || "{}");
-            if (obj?.id) parsed.push(obj as SavedPrompt);
+            const obj = JSON.parse(r.text || "{}") as SavedPrompt | null;
+            if (obj?.id) parsed.push(obj);
           } catch {
             /* skip malformed */
           }
@@ -73,7 +74,7 @@ export function SavedPromptsPanel() {
       }
     })();
     return () => {
-      cancelled = true;
+      mountedRef.current = false;
     };
   }, []);
 
@@ -114,8 +115,9 @@ export function SavedPromptsPanel() {
   };
 
   const remove = (id: string) => {
-    const item = items.find((i) => i.id === id) as
-      (SavedPrompt & { backendId?: string }) | undefined;
+    const item = items.find(
+      (i): i is SavedPrompt & { backendId?: string } => i.id === id,
+    );
     if (item?.backendId) {
       void deletePrompt(item.backendId).catch(() => {
         void 0;
@@ -192,7 +194,9 @@ export function SavedPromptsPanel() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={async () => copyAll(p)}
+                    onClick={() => {
+                      void copyAll(p);
+                    }}
                     className="text-gray-500 hover:text-white"
                     aria-label="Copy all prompt fields"
                     title="Copy all"
@@ -228,7 +232,9 @@ export function SavedPromptsPanel() {
                     <span className="text-gray-400 font-medium">Style</span>
                     <button
                       type="button"
-                      onClick={async () => copy(p.id + ":style", p.style)}
+                      onClick={() => {
+                        void copy(p.id + ":style", p.style);
+                      }}
                       className="text-gray-500 hover:text-white"
                       aria-label="Copy style"
                     >
@@ -244,7 +250,9 @@ export function SavedPromptsPanel() {
                     <span className="text-gray-400 font-medium">Lyrics</span>
                     <button
                       type="button"
-                      onClick={async () => copy(p.id + ":lyrics", p.lyrics)}
+                      onClick={() => {
+                        void copy(p.id + ":lyrics", p.lyrics);
+                      }}
                       className="text-gray-500 hover:text-white"
                       aria-label="Copy lyrics"
                     >

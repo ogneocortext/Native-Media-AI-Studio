@@ -93,7 +93,7 @@ export function DataManagementPage() {
           break;
         case "scenes": {
           const scenesData = await listSavedScenes();
-          data = scenesData.scenes || [];
+          data = scenesData.scenes;
           break;
         }
         case "history":
@@ -136,18 +136,18 @@ export function DataManagementPage() {
     [loadTab],
   );
 
-  const prompts = (tabStates.prompts.data as StoredPrompt[]) ?? [];
-  const visuals = (tabStates.visuals.data as AIVisualRecord[]) ?? [];
-  const sessions = (tabStates.sessions.data as GenerationSession[]) ?? [];
-  const tracks = (tabStates.tracks.data as APITrack[]) ?? [];
-  const scenes = ((tabStates.scenes.data as {
+  const prompts = (tabStates.prompts.data ?? []) as StoredPrompt[];
+  const visuals = (tabStates.visuals.data ?? []) as AIVisualRecord[];
+  const sessions = (tabStates.sessions.data ?? []) as GenerationSession[];
+  const tracks = (tabStates.tracks.data ?? []) as APITrack[];
+  const scenes = (tabStates.scenes.data ?? []) as {
     filename: string;
     path: string;
     size: number;
     modified: string;
-  }[]) ?? []) as { filename: string; path: string; size: number; modified: string }[];
-  const history = (tabStates.history.data as PromptHistoryEntry[]) ?? [];
-  const preferences = (tabStates.preferences.data as Record<string, unknown>) ?? {};
+  }[];
+  const history = (tabStates.history.data ?? []) as PromptHistoryEntry[];
+  const preferences = (tabStates.preferences.data ?? {}) as Record<string, unknown>;
 
   const handleDelete = (tab: TabKey, id: string, label: string, onConfirm: () => void) => {
     setDeleteConfirm({ tab, id, label, onConfirm });
@@ -268,7 +268,9 @@ export function DataManagementPage() {
               description="Save prompts from the Music Video Wizard to see them here."
               action={{
                 label: "Create prompt",
-                onClick: async () => navigate("/music-video-wizard"),
+                onClick: () => {
+                  void navigate("/music-video-wizard");
+                },
                 icon: <Plus size={14} />,
               }}
             />
@@ -365,7 +367,9 @@ export function DataManagementPage() {
               description="Generate visuals from the Image Generation page to see them here."
               action={{
                 label: "Generate visual",
-                onClick: async () => navigate("/image-generation"),
+                onClick: () => {
+                  void navigate("/image-generation");
+                },
                 icon: <Play size={14} />,
               }}
             />
@@ -412,7 +416,9 @@ export function DataManagementPage() {
               description="Generation sessions appear here after you start a music video or AI generation job."
               action={{
                 label: "Create session",
-                onClick: async () => navigate("/music-video-wizard"),
+                onClick: () => {
+                  void navigate("/music-video-wizard");
+                },
                 icon: <Plus size={14} />,
               }}
             />
@@ -455,7 +461,9 @@ export function DataManagementPage() {
               description="Upload audio tracks from the Audio Analysis page to see them here."
               action={{
                 label: "Upload track",
-                onClick: async () => navigate("/audio-analysis"),
+                onClick: () => {
+                  void navigate("/audio-analysis");
+                },
                 icon: <Upload size={14} />,
               }}
             />
@@ -503,7 +511,9 @@ export function DataManagementPage() {
               description="Save 3D scenes from Three.js Studio to see them here."
               action={{
                 label: "Create scene",
-                onClick: async () => navigate("/three-js-studio"),
+                onClick: () => {
+                  void navigate("/three-js-studio");
+                },
                 icon: <Plus size={14} />,
               }}
             />
@@ -540,7 +550,9 @@ export function DataManagementPage() {
               description="Prompt versions and repair history appear here as you work in the Music Video Wizard."
               action={{
                 label: "Start generating",
-                onClick: async () => navigate("/music-video-wizard"),
+                onClick: () => {
+                  void navigate("/music-video-wizard");
+                },
                 icon: <ArrowRight size={14} />,
               }}
             />
@@ -603,7 +615,9 @@ export function DataManagementPage() {
               description="Application preferences appear here after you configure settings."
               action={{
                 label: "Open Settings",
-                onClick: async () => navigate("/settings"),
+                onClick: () => {
+                  void navigate("/settings");
+                },
                 icon: <Settings size={14} />,
               }}
             />

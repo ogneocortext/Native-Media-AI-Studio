@@ -371,7 +371,7 @@ export function deterministicAudioFrame(input: DeterministicFrameInput): Determi
   // matches what the user saw: 60% keeps transients, 40% anchors to structure.
   // Without an energy curve the measured RMS stands alone.
   const energy = analyzedEnergy > 0 ? rms * 0.6 + analyzedEnergy * 0.4 : rms;
-  const phase = analysis ? getBeatPhase(analysis.beat_times ?? [], t) : null;
+  const phase = analysis ? getBeatPhase(analysis.beat_times, t) : null;
   const envelope = analysis?.amplitude_envelope.length
     ? getEnergyAtTime(analysis.amplitude_envelope, duration, t)
     : rms;

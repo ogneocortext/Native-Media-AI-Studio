@@ -52,6 +52,15 @@ export function isHtmlInCanvasOptIn(): boolean {
 let htmlInCanvasProbe: Promise<boolean> | null = null;
 
 /**
+ * Chrome 157+ extends CanvasRenderingContext2D with these methods.
+ * Not yet in lib.dom, so declare the narrow shape we actually call.
+ */
+type HtmlInCanvasContext = CanvasRenderingContext2D & {
+  drawHTML?: (this: CanvasRenderingContext2D, element: HTMLElement, x: number, y: number, w: number, h: number) => void;
+  drawWindow?: (this: CanvasRenderingContext2D, element: HTMLElement, x: number, y: number, w: number, h: number) => void;
+};
+
+/**
  * Hook: detect HTML-in-Canvas capability without rendering anything.
  */
 export function useHtmlInCanvas(): HtmlInCanvasResult {
@@ -107,24 +116,25 @@ export function useHtmlInCanvas(): HtmlInCanvasResult {
 export async function detectHtmlInCanvasSupport(): Promise<boolean> {
   if (htmlInCanvasProbe) return htmlInCanvasProbe;
 
-  htmlInCanvasProbe = (async () => {
+  htmlInCanvasProbe = Promise.resolve().then(() => {
     try {
-      // Check for drawHTML method on CanvasRenderingContext2D
-      if (typeof document === "undefined" || !document.createElement("canvas").getContext) {
+      if (typeof document === "undefined") {
         return false;
       }
 
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       if (!ctx) return false;
+      // All-optional extension interface — plain assignment, no assertion.
+      const htmlCtx: HtmlInCanvasContext = ctx;
 
       // Chrome 157+ exposes drawHTML / drawWindow on CanvasRenderingContext2D
-      if (typeof (ctx as any).drawHTML === "function") {
+      if (typeof htmlCtx.drawHTML === "function") {
         return true;
       }
 
       // Alternative: check for drawWindow
-      if (typeof (ctx as any).drawWindow === "function") {
+      if (typeof htmlCtx.drawWindow === "function") {
         return true;
       }
 
@@ -132,7 +142,7 @@ export async function detectHtmlInCanvasSupport(): Promise<boolean> {
     } catch {
       return false;
     }
-  })();
+  });
   return htmlInCanvasProbe;
 }
 
@@ -158,18 +168,21 @@ export function drawHtmlIntoCanvas(
 ): boolean {
   const ctx = canvas.getContext("2d");
   if (!ctx) return false;
+  const htmlCtx: HtmlInCanvasContext = ctx;
 
   const w = width ?? htmlElement.offsetWidth;
   const h = height ?? htmlElement.offsetHeight;
 
   // Chrome 157+: drawHTML into canvas
   try {
-    if (typeof (ctx as any).drawHTML === "function") {
-      (ctx as any).drawHTML(htmlElement, x, y, w, h);
+    const drawHTML = htmlCtx.drawHTML?.bind(ctx);
+    if (drawHTML) {
+      drawHTML(htmlElement, x, y, w, h);
       return true;
     }
-    if (typeof (ctx as any).drawWindow === "function") {
-      (ctx as any).drawWindow(htmlElement, x, y, w, h);
+    const drawWindow = htmlCtx.drawWindow?.bind(ctx);
+    if (drawWindow) {
+      drawWindow(htmlElement, x, y, w, h);
       return true;
     }
   } catch {

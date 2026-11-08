@@ -148,7 +148,7 @@ export function SubAgentChat() {
             ]);
             setLoading(false);
             eventSourceRef.current = null;
-          } else if (event.type === "agent_cancelled") {
+          } else {
             setIterations((prev) => [
               ...prev,
               {
@@ -279,7 +279,7 @@ export function SubAgentChat() {
       {/* Task Input */}
       <Card className="shrink-0">
         <div className="p-4">
-          <form onSubmit={handleSend} className="flex items-center gap-3">
+          <form onSubmit={(e) => void handleSend(e)} className="flex items-center gap-3">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -298,7 +298,11 @@ export function SubAgentChat() {
               disabled={!input.trim() || loading}
               className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center text-white hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? <StopCircle size={16} onClick={handleCancel} /> : <Play size={16} />}
+              {loading ? (
+                <StopCircle size={16} onClick={() => void handleCancel()} />
+              ) : (
+                <Play size={16} />
+              )}
             </button>
           </form>
           {loading && (

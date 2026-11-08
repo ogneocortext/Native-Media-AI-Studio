@@ -53,8 +53,8 @@ interface RenderResult {
 interface RenderResponse {
   name: string;
   preview: boolean;
-  results: RenderResult[];
-  errors: { system: string; error: string }[];
+  results?: RenderResult[];
+  errors?: { system: string; error: string }[];
 }
 
 /* ------------------------- .chip parsing -------------------------- */
@@ -68,7 +68,7 @@ interface ChipModel {
   system: string;
   tempo: number;
   order: string[];
-  patterns: Record<string, ParsedPattern>;
+  patterns: Partial<Record<string, ParsedPattern>>;
   partNames: string[];
 }
 
@@ -76,26 +76,27 @@ function parseChip(text: string): ChipModel | null {
   let system = "nes";
   let tempo = 125;
   let order: string[] = [];
-  const rawPatterns: Record<string, Record<string, string[]>> = {};
+  const rawPatterns: Partial<Record<string, Partial<Record<string, string[]>>>> = {};
   const partNames: string[] = [];
   let current: string | null = null;
 
   const addPart = (pat: string, part: string, cells: string[]) => {
-    if (!rawPatterns[pat]) rawPatterns[pat] = {};
-    rawPatterns[pat][part] = cells;
+    const bucket = rawPatterns[pat] ?? {};
+    bucket[part] = cells;
+    rawPatterns[pat] = bucket;
     if (!partNames.includes(part)) partNames.push(part);
   };
 
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) continue;
-    const patMatch = line.match(/^pattern\s+(\S+)\s*:$/i);
+    const patMatch = /^pattern\s+(\S+)\s*:$/i.exec(line);
     if (patMatch) {
       current = patMatch[1];
-      if (!rawPatterns[current]) rawPatterns[current] = {};
+      rawPatterns[current] ??= {};
       continue;
     }
-    const partMatch = line.match(/^([A-Za-z0-9_]+)\s*:\s*(.+)$/);
+    const partMatch = /^([A-Za-z0-9_]+)\s*:\s*(.+)$/.exec(line);
     if (partMatch && !/^(system|tempo|swing|order|wave|vibrato|filter|ringmod)$/i.test(partMatch[1])) {
       const cells = line
         .slice(line.indexOf(":") + 1)
@@ -117,13 +118,13 @@ function parseChip(text: string): ChipModel | null {
   order = order.filter((n) => rawPatterns[n]);
   if (!order.length) order = names;
 
-  const patterns: Record<string, ParsedPattern> = {};
+  const patterns: Partial<Record<string, ParsedPattern>> = {};
   for (const name of names) {
-    const parts = partNames.filter((p) => rawPatterns[name][p]);
-    const rowsCount = Math.max(...parts.map((p) => rawPatterns[name][p].length), 0);
+    const parts = partNames.filter((p) => rawPatterns[name]?.[p]);
+    const rowsCount = Math.max(...parts.map((p) => rawPatterns[name]?.[p]?.length ?? 0), 0);
     const rows: string[][] = [];
     for (let r = 0; r < rowsCount; r++) {
-      rows.push(partNames.map((p) => rawPatterns[name][p]?.[r] ?? "."));
+      rows.push(partNames.map((p) => rawPatterns[name]?.[p]?.[r] ?? "."));
     }
     patterns[name] = { parts, rows };
   }
@@ -133,7 +134,7 @@ function parseChip(text: string): ChipModel | null {
 const SEMI: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 
 function noteMidi(token: string): number | null {
-  const m = token.match(/^([A-G])(#)?-(\d)/);
+  const m = /^([A-G])(#)?-(\d)/.exec(token);
   if (!m) return null;
   return 12 * (parseInt(m[3]) + 1) + SEMI[m[1]] + (m[2] ? 1 : 0);
 }
@@ -181,7 +182,7 @@ export function ChiptunePage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const model = useMemo(() => parseChip(pattern), [pattern]);
-  const effTempo = tempo ? parseFloat(tempo) || model?.tempo || 125 : model?.tempo ?? 125;
+  const effTempo = tempo ? parseFloat(tempo) || (model?.tempo ?? 125) : (model?.tempo ?? 125);
   const rowDur = 60 / effTempo / 4; // one cell = one 16th
   const totalRows = model ? model.order.reduce((n, p) => n + (model.patterns[p]?.rows.length ?? 0), 0) : 0;
 
@@ -200,10 +201,12 @@ export function ChiptunePage() {
       if (rest < rowsInPat) return { orderIdx: i, patName, row: rest, rowsInPat };
       rest -= rowsInPat;
     }
-    return { orderIdx: 0, patName: model.order[0] ?? "", row: 0, rowsInPat: model.patterns[model.order[0]]?.rows.length ?? 0 };
+    const firstPat = model.order.at(0) ?? "";
+    return { orderIdx: 0, patName: firstPat, row: 0, rowsInPat: model.patterns[firstPat]?.rows.length ?? 0 };
   }, [model, pos, totalRows]);
 
-  const curPattern: ParsedPattern | null = model && cursor.patName ? model.patterns[cursor.patName] : null;
+  const curPattern: ParsedPattern | null =
+    model && cursor.patName ? (model.patterns[cursor.patName] ?? null) : null;
 
   /* transport clock: rendered audio is the master when it is playing,
      otherwise a wall clock advances the row cursor (silent preview). */
@@ -278,12 +281,18 @@ export function ChiptunePage() {
   const loadMeta = useCallback(async () => {
     try {
       const [s, d] = await Promise.all([
-        fetch(`${api}/api/chiptune/systems`).then((r) => r.json()),
-        fetch(`${api}/api/chiptune/demo`).then((r) => r.json()),
+        fetch(`${api}/api/chiptune/systems`).then(
+          async (r) => (await r.json()) as { systems?: SystemInfo[] },
+        ),
+        fetch(`${api}/api/chiptune/demo`).then(
+          async (r) => (await r.json()) as { pattern?: string },
+        ),
       ]);
       setSystems(s.systems ?? []);
       setPattern(d.pattern ?? "");
-      const p = await fetch(`${api}/api/chiptune/patterns`).then((r) => r.json());
+      const p = (await fetch(`${api}/api/chiptune/patterns`).then(
+        async (r) => (await r.json()) as { patterns?: { name: string }[] },
+      ));
       setPatterns(p.patterns ?? []);
     } catch (e) {
       setError(String(e));
@@ -297,7 +306,9 @@ export function ChiptunePage() {
   const loadPattern = async (pname: string) => {
     if (!pname) return;
     try {
-      const j = await fetch(`${api}/api/chiptune/patterns/${pname}`).then((r) => r.json());
+      const j = (await fetch(`${api}/api/chiptune/patterns/${pname}`).then(
+        async (r) => (await r.json()) as { pattern?: string },
+      ));
       setPattern(j.pattern ?? "");
       setLoadedPattern(pname);
       setSaveName(pname);
@@ -318,7 +329,7 @@ export function ChiptunePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pattern }),
       });
-      const j = await r.json();
+      const j = (await r.json()) as { detail?: string };
       if (!r.ok) throw new Error(j.detail ?? r.statusText);
       setLoadedPattern(target);
       setSaveName(target);
@@ -346,7 +357,7 @@ export function ChiptunePage() {
       const fd = new FormData();
       fd.append("file", file);
       const r = await fetch(`${api}/api/chiptune/import-midi`, { method: "POST", body: fd });
-      const j = await r.json();
+      const j = (await r.json()) as { detail?: string; pattern?: string };
       if (!r.ok) throw new Error(j.detail ?? r.statusText);
       setPattern(j.pattern ?? "");
       setLoadedPattern("");
@@ -373,9 +384,9 @@ export function ChiptunePage() {
           preview,
         }),
       });
-      const j: RenderResponse = await r.json();
-      if (!r.ok) throw new Error((j as { detail?: string }).detail ?? r.statusText);
-      const items = (j.results ?? []).filter((x) => x.roll || x.wav);
+      const j = (await r.json()) as RenderResponse & { detail?: string };
+      if (!r.ok) throw new Error(j.detail ?? r.statusText);
+      const items = (j.results ?? []).filter((x) => x.roll ?? x.wav);
       if (items[0]?.metrics) setMetrics(items[0].metrics);
       if (preview) {
         setRolls(items.map((x) => ({ system: x.system, url: outUrl(api, x.roll ?? "") })));
@@ -454,7 +465,14 @@ export function ChiptunePage() {
             Tracker-pattern chip music - preview the roll before you listen (T-MUS-06)
           </p>
         </div>
-        <button onClick={loadMeta} disabled={!!busy} className="btn btn-ghost" title="Reload">
+        <button
+          onClick={() => {
+            void loadMeta();
+          }}
+          disabled={!!busy}
+          className="btn btn-ghost"
+          title="Reload"
+        >
           <RefreshCw size={14} />
         </button>
       </div>
@@ -577,7 +595,9 @@ export function ChiptunePage() {
                 {playing ? "Stop (F5)" : "Play (F5)"}
               </button>
               <button
-                onClick={() => submit(true)}
+                onClick={() => {
+                  void submit(true);
+                }}
                 disabled={!!busy || !pattern.trim()}
                 className="flex items-center gap-2 px-3 py-1 text-xs uppercase tracking-widest disabled:opacity-40"
                 style={{ background: TK.panel, color: TK.fg, border: `1px solid ${TK.faint}` }}
@@ -586,7 +606,9 @@ export function ChiptunePage() {
                 {busy === "preview" ? "Rolling..." : "Preview Roll"}
               </button>
               <button
-                onClick={() => submit(false)}
+                onClick={() => {
+                  void submit(false);
+                }}
                 disabled={!!busy || !pattern.trim()}
                 className="flex items-center gap-2 px-3 py-1 text-xs uppercase tracking-widest disabled:opacity-40"
                 style={{ background: TK.panel, color: TK.cyan, border: `1px solid ${TK.violet}` }}
@@ -758,7 +780,9 @@ export function ChiptunePage() {
           <div className="flex gap-2 mb-2">
             <select
               value={loadedPattern}
-              onChange={(e) => loadPattern(e.target.value)}
+              onChange={(e) => {
+                void loadPattern(e.target.value);
+              }}
               className={`${DS.input} border border-gray-600 flex-1`}
             >
               <option value="">- saved patterns -</option>
@@ -772,11 +796,23 @@ export function ChiptunePage() {
               placeholder="save as"
               className={`${DS.input} border border-gray-600 w-32`}
             />
-            <button onClick={savePattern} className={DS.btnSecondary} title="Save pattern">
+            <button
+              onClick={() => {
+                void savePattern();
+              }}
+              className={DS.btnSecondary}
+              title="Save pattern"
+            >
               <Save size={14} />
             </button>
             {loadedPattern && (
-              <button onClick={deletePattern} className={DS.btnSecondary} title="Delete pattern">
+              <button
+                onClick={() => {
+                  void deletePattern();
+                }}
+                className={DS.btnSecondary}
+                title="Delete pattern"
+              >
                 <Trash2 size={14} />
               </button>
             )}

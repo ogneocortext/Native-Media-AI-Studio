@@ -4,6 +4,7 @@ import { Card } from "../../components/common";
 import { useHealthStore } from "../../state/healthStore";
 import { usePolling } from "../../hooks";
 import { getApiBaseUrl } from "../../services/portConfig";
+import type { GPUProcessInfo, GPUSnapshot } from "../../services/api";
 import { getUsageColor, getUsageTextColor } from "./utils";
 
 const WORKLOAD_LABELS: Record<string, string> = {
@@ -27,10 +28,8 @@ const WORKLOAD_COLORS: Record<string, string> = {
 };
 
 export function GPUCard() {
-  const [gpu, setGpu] = useState<Awaited<
-    ReturnType<typeof import("../../services/api").getGPUSnapshot>
-  > | null>(null);
-  const [processes, setProcesses] = useState<import("../../services/api").GPUProcessInfo[]>([]);
+  const [gpu, setGpu] = useState<GPUSnapshot | null>(null);
+  const [processes, setProcesses] = useState<GPUProcessInfo[]>([]);
   const fetchGPUData = useHealthStore((s) => s.fetchGPUData);
   const fetchVRAM = useHealthStore((s) => s.fetchVRAMStatus);
   const granular = useHealthStore((s) => s.granular);
@@ -43,7 +42,7 @@ export function GPUCard() {
     const snapshot = granular.gpu.snapshot;
     const procData = granular.gpu.processes;
     if (snapshot) setGpu(snapshot);
-    if (procData.processes) setProcesses(procData.processes);
+    setProcesses(procData.processes);
   }, [granular.gpu.snapshot, granular.gpu.processes]);
 
   const manager = granular.manager ?? null;
@@ -72,7 +71,7 @@ export function GPUCard() {
   }, [fetchVRAM]);
 
   const workload = (manager?.current_workload ?? "idle") as string;
-  const hasWorkload = hasManager && manager?.current_workload != null;
+  const hasWorkload = hasManager && manager.current_workload != null;
   const workloadLabel = WORKLOAD_LABELS[workload] ?? workload;
 
   // VRAM-manager section — shared by both the available and unavailable
@@ -92,19 +91,23 @@ export function GPUCard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <ModelPill
           label="Ollama"
-          loaded={manager?.ollama_loaded === true}
+          loaded={manager.ollama_loaded === true}
           hasData
-          onOffload={handleOffloadOllama}
-          onReload={handleReloadOllama}
+          onOffload={() => {
+            void handleOffloadOllama();
+          }}
+          onReload={() => {
+            void handleReloadOllama();
+          }}
         />
-        <ModelPill label="Atomic Chat" loaded={manager?.atomic_chat_loaded === true} hasData />
+        <ModelPill label="Atomic Chat" loaded={manager.atomic_chat_loaded === true} hasData />
         <ModelPill
           label="ComfyUI"
-          loaded={manager?.comfyui_models_loaded === true}
-          busy={manager?.comfyui_busy === true}
+          loaded={manager.comfyui_models_loaded === true}
+          busy={manager.comfyui_busy === true}
           hasData
         />
-        <ModelPill label="Music Gen" loaded={manager?.music_gen_running === true} hasData />
+        <ModelPill label="Music Gen" loaded={manager.music_gen_running === true} hasData />
       </div>
     </div>
   ) : null;
@@ -123,7 +126,9 @@ export function GPUCard() {
             </div>
           </div>
           <button
-            onClick={fetchGPUData}
+            onClick={() => {
+              void fetchGPUData();
+            }}
             className="h-6 w-6 flex items-center justify-center rounded text-muted hover:text-white hover:bg-white/10"
             title="Refresh GPU data"
             aria-label="Refresh GPU data"
@@ -177,7 +182,9 @@ export function GPUCard() {
             Details →
           </a>
           <button
-            onClick={fetchGPUData}
+            onClick={() => {
+              void fetchGPUData();
+            }}
             className="h-6 w-6 flex items-center justify-center rounded text-muted hover:text-white hover:bg-white/10"
             title="Refresh GPU data"
             aria-label="Refresh GPU data"

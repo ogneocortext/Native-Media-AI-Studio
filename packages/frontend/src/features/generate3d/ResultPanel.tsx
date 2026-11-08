@@ -48,7 +48,7 @@ export function ResultPanel({ hook }: ResultPanelProps) {
             <p className="text-sm font-medium">{error}</p>
             <div className="flex gap-2 mt-2">
               <button
-                onClick={hook.handleGenerate}
+                onClick={() => void hook.handleGenerate()}
                 className="text-xs px-2 py-1 bg-red-800 hover:bg-red-700 rounded text-white"
               >
                 Retry
@@ -133,7 +133,7 @@ export function ResultPanel({ hook }: ResultPanelProps) {
                       Send to Studio
                     </button>
                     <button
-                      onClick={handleOpenBlender}
+                      onClick={() => void handleOpenBlender()}
                       disabled={opening === "blender"}
                       className="px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-white text-sm flex items-center gap-2 disabled:opacity-50"
                       title="Open this GLB in Blender (launches Blender with auto-import)"
@@ -146,7 +146,7 @@ export function ResultPanel({ hook }: ResultPanelProps) {
                       Open in Blender
                     </button>
                     <button
-                      onClick={handleOpenUnity}
+                      onClick={() => void handleOpenUnity()}
                       disabled={opening === "unity"}
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white text-sm flex items-center gap-2 disabled:opacity-50"
                       title="Copy to Unity project Assets/GeneratedModels and trigger import (fallback, requires Unity Editor)"
@@ -161,7 +161,9 @@ export function ResultPanel({ hook }: ResultPanelProps) {
                   </>
                 )}
                 <button
-                  onClick={async () => navigate("/music-video-wizard")}
+                  onClick={() => {
+                    void navigate("/music-video-wizard");
+                  }}
                   className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-white text-sm flex items-center gap-2"
                 >
                   Use in Music Video <ArrowRight size={14} />
@@ -181,7 +183,9 @@ export function ResultPanel({ hook }: ResultPanelProps) {
               </pre>
               <div className="flex gap-2 mt-3">
                 <button
-                  onClick={async () => navigate("/music-video-wizard")}
+                  onClick={() => {
+                    void navigate("/music-video-wizard");
+                  }}
                   className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-white text-sm flex items-center gap-2"
                 >
                   Use in Music Video <ArrowRight size={14} />

@@ -186,7 +186,7 @@ export const healthQueries = {
     queryFn: async () => {
       const base = "";
       const res = await fetch(`${base}/api/health/aggregate`);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: schemas.aggregateHealth,
     staleTime: 5_000,
@@ -200,7 +200,7 @@ export const healthQueries = {
     queryFn: async () => {
       const base = "";
       const res = await fetch(`${base}/api/health/system`);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: schemas.systemHealth,
     staleTime: 10_000,
@@ -213,7 +213,7 @@ export const healthQueries = {
     queryFn: async () => {
       const base = "";
       const res = await fetch(`${base}/api/health/services`);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: z.record(z.string(), z.string()),
     staleTime: 5_000,
@@ -230,7 +230,7 @@ export const jobsQueries = {
       const base = "";
       const url = status ? `${base}/api/jobs?status=${status}` : `${base}/api/jobs`;
       const res = await fetch(url);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: z.array(schemas.job),
     staleTime: 5_000,
@@ -244,7 +244,7 @@ export const jobsQueries = {
     queryFn: async () => {
       const base = "";
       const res = await fetch(`${base}/api/jobs/${id}`);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: schemas.job,
     staleTime: 5_000,
@@ -257,7 +257,7 @@ export const jobsQueries = {
     queryFn: async () => {
       const base = "";
       const res = await fetch(`${base}/api/jobs/stats`);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: schemas.queueStats,
     staleTime: 5_000,
@@ -271,7 +271,7 @@ export const jobsQueries = {
     queryFn: async () => {
       const base = "";
       const res = await fetch(`${base}/api/jobs/metrics`);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: schemas.queueMetrics,
     staleTime: 10_000,
@@ -286,7 +286,7 @@ export const remixQueries = {
     queryFn: async () => {
       const base = "";
       const res = await fetch(`${base}/api/audio/remix/sources`);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: z.array(schemas.remixSource),
     staleTime: 30_000,
@@ -299,7 +299,7 @@ export const remixQueries = {
     queryFn: async () => {
       const base = "";
       const res = await fetch(`${base}/api/audio/remix`);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: z.array(schemas.remixSummary),
     staleTime: 10_000,
@@ -312,7 +312,7 @@ export const remixQueries = {
     queryFn: async () => {
       const base = "";
       const res = await fetch(`${base}/api/audio/remix/probe/${encodeURIComponent(track)}`);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: schemas.audioProbe,
     staleTime: 5 * 60_000,
@@ -327,7 +327,7 @@ export const audioQueries = {
     queryFn: async () => {
       const base = "";
       const res = await fetch(`${base}/api/audio`);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: z.array(z.object({
       filename: z.string(),
@@ -344,7 +344,7 @@ export const audioQueries = {
     queryFn: async () => {
       const base = "";
       const res = await fetch(`${base}/api/audio/stems/${encodeURIComponent(file)}`);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: schemas.audioStems,
     staleTime: 5 * 60_000,
@@ -359,7 +359,7 @@ export const configQueries = {
     queryFn: async () => {
       const base = "";
       const res = await fetch(`${base}/api/config/ports`);
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     schema: schemas.portConfig,
     staleTime: 60_000,
@@ -433,7 +433,7 @@ export function createOptimisticMutation<
     },
     onSettled: (_data: TData | undefined, _error: TError | null, _variables: TVariables) => {
       const queryClient = useQueryClient();
-      queryClient.invalidateQueries({ queryKey: options.queryKey });
+      void queryClient.invalidateQueries({ queryKey: options.queryKey });
     },
   } as UseMutationOptions<TData, TError, TVariables, { previousData: TQueryData | undefined }>;
 }
@@ -469,7 +469,7 @@ export const jobMutations = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params),
       });
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     queryKey: queryKeys.jobs.all,
     optimisticUpdate: (current: OptimisticJob[] | undefined, newJob: { job_type: string; params: Record<string, unknown>; max_retries?: number }) => {
@@ -490,7 +490,7 @@ export const jobMutations = {
     mutationFn: async (id: string) => {
       const base = "";
       const res = await fetch(`${base}/api/jobs/${id}/cancel`, { method: "POST" });
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     queryKey: queryKeys.jobs.all,
     optimisticUpdate: (current: OptimisticJob[] | undefined, id: string) => {
@@ -505,7 +505,7 @@ export const jobMutations = {
     mutationFn: async (id: string) => {
       const base = "";
       const res = await fetch(`${base}/api/jobs/${id}/retry`, { method: "POST" });
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     queryKey: queryKeys.jobs.all,
     optimisticUpdate: (current: OptimisticJob[] | undefined, id: string) => {
@@ -539,7 +539,7 @@ export const remixMutations = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(recipe),
       });
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     queryKey: queryKeys.remix.list(),
     optimisticUpdate: (current: OptimisticRemix[] | undefined) => current ?? [],
@@ -553,7 +553,7 @@ export const remixMutations = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(recipe),
       });
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     queryKey: queryKeys.remix.all,
     optimisticUpdate: (current: OptimisticRemix[] | undefined) => current ?? [],
@@ -565,7 +565,7 @@ export const remixMutations = {
       const res = await fetch(`${base}/api/audio/remix/${encodeURIComponent(name)}/enhance`, {
         method: "POST",
       });
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     queryKey: queryKeys.remix.list(),
     optimisticUpdate: (current: OptimisticRemix[] | undefined, name: string) => {
@@ -586,7 +586,7 @@ export const jobMutationsActions = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params),
       });
-      return res.json();
+      return res.json() as Promise<unknown>;
     },
     queryKey: queryKeys.jobs.all,
     optimisticUpdate: (current: OptimisticJob[] | undefined, params: { job_type: string; params: Record<string, unknown>; max_retries?: number }) => {

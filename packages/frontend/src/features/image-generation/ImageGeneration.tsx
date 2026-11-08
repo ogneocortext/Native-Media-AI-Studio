@@ -41,6 +41,10 @@ import {
 import * as api from "../../services/api";
 import { getLogger } from "../../services/logger";
 import { startComfyUI } from "../../services/api";
+import type {
+  GenerationPreviewResponse,
+  GenerationResultResponse,
+} from "../../services/api";
 
 const logger = getLogger("image-generation");
 
@@ -49,6 +53,30 @@ interface CheckpointModel {
   filename: string;
   path: string;
   size: number;
+}
+
+interface ComfyStatusPayload {
+  running?: boolean;
+  port?: number;
+}
+
+interface CheckpointsPayload {
+  checkpoints?: string[];
+}
+
+interface ProgressPollPayload {
+  progress?: number;
+  step?: number;
+  total_steps?: number;
+  status?: string;
+}
+
+interface ResultPollPayload extends GenerationResultResponse {
+  seed?: number;
+}
+
+interface SubmitPayload {
+  prompt_id?: string;
 }
 
 interface ModelInfo {
@@ -235,19 +263,28 @@ const presets: GenerationPreset[] = [
   },
 ];
 
-const colorMap: Record<string, { bg: string; border: string; text: string; ring: string }> = {
+interface PresetColors {
+  bg: string;
+  border: string;
+  text: string;
+  ring: string;
+}
+
+const DEFAULT_PRESET_COLORS: PresetColors = {
+  bg: "bg-blue-500/10",
+  border: "border-blue-500/30",
+  text: "text-blue-400",
+  ring: "ring-blue-500/20",
+};
+
+const colorMap: Partial<Record<string, PresetColors>> = {
   amber: {
     bg: "bg-amber-500/10",
     border: "border-amber-500/30",
     text: "text-amber-400",
     ring: "ring-amber-500/20",
   },
-  blue: {
-    bg: "bg-blue-500/10",
-    border: "border-blue-500/30",
-    text: "text-blue-400",
-    ring: "ring-blue-500/20",
-  },
+  blue: DEFAULT_PRESET_COLORS,
   purple: {
     bg: "bg-purple-500/10",
     border: "border-purple-500/30",
@@ -314,7 +351,7 @@ export function ImageGeneration() {
         signal: AbortSignal.timeout(5000),
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as ComfyStatusPayload;
         setComfyUiStatus({ running: data.running ?? false, port: data.port });
       } else {
         setComfyUiStatus({ running: false });
@@ -326,14 +363,16 @@ export function ImageGeneration() {
 
   useEffect(() => {
     void fetchComfyStatus();
-    const id = setInterval(fetchComfyStatus, 30000);
+    const id = setInterval(() => {
+      void fetchComfyStatus();
+    }, 30000);
     return () => clearInterval(id);
   }, [fetchComfyStatus]);
 
   // Fetch available checkpoint models (filtered to image models only)
   useEffect(() => {
     fetch("/api/integrations/comfyui/checkpoints")
-      .then(async (r) => (r.ok ? r.json() : null))
+      .then(async (r) => (r.ok ? ((await r.json()) as CheckpointsPayload | null) : null))
       .then((data) => {
         if (data?.checkpoints?.length) {
           // Filter to show only image generation models
@@ -382,7 +421,7 @@ export function ImageGeneration() {
       try {
         const res = await fetch(`/api/integrations/comfyui/progress/${promptId}`);
         if (res.ok && !cancelled) {
-          const data = await res.json();
+          const data = (await res.json()) as ProgressPollPayload;
           setProgress(data.progress ?? 0);
           setCurrentStep(data.step ?? 0);
           setTotalSteps(data.total_steps ?? options.steps);
@@ -393,7 +432,7 @@ export function ImageGeneration() {
             try {
               const resultRes = await fetch(`/api/integrations/comfyui/result/${promptId}`);
               if (resultRes.ok) {
-                const resultData = await resultRes.json();
+                const resultData = (await resultRes.json()) as ResultPollPayload;
                 if (resultData.status === "completed" && resultData.output_path) {
                   setResult({
                     output_path: resultData.output_path,
@@ -418,7 +457,7 @@ export function ImageGeneration() {
             try {
               const previewRes = await fetch(`/api/integrations/comfyui/preview/${promptId}`);
               if (previewRes.ok) {
-                const previewData = await previewRes.json();
+                const previewData = (await previewRes.json()) as GenerationPreviewResponse;
                 if (previewData.filename && previewData.filename !== lastPreviewFilename) {
                   lastPreviewFilename = previewData.filename;
                   setLivePreviewUrl(
@@ -430,28 +469,34 @@ export function ImageGeneration() {
               // Preview not available yet, continue polling
             }
             // Continue polling
-            setTimeout(poll, 1500);
+            setTimeout(() => {
+              void poll();
+            }, 1500);
           }
         } else if (!cancelled) {
-          setTimeout(poll, 1500);
+          setTimeout(() => {
+            void poll();
+          }, 1500);
         }
       } catch {
         if (!cancelled) {
-          setTimeout(poll, 1500);
+          setTimeout(() => {
+            void poll();
+          }, 1500);
         }
       }
     };
 
     // Start polling after 1 second
-    const timeout = setTimeout(poll, 1000);
+    const timeout = setTimeout(() => {
+      void poll();
+    }, 1000);
 
     // Safety timeout - stop polling after 5 minutes
     const safetyTimeout = setTimeout(() => {
       cancelled = true;
-      if (generating) {
-        setGenerating(false);
-        setProgressStatus("Timeout");
-      }
+      setGenerating(false);
+      setProgressStatus("Timeout");
     }, 300000);
 
     return () => {
@@ -505,12 +550,14 @@ export function ImageGeneration() {
       });
 
       if (!submitRes.ok) {
-        const err = await submitRes.json().catch(() => ({ detail: "Failed to submit prompt" }));
+        const err = (await submitRes
+          .json()
+          .catch(() => ({ detail: "Failed to submit prompt" }))) as { detail?: string };
         throw new Error(err.detail ?? `Failed to submit prompt (${submitRes.status})`);
       }
 
-      const submitData = await submitRes.json();
-      setPromptId(submitData.prompt_id);
+      const submitData = (await submitRes.json()) as SubmitPayload;
+      setPromptId(submitData.prompt_id ?? null);
       setProgressStatus("Queued");
     } catch (e) {
       setError(getFriendlyError(e));
@@ -584,13 +631,15 @@ export function ImageGeneration() {
           service="ComfyUI"
           detail="Image generation requires ComfyUI to be running."
           hint={`Expected on port ${comfyUiStatus.port ?? 8188}.`}
-          onStart={async () => {
-            setStartingComfy(true);
-            try {
-              await startComfyUI(comfyUiStatus.port ?? 8188);
-            } finally {
-              setStartingComfy(false);
-            }
+          onStart={() => {
+            void (async () => {
+              setStartingComfy(true);
+              try {
+                await startComfyUI(comfyUiStatus.port ?? 8188);
+              } finally {
+                setStartingComfy(false);
+              }
+            })();
           }}
           starting={startingComfy}
           onRetry={() => void fetchComfyStatus()}
@@ -637,7 +686,7 @@ export function ImageGeneration() {
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {presets.map((preset) => {
-                const colors = colorMap[preset.color] || colorMap.blue;
+                const colors = colorMap[preset.color] ?? DEFAULT_PRESET_COLORS;
                 const isActive = activePreset === preset.id;
                 return (
                   <button
@@ -852,17 +901,15 @@ export function ImageGeneration() {
                         <span className="text-sm font-medium truncate mr-2">{name}</span>
                         {selected && <span className="text-xs text-accent shrink-0">Selected</span>}
                       </div>
-                      {info && (
-                        <div className="mt-1.5 space-y-1">
-                          <p className="text-xs text-muted">{info.description}</p>
-                          <div className="flex items-center gap-3 text-[10px]">
-                            <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
-                              {info.type}
-                            </span>
-                            <span className="text-muted">Best for: {info.bestFor}</span>
-                          </div>
+                      <div className="mt-1.5 space-y-1">
+                        <p className="text-xs text-muted">{info.description}</p>
+                        <div className="flex items-center gap-3 text-[10px]">
+                          <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                            {info.type}
+                          </span>
+                          <span className="text-muted">Best for: {info.bestFor}</span>
                         </div>
-                      )}
+                      </div>
                     </button>
                   );
                 })}
@@ -875,7 +922,12 @@ export function ImageGeneration() {
             <ErrorState
               title="Generation failed"
               description={error}
-              retry={{ label: "Try again", onClick: handleGenerate }}
+              retry={{
+                label: "Try again",
+                onClick: () => {
+                  void handleGenerate();
+                },
+              }}
             />
           )}
 
@@ -883,7 +935,9 @@ export function ImageGeneration() {
           <div className="flex gap-3">
             <button
               className="btn btn-primary flex-1 flex items-center justify-center gap-2"
-              onClick={handleGenerate}
+              onClick={() => {
+                void handleGenerate();
+              }}
               disabled={generating || !comfyUiStatus?.running}
             >
               {generating ? (
@@ -901,7 +955,9 @@ export function ImageGeneration() {
 
             <button
               className="btn btn-secondary flex items-center justify-center gap-2"
-              onClick={handleQueueJob}
+              onClick={() => {
+                void handleQueueJob();
+              }}
               disabled={generating}
             >
               <Clock size={16} />
@@ -991,7 +1047,9 @@ export function ImageGeneration() {
                   </button>
                   <button
                     className="btn btn-sm btn-ghost flex items-center justify-center gap-1"
-                    onClick={handleGenerate}
+                    onClick={() => {
+                      void handleGenerate();
+                    }}
                   >
                     <RefreshCw size={14} />
                     Regenerate
@@ -1005,7 +1063,13 @@ export function ImageGeneration() {
                 icon={<Image size={48} />}
                 action={
                   options.prompt.trim() && !generating
-                    ? { label: "Generate", onClick: handleGenerate, icon: <Play size={14} /> }
+                    ? {
+                        label: "Generate",
+                        onClick: () => {
+                          void handleGenerate();
+                        },
+                        icon: <Play size={14} />,
+                      }
                     : undefined
                 }
               />

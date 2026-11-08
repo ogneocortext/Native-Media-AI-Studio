@@ -31,10 +31,8 @@ function pct(v: number | null | undefined): string {
 }
 
 export function AnalysisCards({ analysis }: { analysis: AudioAnalysisResult }) {
-  if (!analysis) return null;
-
   const centroid = analysis.spectral?.centroid_mean;
-  const confidence = analysis.confidence ?? 0;
+  const confidence = analysis.confidence;
   const sonara = analysis.metadata?.sonara;
   const lufs = sonara?.loudness_lufs;
   const dynDb = sonara?.dynamic_range_db;
@@ -72,9 +70,7 @@ export function AnalysisCards({ analysis }: { analysis: AudioAnalysisResult }) {
             {analysis.tempo_bpm.toFixed(0) || "--"} BPM
           </p>
           <p className="text-xs text-muted">
-            {analysis.confidence != null
-              ? `Confidence: ${(confidence * 100).toFixed(0)}%`
-              : "No confidence data"}
+            {`Confidence: ${(confidence * 100).toFixed(0)}%`}
             {analysis.beats_truncated ? " · beat grid capped" : ""}
           </p>
         </div>
@@ -87,7 +83,7 @@ export function AnalysisCards({ analysis }: { analysis: AudioAnalysisResult }) {
             {analysis.duration_seconds.toFixed(1) || "--"}s
           </p>
           <p className="text-xs text-muted">
-            {analysis.beat_count != null ? `${analysis.beat_count} beats detected` : ""}
+            {`${analysis.beat_count} beats detected`}
             {analysis.downbeat_times?.length
               ? ` · ${analysis.downbeat_times.length} downbeats`
               : ""}

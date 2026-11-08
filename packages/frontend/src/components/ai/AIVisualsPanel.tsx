@@ -37,6 +37,14 @@ interface GeneratedImage {
   timestamp: number;
 }
 
+interface ComfyHistoryNode {
+  images?: ComfyUIImage[];
+}
+
+interface ComfyHistoryResponse {
+  outputs?: Record<string, ComfyHistoryNode>;
+}
+
 interface StylePreview {
   styleId: string;
   styleLabel: string;
@@ -259,9 +267,13 @@ export function AIVisualsPanel({
           try {
             const historyRes = await fetch(`${getComfyuiUrl()}/history/${result.prompt_id}`);
             if (historyRes.ok) {
-              const history = await historyRes.json();
-              if (history[result.prompt_id]?.outputs) {
-                const outputs = history[result.prompt_id].outputs;
+              const history = (await historyRes.json()) as Record<
+                string,
+                ComfyHistoryResponse | undefined
+              >;
+              const historyEntry = history[result.prompt_id];
+              if (historyEntry?.outputs) {
+                const outputs = historyEntry.outputs;
                 for (const nodeId of Object.keys(outputs)) {
                   const nodeOutput = outputs[nodeId];
                   if (nodeOutput.images && nodeOutput.images.length > 0) {
@@ -392,9 +404,13 @@ export function AIVisualsPanel({
         try {
           const historyRes = await fetch(`${getComfyuiUrl()}/history/${result.prompt_id}`);
           if (historyRes.ok) {
-            const history = await historyRes.json();
-            if (history[result.prompt_id]?.outputs) {
-              const outputs = history[result.prompt_id].outputs;
+            const history = (await historyRes.json()) as Record<
+              string,
+              ComfyHistoryResponse | undefined
+            >;
+            const historyEntry = history[result.prompt_id];
+            if (historyEntry?.outputs) {
+              const outputs = historyEntry.outputs;
               for (const nodeId of Object.keys(outputs)) {
                 const nodeOutput = outputs[nodeId];
                 if (nodeOutput.images && nodeOutput.images.length > 0) {
@@ -444,7 +460,7 @@ export function AIVisualsPanel({
       <div className="flex items-center gap-2 text-sm">
         {isAlive === null ? (
           <button
-            onClick={checkConnection}
+            onClick={() => void checkConnection()}
             className="text-blue-400 hover:text-blue-300 flex items-center gap-1"
           >
             <RefreshCw className="w-3 h-3" />
@@ -493,7 +509,7 @@ export function AIVisualsPanel({
 
       {/* Preview Styles Button */}
       <button
-        onClick={generateStylePreviews}
+        onClick={() => void generateStylePreviews()}
         disabled={isPreviewing || !defaultPrompt}
         className="w-full py-1.5 px-3 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-600/50 text-purple-200 rounded text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
       >
@@ -705,7 +721,7 @@ export function AIVisualsPanel({
       {/* Generate / Interrupt Buttons */}
       <div className="grid grid-cols-2 gap-2">
         <button
-          onClick={handleInterrupt}
+          onClick={() => void handleInterrupt()}
           disabled={!currentPromptId}
           className={`w-full py-2 px-4 ${
             currentPromptId
@@ -726,7 +742,7 @@ export function AIVisualsPanel({
           )}
         </button>
         <button
-          onClick={handleGenerate}
+          onClick={() => void handleGenerate()}
           disabled={isGenerating || !prompt.trim() || !!currentPromptId}
           className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded font-medium flex items-center justify-center gap-2 transition-colors"
         >
@@ -786,28 +802,32 @@ export function AIVisualsPanel({
         <div className="space-y-3 pt-2">
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={async () => {
-                try {
-                  const listing = await listOutput();
-                  setOutputFiles(listing.output_files);
-                  setInputFiles([]);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : "Failed to list outputs");
-                }
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const listing = await listOutput();
+                    setOutputFiles(listing.output_files);
+                    setInputFiles([]);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Failed to list outputs");
+                  }
+                })();
               }}
               className="w-full py-1 px-2 bg-gray-800/50 border border-gray-700 rounded text-xs text-white hover:bg-gray-700 transition-colors"
             >
               🖼 Outputs
             </button>
             <button
-              onClick={async () => {
-                try {
-                  const listing = await listInput();
-                  setInputFiles(listing.input_files);
-                  setOutputFiles([]);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : "Failed to list inputs");
-                }
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const listing = await listInput();
+                    setInputFiles(listing.input_files);
+                    setOutputFiles([]);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Failed to list inputs");
+                  }
+                })();
               }}
               className="w-full py-1 px-2 bg-gray-800/50 border border-gray-700 rounded text-xs text-white hover:bg-gray-700 transition-colors"
             >

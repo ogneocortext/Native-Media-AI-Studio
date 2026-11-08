@@ -39,7 +39,7 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
         timeout: 30000,
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as { presets?: SavedPreset[] };
         if (data.presets?.length) {
           setPresets(data.presets);
           return;
@@ -50,7 +50,7 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
         timeout: 5000,
       }).catch(() => null);
       if (res2?.ok) {
-        const data2 = await res2.json();
+        const data2 = (await res2.json()) as { presets?: SavedPreset[] };
         setPresets(data2.presets ?? []);
       }
     } catch {
@@ -67,8 +67,10 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
   const handleApply = useCallback(
     (p: SavedPreset) => {
       const preset = p.params as unknown as VisualPreset;
-      // ensure minimal validity
-      if (!preset.theme || !preset.visualizer) {
+      // ensure minimal validity — saved params may lack either section
+      // despite the required fields on VisualPreset.
+      const candidate = preset as { theme?: unknown; visualizer?: unknown };
+      if (!candidate.theme || !candidate.visualizer) {
         showToast("Invalid preset data", "warning");
         return;
       }
@@ -176,7 +178,7 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
 
       <div className="viz-gallery-grid">
         {filtered.map((p) => {
-          const preset = p.params as any;
+          const preset = p.params as { theme?: Record<string, string | undefined> };
           const theme = preset.theme ?? {};
           return (
             <div
@@ -214,7 +216,7 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
                 </button>
                 <button
                   className="viz-gallery-icon"
-                  onClick={async () => handleCopy(p)}
+                  onClick={() => void handleCopy(p)}
                   title="Copy JSON"
                 >
                   <Copy size={12} />
@@ -228,7 +230,7 @@ export function AIPresetGallery({ onApplyPreset, refreshKey }: AIPresetGalleryPr
                 </button>
                 <button
                   className="viz-gallery-icon danger"
-                  onClick={async () => handleDelete(p)}
+                  onClick={() => void handleDelete(p)}
                   title="Delete"
                 >
                   <Trash2 size={12} />

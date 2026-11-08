@@ -221,7 +221,7 @@ export function BeatTimeline({
           </button>
 
           <button
-            onClick={autoDetectBeats}
+            onClick={() => void autoDetectBeats()}
             className="btn btn-secondary btn-sm"
             disabled={!audioElement}
           >

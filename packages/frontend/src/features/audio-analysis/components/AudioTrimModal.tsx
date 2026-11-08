@@ -396,7 +396,7 @@ export function AudioTrimModal({
               <div ref={waveContainerRef} className="w-full" />
               <div className="flex items-center gap-2 mt-2 px-1">
                 <button
-                  onClick={async () => wsRef.current?.playPause()}
+                  onClick={() => void wsRef.current?.playPause()}
                   className={DS.btnSecondarySm}
                   aria-label={isPlaying ? "Pause" : "Play"}
                 >
@@ -513,7 +513,7 @@ export function AudioTrimModal({
                   Cancel
                 </button>
                 <button
-                  onClick={handleSave}
+                  onClick={() => void handleSave()}
                   disabled={saving}
                   className={`${DS.btnPrimary} ${DS.btnDisabled}`}
                 >

@@ -65,8 +65,11 @@ export function AIVisualizerPrompt({
           // Fetch benchmarks in parallel
           let benchMap: Record<string, OllamaBenchmarkResult> = {};
           try {
-            const benchData = await getBenchmarkResults();
-            benchMap = benchData.results || {};
+            // API payloads may omit `results` despite the declared type.
+            const benchData = (await getBenchmarkResults()) as {
+              results?: Record<string, OllamaBenchmarkResult>;
+            };
+            benchMap = benchData.results ?? {};
             setBenchmarks(benchMap);
           } catch {
             /* no benchmarks yet */
@@ -76,11 +79,14 @@ export function AIVisualizerPrompt({
           // Verified models first
           const sorted = [...data].sort((a, b) => {
             if (a.verified !== b.verified) return a.verified ? -1 : 1;
-            const sa = a.benchmark?.score ?? benchMap[a.name].validation.score ?? -1;
-            const sb = b.benchmark?.score ?? benchMap[b.name].validation.score ?? -1;
+            // Benchmark entries are absent for unscored models at runtime.
+            const benchA = benchMap[a.name] as OllamaBenchmarkResult | undefined;
+            const benchB = benchMap[b.name] as OllamaBenchmarkResult | undefined;
+            const sa = a.benchmark?.score ?? benchA?.validation.score ?? -1;
+            const sb = b.benchmark?.score ?? benchB?.validation.score ?? -1;
             if (sa !== sb) return sb - sa;
-            const la = a.benchmark?.latency_ms ?? benchMap[a.name].latency_ms ?? 999999;
-            const lb = b.benchmark?.latency_ms ?? benchMap[b.name].latency_ms ?? 999999;
+            const la = a.benchmark?.latency_ms ?? benchA?.latency_ms ?? 999999;
+            const lb = b.benchmark?.latency_ms ?? benchB?.latency_ms ?? 999999;
             return la - lb;
           });
           setModels(sorted);
@@ -148,7 +154,7 @@ export function AIVisualizerPrompt({
         },
         {
           label: "Intensity",
-          value: `${Math.round((generatedPreset.visualizer.intensity ?? 0.5) * 100)}%`,
+          value: `${Math.round(((generatedPreset.visualizer.intensity as number | undefined) ?? 0.5) * 100)}%`,
         },
         { label: "Particles", value: generatedPreset.visualizer.particleCount.toString() },
         { label: "Lyrics", value: generatedPreset.lyrics.style },
@@ -227,10 +233,10 @@ export function AIVisualizerPrompt({
                     <div className="viz-ai-model-empty">No verified models loaded</div>
                   ) : (
                     models.map((m) => {
-                      const bench = benchmarks[m.name];
-                      const score = bench.validation.score ?? m.benchmark?.score ?? null;
-                      const latency = bench.latency_ms ?? m.benchmark?.latency_ms ?? null;
-                      const success = bench.success ?? m.benchmark?.success ?? null;
+                      const bench = benchmarks[m.name] as OllamaBenchmarkResult | undefined;
+                      const score = bench?.validation.score ?? m.benchmark?.score ?? null;
+                      const latency = bench?.latency_ms ?? m.benchmark?.latency_ms ?? null;
+                      const success = bench?.success ?? m.benchmark?.success ?? null;
                       let badge = "";
                       if (score !== null && score >= 0) {
                         const s = Math.round(score);
@@ -322,7 +328,7 @@ export function AIVisualizerPrompt({
         <button
           data-testid="viz-ai-generate"
           className="viz-ai-generate-btn"
-          onClick={handleGenerate}
+          onClick={() => void handleGenerate()}
           disabled={loading || !description.trim()}
         >
           {loading ? <Loader2 size={14} className="spin" /> : <Wand2 size={14} />}
@@ -354,7 +360,7 @@ export function AIVisualizerPrompt({
             <button
               data-testid="viz-ai-regenerate"
               className="viz-ai-regen-btn"
-              onClick={handleGenerate}
+              onClick={() => void handleGenerate()}
               disabled={loading}
             >
               <RefreshCw size={12} />

@@ -7,8 +7,8 @@ interface ServiceStatusCardProps {
 
 export function ServiceStatusCard({ hook }: ServiceStatusCardProps) {
   const { status3d, statusLoading, loadStatus } = hook;
-  const isAvailable = (status3d.available as boolean) ?? false;
-  const comfyRunning = (status3d.comfyui_running as boolean) ?? false;
+  const isAvailable = (status3d.available ?? false) as boolean;
+  const comfyRunning = (status3d.comfyui_running ?? false) as boolean;
 
   return (
     <div className="bg-gray-800 rounded-xl p-5 border border-gray-700">
@@ -21,7 +21,7 @@ export function ServiceStatusCard({ hook }: ServiceStatusCardProps) {
           Service Status
         </h3>
         <button
-          onClick={loadStatus}
+          onClick={() => void loadStatus()}
           disabled={statusLoading}
           className="p-1 hover:bg-gray-700 rounded"
         >
@@ -71,7 +71,7 @@ export function ServiceStatusCard({ hook }: ServiceStatusCardProps) {
         </div>
       ) : (
         <button
-          onClick={loadStatus}
+          onClick={() => void loadStatus()}
           className="w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300"
         >
           Check Status

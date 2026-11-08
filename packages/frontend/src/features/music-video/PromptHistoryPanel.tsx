@@ -108,7 +108,7 @@ export function PromptHistoryPanel({ trackFilename, section = "full", onApplyPro
         <div className="flex items-center gap-2">
           {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted" />}
           <button
-            onClick={load}
+            onClick={() => void load()}
             className="p-1.5 hover:bg-white/10 rounded-lg text-muted hover:text-white"
             title="Refresh"
           >

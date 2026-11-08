@@ -11,47 +11,55 @@
  *     (ctx: CanvasRenderingContext2D, ctxInfo: VisualizerModeRenderContext, state: VisualizerModeState) => void
  */
 
-import type { VisualizerModeRenderContext } from "./visualizerModeRegistry";
+import type { VisualizerModeRenderContext, VisualizerModeState } from "./visualizerModeRegistry";
 import { createVisualizerModeDef, registerVisualizerMode } from "./visualizerModeRegistry";
 
 // ---------------------------------------------------------------------------
 // Example: Simple pulse circle that grows on beat and decays.
 // ---------------------------------------------------------------------------
 
+/** Per-mode scratch fields this example persists on the shared state bag. */
+interface ExampleModeState extends VisualizerModeState {
+  circleRadius?: number;
+  circleAlpha?: number;
+  lastBeat?: boolean;
+}
+
 function renderExampleMode(
   ctx: CanvasRenderingContext2D,
   ctxInfo: VisualizerModeRenderContext,
-  state: any,
+  state: VisualizerModeState,
 ): void {
   const { w, h, d } = ctxInfo;
+  const s = state as ExampleModeState;
 
-  if (state.circleRadius === undefined) {
-    state.circleRadius = 0;
-    state.circleAlpha = 0;
-    state.lastBeat = false;
+  if (s.circleRadius === undefined || s.circleAlpha === undefined || s.lastBeat === undefined) {
+    s.circleRadius = 0;
+    s.circleAlpha = 0;
+    s.lastBeat = false;
   }
 
-  const isBeat = d.beat ?? false;
+  const isBeat = d.beat;
 
-  if (isBeat && !state.lastBeat) {
-    state.circleRadius = w * 0.4;
-    state.circleAlpha = 0.8;
+  if (isBeat && !s.lastBeat) {
+    s.circleRadius = w * 0.4;
+    s.circleAlpha = 0.8;
   }
-  state.lastBeat = isBeat;
+  s.lastBeat = isBeat;
 
-  state.circleRadius *= 0.95;
-  state.circleAlpha *= 0.92;
+  s.circleRadius *= 0.95;
+  s.circleAlpha *= 0.92;
 
-  ctx.fillStyle = `rgba(0, 255, 255, ${Math.max(0, state.circleAlpha)})`;
+  ctx.fillStyle = `rgba(0, 255, 255, ${Math.max(0, s.circleAlpha)})`;
   ctx.beginPath();
-  ctx.arc(w / 2, h / 2, state.circleRadius, 0, Math.PI * 2);
+  ctx.arc(w / 2, h / 2, s.circleRadius, 0, Math.PI * 2);
   ctx.fill();
 
-  if (isBeat && state.circleRadius > w * 0.35) {
-    ctx.strokeStyle = `rgba(255, 100, 50, ${state.circleAlpha * 0.5})`;
+  if (isBeat && s.circleRadius > w * 0.35) {
+    ctx.strokeStyle = `rgba(255, 100, 50, ${s.circleAlpha * 0.5})`;
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(w / 2, h / 2, state.circleRadius * 1.2, 0, Math.PI * 2);
+    ctx.arc(w / 2, h / 2, s.circleRadius * 1.2, 0, Math.PI * 2);
     ctx.stroke();
   }
 }

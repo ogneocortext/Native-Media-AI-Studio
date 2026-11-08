@@ -43,13 +43,15 @@ interface TestState {
   characterVisible: boolean;
 }
 
+// Function-typed properties (not method shorthand) so destructuring the api
+// object can't trip unbound-method — these callbacks never use `this`.
 export interface UseVisualizerLifecycleApi {
-  togglePlayPause(): void;
-  cycleVizMode(dir: 1 | -1): void;
-  toggleFocusMode(): void;
-  toggleOverlay(id: "shortcuts" | "more" | "fx"): void;
-  handleAnalyzeTrack(filename: string): Promise<void>;
-  handleSelectLibraryTrack(fileRef: string): Promise<void>;
+  togglePlayPause: () => void;
+  cycleVizMode: (dir: 1 | -1) => void;
+  toggleFocusMode: () => void;
+  toggleOverlay: (id: "shortcuts" | "more" | "fx") => void;
+  handleAnalyzeTrack: (filename: string) => Promise<void>;
+  handleSelectLibraryTrack: (fileRef: string) => Promise<void>;
 }
 
 export interface UseVisualizerLifecycleOptions {
@@ -100,9 +102,24 @@ export interface UseVisualizerLifecycleOptions {
   api: UseVisualizerLifecycleApi;
 }
 
+// Function-typed properties so destructuring can't trip unbound-method.
 export interface UseVisualizerLifecycleResult {
-  handleLoopToggle(): void;
-  captureFrame(): void;
+  handleLoopToggle: () => void;
+  captureFrame: () => void;
+}
+
+/** Dev-only `window.__VIZ_TEST__` harness surface (see effect below). */
+interface VizTestHarness {
+  selectTrack: (filename: string) => Promise<void>;
+  setMode: (mode: "3d" | "shader" | "2d") => void;
+  setStyle: (style: VisualizationStyle) => void;
+  set2DMode: (mode: Canvas2DMode) => void;
+  setShaderPreset: (preset: ShaderPresetName) => void;
+  togglePlay: () => void;
+  getState: () => TestState;
+  toggleTestPanel: () => void;
+  setLayerVisible: (layer: "visuals" | "lyrics" | "character", v: boolean) => void;
+  toggleLayer: (layer: "visuals" | "lyrics" | "character") => void;
 }
 
 export function useVisualizerLifecycle({
@@ -386,7 +403,7 @@ export function useVisualizerLifecycle({
   // bundle rather than merely skipped at runtime.
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    (window as any).__VIZ_TEST__ = {
+    const harness: VizTestHarness = {
       selectTrack: async (filename: string) => handleSelectLibraryTrack(filename),
       setMode: (mode: "3d" | "shader" | "2d") => setVizMode(mode),
       setStyle: (style: VisualizationStyle) => setVisualizationStyle(style),
@@ -406,8 +423,9 @@ export function useVisualizerLifecycle({
         if (layer === "character") setCharacterVisible((x) => !x);
       },
     };
+    (window as Window & { __VIZ_TEST__?: VizTestHarness }).__VIZ_TEST__ = harness;
     return () => {
-      delete (window as any).__VIZ_TEST__;
+      delete (window as Window & { __VIZ_TEST__?: VizTestHarness }).__VIZ_TEST__;
     };
   }, [handleSelectLibraryTrack]);
 

@@ -44,11 +44,14 @@ export function getShaderPresetForTrack(trackName: string): ShaderPresetName {
   // matching works for library filenames that include the artist name.
   const normalized = trackName.split(" - ").slice(-1)[0].trim();
 
-  // Exact match on normalized name
-  if (TRACK_SHADER_MAP[normalized]) return TRACK_SHADER_MAP[normalized];
+  // Exact match on normalized name (absent keys resolve to undefined at
+  // runtime despite the Record index type).
+  const exactNormalized = TRACK_SHADER_MAP[normalized] as ShaderPresetName | undefined;
+  if (exactNormalized) return exactNormalized;
 
   // Exact match on original name (fallback for bare track names)
-  if (TRACK_SHADER_MAP[trackName]) return TRACK_SHADER_MAP[trackName];
+  const exactOriginal = TRACK_SHADER_MAP[trackName] as ShaderPresetName | undefined;
+  if (exactOriginal) return exactOriginal;
 
   // Fuzzy match by checking if any key is contained in the normalized track name
   const lower = normalized.toLowerCase();

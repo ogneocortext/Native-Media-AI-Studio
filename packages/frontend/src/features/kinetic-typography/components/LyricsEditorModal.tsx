@@ -70,7 +70,7 @@ export function LyricsEditorModal({
   }, []);
 
   const handleAddLine = useCallback(() => {
-    const lastLine = data.lines[data.lines.length - 1];
+    const lastLine = data.lines.at(-1);
     const startTime = lastLine ? lastLine.end : Math.floor(currentTime);
     const newLine: LyricLine = {
       id: `line-${Date.now()}`,

@@ -46,7 +46,7 @@ export async function parseJson<T>(
   if (!response.ok) {
     let detail: string | undefined;
     try {
-      const errorData = await response.json();
+      const errorData = (await response.json()) as unknown;
       if (typeof errorData === "object" && errorData !== null) {
         if ("detail" in errorData) {
           detail = typeof errorData.detail === "string"

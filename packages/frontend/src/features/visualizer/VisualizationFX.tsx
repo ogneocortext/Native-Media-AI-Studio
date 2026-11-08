@@ -41,6 +41,91 @@ import {
 } from "three/tsl";
 import type { AudioData } from "./types";
 import { getSectionMotionIntensity } from "./sectionStateMachine";
+import type { Node } from "three/webgpu";
+
+/**
+ * Node-graph materials built with TSL. The classic `MeshStandardMaterial` /
+ * `PointsMaterial` classes accept `*Node` overrides at runtime under
+ * WebGPURenderer; the typings only declare them on `NodeMaterial`, so the
+ * factory functions return these narrow extensions instead of `any`.
+ */
+// The *Node overrides already exist on the three.js material typings (the
+// node-material properties are merged into the classic material interfaces),
+// so each redeclaration uses the base property's own type to stay compatible.
+export interface TerrainTSLMaterial extends THREE.MeshStandardMaterial {
+  positionNode: THREE.MeshStandardMaterial["positionNode"];
+  normalNode: THREE.MeshStandardMaterial["normalNode"];
+  colorNode: THREE.MeshStandardMaterial["colorNode"];
+}
+
+export interface AudioReactiveTSLMaterial extends THREE.MeshStandardMaterial {
+  colorNode: THREE.MeshStandardMaterial["colorNode"];
+  emissiveNode: THREE.MeshStandardMaterial["emissiveNode"];
+  opacityNode: THREE.MeshStandardMaterial["opacityNode"];
+}
+
+export interface StreakTSLMaterial extends THREE.PointsMaterial {
+  sizeNode: THREE.PointsMaterial["sizeNode"];
+  colorNode: THREE.PointsMaterial["colorNode"];
+}
+
+/** `{ value }` handle stored under `material.userData.uniforms` by the TSL factories. */
+interface TSLUniform<T> {
+  value: T;
+}
+
+export interface TerrainTSLUniforms {
+  uTime: TSLUniform<number>;
+  uBass: TSLUniform<number>;
+  uMid: TSLUniform<number>;
+  uTreble: TSLUniform<number>;
+  uEnergy: TSLUniform<number>;
+  uGlow: TSLUniform<number>;
+  uColorA: TSLUniform<THREE.Color>;
+  uColorB: TSLUniform<THREE.Color>;
+  uRim: TSLUniform<THREE.Color>;
+  uDisplace: TSLUniform<number>;
+  uFreq1: TSLUniform<number>;
+  uFreq2: TSLUniform<number>;
+  uSpeed: TSLUniform<number>;
+  uRipple: TSLUniform<number>;
+}
+
+export interface AudioReactiveTSLUniforms {
+  uBass: TSLUniform<number>;
+  uMid: TSLUniform<number>;
+  uTreble: TSLUniform<number>;
+  uEnergy: TSLUniform<number>;
+  uGlow: TSLUniform<number>;
+  uColor: TSLUniform<THREE.Color>;
+  uEmissive: TSLUniform<THREE.Color>;
+  uOpacity: TSLUniform<number>;
+  uRoughness: TSLUniform<number>;
+  uMetalness: TSLUniform<number>;
+}
+
+export interface StreakTSLUniforms {
+  uBass: TSLUniform<number>;
+  uTreble: TSLUniform<number>;
+  uStretchLocal: TSLUniform<number>;
+  uOpacity: TSLUniform<number>;
+  uPixelRatio: TSLUniform<number>;
+}
+
+/** Read the `{ uniforms }` bag the TSL factories stash on `material.userData`. */
+function tslUniforms<U>(mat: { userData: Record<string, unknown> }): U | undefined {
+  const bag = mat.userData as { uniforms?: U } | undefined;
+  return bag?.uniforms;
+}
+
+/**
+ * `.mix` exists on every TSL node at runtime (method chaining) but the bundled
+ * typings only declare it on float nodes — narrow the color uniform once.
+ * `node.mix(b, t)` evaluates `mix(b, t, node)` (see `mixElement` in three).
+ */
+interface TSLColorMixNode {
+  mix(other: Node, factor: Node): Node<"vec4">;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared GLSL: Ashima simplex noise (used by terrain vertex shader)
@@ -456,7 +541,12 @@ export function applyStreakVelocity(
   getVel: (i: number, x: number, y: number, z: number) => [number, number, number],
   n: number,
 ) {
-  if (!geom.getAttribute("aVel")) {
+  // getAttribute can return undefined at runtime for a missing attribute.
+  const existingVel = geom.getAttribute("aVel") as
+    | THREE.BufferAttribute
+    | THREE.InterleavedBufferAttribute
+    | undefined;
+  if (!existingVel) {
     const pos = geom.getAttribute("position").array as Float32Array;
     const vel = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
@@ -551,7 +641,7 @@ export interface TSLTerrainMaterialOpts {
   ripple?: number;
 }
 
-export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): any {
+export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): TerrainTSLMaterial {
   const o = {
     colorA: "#0b1530",
     colorB: "#7dd3fc",
@@ -580,10 +670,19 @@ export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): any {
   const uSpeed = uniform(o.speed);
   const uRipple = uniform(o.ripple);
 
-  const heightFn = Fn(([p, t]: [any, any]) => {
+  const heightFn = Fn(([p, t]: [Node<"vec2">, Node<"float">]) => {
     const n1 = triNoise3D(vec3(p.x.mul(uFreq1), p.y.mul(uFreq1), float(0)), uSpeed, t);
-    const n2 = triNoise3D(vec3(p.x.mul(uFreq2).add(13.7), p.y.mul(uFreq2), float(0)), uSpeed, t);
-    const ripple = float(Math.sin(p.length().mul(2.2).sub(t.mul(2.4)))).mul(uRipple);
+    const n2 = triNoise3D(
+      vec3(p.x.mul(uFreq2).add(13.7), p.y.mul(uFreq2), float(0)),
+      uSpeed,
+      t,
+    );
+    // NOTE: `Math.sin` runs at graph-build time on the node (pre-existing
+    // behavior — preserved verbatim); the cast only satisfies the `number`
+    // signature, it does not change the emitted graph.
+    const ripple = float(Math.sin(p.length().mul(2.2).sub(t.mul(2.4)) as unknown as number)).mul(
+      uRipple,
+    );
     return n1
       .mul(float(0.35).add(uBass.mul(uDisplace).mul(0.8)))
       .add(n2.mul(float(0.12).add(uMid.mul(0.5))).mul(0.5))
@@ -595,14 +694,14 @@ export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): any {
     side: THREE.DoubleSide,
   });
 
-  (material as any).positionNode = Fn(() => {
+  material.positionNode = Fn(() => {
     const p = positionLocal;
     const t = uTime.add(uEnergy.mul(2.0));
     const h = heightFn(p.xy, t);
     return vec3(p.x, p.y, p.z.add(h));
   })();
 
-  (material as any).normalNode = Fn(() => {
+  material.normalNode = Fn(() => {
     const p = positionLocal;
     const t = uTime.add(uEnergy.mul(2.0));
     const h = heightFn(p.xy, t);
@@ -612,12 +711,15 @@ export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): any {
     return vec3(h.sub(hx).div(eps), h.sub(hy).div(eps), 1.0).normalize();
   })();
 
-  (material as any).colorNode = Fn(() => {
+  material.colorNode = Fn(() => {
     const p = positionLocal;
     const t = uTime.add(uEnergy.mul(2.0));
     const h = heightFn(p.xy, t);
 
-    let col = (uColorA as any).mix(uColorB, h.add(1.2).div(2.6).clamp(0, 1));
+    let col: Node<"vec4"> = (uColorA as unknown as TSLColorMixNode).mix(
+      uColorB,
+      h.add(1.2).div(2.6).clamp(0, 1),
+    );
 
     const fres = float(1.0)
       .sub(normalWorld.normalize().dot(cameraPosition.sub(positionWorld).normalize()).abs())
@@ -630,7 +732,7 @@ export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): any {
     return col;
   })();
 
-  (material as any).userData = {
+  material.userData = {
     uniforms: {
       uTime,
       uBass,
@@ -653,12 +755,12 @@ export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): any {
 }
 
 export function updateTerrainMaterialTSL(
-  mat: any,
+  mat: TerrainTSLMaterial,
   t: number,
   audio: { bass: number; mid: number; treble: number; energy?: number },
   glow: number,
 ) {
-  const u = mat.userData?.uniforms;
+  const u = tslUniforms<TerrainTSLUniforms>(mat);
   if (!u) return;
   u.uTime.value = t;
   u.uBass.value = audio.bass;
@@ -676,7 +778,9 @@ export interface AudioReactiveMaterialOpts {
   metalness?: number;
 }
 
-export function makeAudioReactiveMaterialTSL(opts: AudioReactiveMaterialOpts = {}): any {
+export function makeAudioReactiveMaterialTSL(
+  opts: AudioReactiveMaterialOpts = {},
+): AudioReactiveTSLMaterial {
   const o = {
     color: "#6366f1",
     emissive: "#4338ca",
@@ -704,12 +808,12 @@ export function makeAudioReactiveMaterialTSL(opts: AudioReactiveMaterialOpts = {
     side: THREE.DoubleSide,
   });
 
-  (material as any).colorNode = Fn(() => {
+  material.colorNode = Fn(() => {
     const audioTint = float(0.15).add(uBass.mul(0.35)).add(uMid.mul(0.2));
     return uColor.mul(float(1.0).add(audioTint));
   })();
 
-  (material as any).emissiveNode = Fn(() => {
+  material.emissiveNode = Fn(() => {
     const intensity = float(0.4)
       .add(uBass.mul(1.8))
       .add(uMid.mul(0.6))
@@ -718,11 +822,11 @@ export function makeAudioReactiveMaterialTSL(opts: AudioReactiveMaterialOpts = {
     return uEmissive.mul(intensity);
   })();
 
-  (material as any).opacityNode = Fn(() => {
+  material.opacityNode = Fn(() => {
     return float(o.opacity).sub(uBass.mul(0.15)).clamp(0.05, 1.0);
   })();
 
-  (material as any).userData = {
+  material.userData = {
     uniforms: {
       uBass,
       uMid,
@@ -741,11 +845,11 @@ export function makeAudioReactiveMaterialTSL(opts: AudioReactiveMaterialOpts = {
 }
 
 export function updateAudioReactiveMaterialTSL(
-  mat: any,
+  mat: AudioReactiveTSLMaterial,
   audio: { bass: number; mid: number; treble: number; energy?: number },
   glow: number,
 ) {
-  const u = mat.userData?.uniforms;
+  const u = tslUniforms<AudioReactiveTSLUniforms>(mat);
   if (!u) return;
   u.uBass.value = audio.bass;
   u.uMid.value = audio.mid;
@@ -765,7 +869,7 @@ export interface StreakMaterialOpts {
   opacity?: number;
 }
 
-export function makeStreakMaterialTSL(opts: StreakMaterialOpts = {}): THREE.PointsMaterial {
+export function makeStreakMaterialTSL(opts: StreakMaterialOpts = {}): StreakTSLMaterial {
   const { size = 42, stretch = 2.6, opacity = 0.85 } = opts;
 
   const uBass = uniform(0);
@@ -789,7 +893,7 @@ export function makeStreakMaterialTSL(opts: StreakMaterialOpts = {}): THREE.Poin
 
   material.colorNode = Fn(() => {
     const pointUV = uv().sub(0.5).mul(2.0);
-    const vel = attribute("aVel") as any;
+    const vel = attribute("aVel", "vec3");
     const speed = vel.length();
     const velDir = vel.normalize();
     const stretchAmt = float(1).add(speed.mul(uStretchLocal));
@@ -797,14 +901,16 @@ export function makeStreakMaterialTSL(opts: StreakMaterialOpts = {}): THREE.Poin
     const perp = pointUV.sub(velDir.xy.mul(along));
     const finalOffset = perp.add(velDir.xy.mul(along.mul(stretchAmt)));
     const r2 = finalOffset.dot(finalOffset);
-    const alpha = float(Math.exp(-r2.mul(3.2)))
+    // `Math.exp` runs at graph-build time on the node (pre-existing behavior —
+    // preserved verbatim); the cast only satisfies the `number` signature.
+    const alpha = float(Math.exp(-(r2.mul(3.2) as unknown as number)))
       .mul(uOpacity)
       .mul(float(0.65).add(speed.mul(0.6)).add(uTreble.mul(0.25)));
-    const vColor = attribute("color") as any;
+    const vColor = attribute("color", "vec3");
     return vec4(vColor.mul(float(0.75).add(speed.mul(0.8))), alpha);
   })();
 
-  (material as any).userData = {
+  material.userData = {
     uniforms: { uBass, uTreble, uStretchLocal, uOpacity, uPixelRatio },
   };
 
@@ -812,10 +918,10 @@ export function makeStreakMaterialTSL(opts: StreakMaterialOpts = {}): THREE.Poin
 }
 
 export function updateStreakMaterialTSL(
-  mat: any,
+  mat: StreakTSLMaterial,
   audio: { bass: number; mid: number; treble: number; energy?: number },
 ) {
-  const u = mat.userData?.uniforms;
+  const u = tslUniforms<StreakTSLUniforms>(mat);
   if (!u) return;
   u.uBass.value = audio.bass;
   u.uTreble.value = audio.treble;

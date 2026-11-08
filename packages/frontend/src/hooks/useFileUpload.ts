@@ -200,7 +200,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
-      const pasted = Array.from(e.clipboardData.files ?? []);
+      const pasted = Array.from((e.clipboardData.files as FileList | null) ?? []);
       if (pasted.length > 0) {
         e.preventDefault();
         processFiles(pasted);

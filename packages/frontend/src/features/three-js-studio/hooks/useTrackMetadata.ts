@@ -62,7 +62,7 @@ export function useTrackMetadata(selectedTrack: string | null) {
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err.message);
+        setError(err instanceof Error ? err.message : String(err));
         setMetadata(null);
       })
       .finally(() => {

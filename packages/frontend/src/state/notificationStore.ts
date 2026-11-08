@@ -39,7 +39,8 @@ const GROUP_RULES: {
   },
   {
     match: /^(system\.)?health_changed$/,
-    key: (name, data) => `${name}:${String(data?.level ?? data?.status ?? "unknown")}`,
+    key: (name, data) =>
+      `${name}:${(data?.level ?? data?.status ?? "unknown") as string}`,
   },
 ];
 
@@ -204,7 +205,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           type: (ev.data?.type as string | null) ?? null,
           data: (ev.data?.data as Record<string, unknown> | null) ?? ev.data,
           timestamp: (ev.data?.timestamp as string | null) ?? null,
-          priority: ((ev.data?.priority as string) ?? "medium") as NotificationItem["priority"],
+          priority: ((ev.data?.priority as string | undefined) ?? "medium") as NotificationItem["priority"],
         }));
       get().addItems(mapped);
     } catch (error) {
@@ -258,7 +259,8 @@ function handleIncomingSSE(message: Record<string, unknown>, get: () => Notifica
   const prefs = get().preferences;
   if (!matchesPreferences(name, prefs)) return;
 
-  const id = String(data.id ?? message.id ?? `${Date.now()}-${Math.random()}`);
+  const idValue = (data.id ?? message.id ?? `${Date.now()}-${Math.random()}`) as string;
+  const id = String(idValue);
   const item: NotificationItem = {
     id,
     type: name,

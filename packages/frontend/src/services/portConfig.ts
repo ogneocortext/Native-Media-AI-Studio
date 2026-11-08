@@ -98,8 +98,8 @@ export async function fetchPortConfig(): Promise<PortConfig> {
   try {
     const response = await fetchWithTimeout("/api/integrations/config/ports", { timeout: 6000 });
     if (response.ok) {
-      const raw = await response.json();
-      cachedConfig = normalizePortConfig(raw as Record<string, unknown>);
+      const raw = (await response.json()) as Record<string, unknown>;
+      cachedConfig = normalizePortConfig(raw);
       return cachedConfig;
     }
   } catch {
@@ -110,8 +110,8 @@ export async function fetchPortConfig(): Promise<PortConfig> {
   try {
     const response = await fetchWithTimeout("/config/ports.json", { timeout: 6000 });
     if (response.ok) {
-      const raw = await response.json();
-      cachedConfig = normalizePortConfig(raw as Record<string, unknown>);
+      const raw = (await response.json()) as Record<string, unknown>;
+      cachedConfig = normalizePortConfig(raw);
       return cachedConfig;
     }
   } catch {

@@ -102,7 +102,10 @@ export const QuickPresetBar = memo(function QuickPresetBar({
                 onClick={() => onSelect3DPreset(p.id)}
                 className={`viz-preset-pill ${isActive ? "active" : ""}`}
                 aria-pressed={isActive}
-                title={visualPresets[p.id].description ?? p.name}
+                title={
+                  (visualPresets[p.id] as (typeof visualPresets)[string] | undefined)
+                    ?.description ?? p.name
+                }
               >
                 <span className="viz-preset-dot" style={{ background: p.color }} />
                 <span>{p.name}</span>
@@ -127,7 +130,9 @@ export const QuickPresetBar = memo(function QuickPresetBar({
 
         {vizMode === "shader" &&
           (Object.keys(SHADER_PRESET_INFO) as ShaderPresetName[]).slice(0, 6).map((key) => {
-            const info = SHADER_PRESET_INFO[key];
+            const info = SHADER_PRESET_INFO[key] as
+              | (typeof SHADER_PRESET_INFO)[ShaderPresetName]
+              | undefined;
             if (!info) return null;
             const isActive = activeShaderPreset === key;
             return (

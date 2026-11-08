@@ -32,7 +32,7 @@ export function DuplicatesPanel({ isOpen, onClose, onRefetch }: DuplicatesPanelP
         timeout: 30000,
       });
       if (!res.ok) throw new Error(`duplicates ${res.status}`);
-      const data: DuplicateGroup[] = await res.json();
+      const data = (await res.json()) as DuplicateGroup[];
       setGroups(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Duplicate scan failed");

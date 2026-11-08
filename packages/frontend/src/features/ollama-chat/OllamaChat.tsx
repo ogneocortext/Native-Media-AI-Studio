@@ -95,7 +95,7 @@ const SUGGESTED_PROMPTS = [
 // ---------------------------------------------------------------------------
 
 function getBenchmarkScore(
-  benchmarks: Record<string, OllamaBenchmarkResult>,
+  benchmarks: Record<string, OllamaBenchmarkResult | undefined>,
   modelName: string,
 ): { score: number | null; latency: number | null; success: boolean | null } {
   const mBench = benchmarks[modelName];
@@ -308,7 +308,7 @@ function MessageItem({ msg, onCopy }: MessageItemProps) {
   const time = msg.timestamp
     ? msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : "";
-  const hasContent = Boolean(msg.content?.trim());
+  const hasContent = Boolean(msg.content.trim());
   const isError = hasContent && msg.content.startsWith("Error:");
 
   return (
@@ -350,7 +350,7 @@ function MessageItem({ msg, onCopy }: MessageItemProps) {
                 ⚠ Request could not be completed
               </div>
             ) : null}
-            {!isUser && hasContent && !isError && (
+            {!isUser && !isError && (
               <button
                 onClick={() => onCopy(msg.content)}
                 className="absolute -top-6 -right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-white/10 rounded text-gray-400 hover:text-white"
@@ -630,12 +630,12 @@ function ModelSelector({
           ) : (
             sorted.map((m) => {
               const { score, latency, success } = getBenchmarkScore(benchmarks, m.name);
-              let badge = "";
+              let badge: string;
               if (score !== null) {
                 const s = Math.round(score);
                 const ok = success === false ? "FAIL" : s >= 70 ? "OK" : s >= 40 ? "WARN" : "FAIL";
                 badge = ` [${ok} ${s}/100${latency ? ` ${(latency / 1000).toFixed(1)}s` : ""}]`;
-              } else if (score === null) {
+              } else {
                 badge = " [—]";
               }
               const isBest = sorted[0]?.name === m.name && score !== null && score >= 60;
@@ -714,7 +714,7 @@ function ModelSelector({
               <span
                 key="src"
                 className={`text-[10px] ${sourceCfg.color}`}
-                title={SOURCE_BADGES[m.source || "ollama"].label}
+                title={SOURCE_BADGES[m.source].label}
               >
                 {m.source === "atomic-chat" ? <Zap size={10} /> : <Activity size={10} />}
               </span>,
@@ -1245,8 +1245,8 @@ export function OllamaChat() {
           fetch(`${getApiBase()}/api/integrations/ollama/tools`, {
             signal: AbortSignal.timeout(10000),
           })
-            .then(async (r) => r.json())
-            .catch(() => ({ tools: [] })),
+            .then(async (r) => (await r.json()) as { tools?: ToolDefinition[] })
+            .catch(() => ({ tools: [] as ToolDefinition[] })),
           getTaskModelRoutes().catch(() => null),
         ]);
 
@@ -1255,7 +1255,7 @@ export function OllamaChat() {
         let benchMap: Record<string, OllamaBenchmarkResult> = {};
         try {
           const benchData = await getBenchmarkResults();
-          benchMap = benchData.results || {};
+          benchMap = benchData.results;
           setBenchmarks(benchMap);
         } catch {
           /* no benchmarks yet */
@@ -1372,11 +1372,11 @@ export function OllamaChat() {
             const tcData = chunk.data as { name: string; arguments: Record<string, unknown> };
             setStreamStatus("executing_tool");
             setCurrentTool(tcData.name);
-            toolCalls.push({ name: tcData.name, arguments: tcData.arguments ?? {} });
+            toolCalls.push({ name: tcData.name, arguments: tcData.arguments });
             setToolStep((s) => s + 1);
             logStreamEvent(
               "tool_call",
-              `${tcData.name}(${JSON.stringify(tcData.arguments ?? {}).slice(0, 80)})`,
+              `${tcData.name}(${JSON.stringify(tcData.arguments).slice(0, 80)})`,
             );
             setMessages((prev) => {
               const next = [...prev];
@@ -1415,7 +1415,7 @@ export function OllamaChat() {
               const next = [...prev];
               const last = next[next.length - 1];
               if (last.role === "assistant") {
-                last.content = `Error: ${chunk.data ?? "stream error"}`;
+                last.content = `Error: ${(chunk.data ?? "stream error") as string}`;
               }
               return next;
             });
@@ -1506,15 +1506,15 @@ export function OllamaChat() {
             benchmarks={benchmarks}
             onModelChange={setSelectedModel}
             toolRoutes={taskRoutes}
-            onAutoSelect={handleAutoSelectModel}
+            onAutoSelect={(task) => void handleAutoSelectModel(task)}
           />
           <BenchmarkControls
             benchmarks={benchmarks}
             benchmarkRunning={benchmarkRunning}
             codingBenchmarkRunning={codingBenchmarkRunning}
             modelsLoading={modelsLoading}
-            onRunBenchmarks={handleRunBenchmarks}
-            onRunCodingBenchmarks={handleRunCodingBenchmarks}
+            onRunBenchmarks={() => void handleRunBenchmarks()}
+            onRunCodingBenchmarks={() => void handleRunCodingBenchmarks()}
           />
           <StreamStatusBanner
             streamStatus={streamStatus}
@@ -1529,7 +1529,7 @@ export function OllamaChat() {
             extractRunning={extractRunning}
             extractError={extractError}
             extractResult={extractResult}
-            onUpload={handleVideoUpload}
+            onUpload={(file) => void handleVideoUpload(file)}
           />
         </div>
 
@@ -1594,7 +1594,7 @@ export function OllamaChat() {
         messages={messages}
         loading={loading}
         onCopy={(text) => {
-          navigator.clipboard.writeText(text);
+          void navigator.clipboard.writeText(text);
         }}
         atBottom={atBottom}
         setAtBottom={setAtBottom}
@@ -1605,7 +1605,7 @@ export function OllamaChat() {
         setInput={setInput}
         disabled={inputDisabled}
         loading={loading}
-        onSend={handleSend}
+        onSend={() => void handleSend()}
         placeholder={selectedModel ? `Message ${selectedModel}…` : "Select a model first…"}
       />
     </div>

@@ -74,13 +74,17 @@ export function AIToolsPage() {
   );
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [showAllModels, setShowAllModels] = useState(false);
-  const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult>>({});
-  const [hwSummary, setHwSummary] = useState<Record<string, HardwareBenchmarkSummary>>({});
+  const [benchmarks, setBenchmarks] = useState<
+    Record<string, OllamaBenchmarkResult | undefined>
+  >({});
+  const [hwSummary, setHwSummary] = useState<
+    Record<string, HardwareBenchmarkSummary | undefined>
+  >({});
   const abortRef = useRef<AbortController | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    loadModels(true);
+    void loadModels(true);
   }, []);
 
   // Keep `response` in sync with the last assistant message for Sidebar compatibility
@@ -99,14 +103,14 @@ export function AIToolsPage() {
         supportsThinking: m.capabilities?.includes("thinking") ?? false,
       }));
 
-      let benchMap: Record<string, OllamaBenchmarkResult> = {};
-      let hwMap: Record<string, HardwareBenchmarkSummary> = {};
+      let benchMap: Record<string, OllamaBenchmarkResult | undefined> = {};
+      let hwMap: Record<string, HardwareBenchmarkSummary | undefined> = {};
       const [sceneRes, hwRes] = await Promise.allSettled([
         getBenchmarkResults(),
         getHardwareBenchmarks(),
       ]);
       if (sceneRes.status === "fulfilled") {
-        benchMap = sceneRes.value.results || {};
+        benchMap = sceneRes.value.results;
         setBenchmarks(benchMap);
       }
       if (hwRes.status === "fulfilled") {
@@ -116,18 +120,18 @@ export function AIToolsPage() {
 
       const sorted = [...enhanced].sort((a, b) => {
         if (a.verified !== b.verified) return a.verified ? -1 : 1;
-        const sa = a.benchmark?.score ?? benchMap[a.name]?.validation?.score ?? -1;
-        const sb = b.benchmark?.score ?? benchMap[b.name]?.validation?.score ?? -1;
+        const sa = a.benchmark?.score ?? benchMap[a.name]?.validation.score ?? -1;
+        const sb = b.benchmark?.score ?? benchMap[b.name]?.validation.score ?? -1;
         if (sa !== sb) return sb - sa;
         const la =
-          hwMap[a.name]?.median_latency_ms ||
-          a.benchmark?.latency_ms ||
-          benchMap[a.name]?.latency_ms ||
+          hwMap[a.name]?.median_latency_ms ??
+          a.benchmark?.latency_ms ??
+          benchMap[a.name]?.latency_ms ??
           999999;
         const lb =
-          hwMap[b.name]?.median_latency_ms ||
-          b.benchmark?.latency_ms ||
-          benchMap[b.name]?.latency_ms ||
+          hwMap[b.name]?.median_latency_ms ??
+          b.benchmark?.latency_ms ??
+          benchMap[b.name]?.latency_ms ??
           999999;
         return la - lb;
       });
@@ -135,7 +139,7 @@ export function AIToolsPage() {
       setOllamaConnected(true);
       if (sorted.length > 0 && !selectedModel) {
         const toolModel = sorted.find((m) => m.supportsTools);
-        setSelectedModel(toolModel?.name || sorted[0].name);
+        setSelectedModel(toolModel?.name ?? sorted[0].name);
       }
     } catch {
       setOllamaConnected(false);
@@ -245,10 +249,11 @@ export function AIToolsPage() {
           );
           if (data.name === "generate_visualization") {
             try {
-              const cfg = JSON.parse(data.result) as VisualizationConfig;
+              const cfg = JSON.parse(data.result) as Partial<VisualizationConfig> | null;
               if (cfg?.style && cfg.colors) {
+                const viz = cfg as VisualizationConfig;
                 setMessages((prev) =>
-                  prev.map((m) => (m.id === assistantId ? { ...m, vizConfig: cfg } : m)),
+                  prev.map((m) => (m.id === assistantId ? { ...m, vizConfig: viz } : m)),
                 );
               }
             } catch {
@@ -257,7 +262,7 @@ export function AIToolsPage() {
           }
         } else if (event.type === "error") {
           const data = event.data as { message?: string };
-          throw new Error(data.message || "Ollama returned no response");
+          throw new Error(data.message ?? "Ollama returned no response");
         }
       }
 
@@ -292,21 +297,21 @@ export function AIToolsPage() {
   };
 
   const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
+    void navigator.clipboard.writeText(text);
   };
 
   const handleRegenerate = (message: Message) => {
     if (message.role !== "assistant") return;
     const idx = messages.findIndex((m) => m.id === message.id);
     if (idx === -1) return;
-    const userMsg = messages[idx - 1];
-    if (!userMsg || userMsg.role !== "user") return;
+    const userMsg = messages.at(idx - 1);
+    if (userMsg?.role !== "user") return;
     setMessages((prev) => prev.slice(0, idx));
     setGenerating(true);
-    const modelToUse = message.model || selectedModel || "";
+    const modelToUse = message.model ?? selectedModel ?? "";
     setSelectedModel(modelToUse);
     setPrompt(userMsg.content);
-    handleGenerate();
+    void handleGenerate();
   };
 
   const getModelCaps = (m: OllamaModel) =>
@@ -318,17 +323,19 @@ export function AIToolsPage() {
 
   const getModelLatency = (m: OllamaModel) => {
     const latency =
-      hwSummary[m.name]?.median_latency_ms ||
-      benchmarks[m.name]?.latency_ms ||
-      m.benchmark?.latency_ms ||
+      hwSummary[m.name]?.median_latency_ms ??
+      benchmarks[m.name]?.latency_ms ??
+      m.benchmark?.latency_ms ??
       null;
     return latency ? `${(latency / 1000).toFixed(1)}s` : null;
   };
 
   const getModelScore = (m: OllamaModel) => {
-    const score = benchmarks[m.name]?.validation?.score ?? m.benchmark?.score ?? null;
+    const score = benchmarks[m.name]?.validation.score ?? m.benchmark?.score ?? null;
     return score !== null && score >= 0 ? Math.round(score) : null;
   };
+
+  const vizConfig = messages.find((m) => m.vizConfig)?.vizConfig ?? null;
 
   return (
     <div className={DS.page}>
@@ -369,7 +376,7 @@ export function AIToolsPage() {
                 onClick={() => {
                   const next = !showAllModels;
                   setShowAllModels(next);
-                  loadModels(!next);
+                  void loadModels(!next);
                 }}
                 className="px-2 py-1 text-xs rounded bg-gray-700/50 hover:bg-gray-700 text-muted border border-gray-600 flex items-center gap-1"
                 title={
@@ -467,7 +474,7 @@ export function AIToolsPage() {
                 )}
                 <div className="flex gap-2">
                   <button
-                    onClick={async () => loadModels(true)}
+                    onClick={() => void loadModels(true)}
                     className={DS.btnSecondary + " flex items-center gap-1"}
                   >
                     <RefreshCw size={14} /> Retry
@@ -476,7 +483,7 @@ export function AIToolsPage() {
                     onClick={() => {
                       const next = !showAllModels;
                       setShowAllModels(next);
-                      loadModels(!next);
+                      void loadModels(!next);
                     }}
                     className="px-2 py-1 text-xs rounded bg-gray-700/50 hover:bg-gray-700 text-muted border border-gray-600 flex items-center gap-1"
                   >
@@ -658,7 +665,7 @@ export function AIToolsPage() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
                     e.preventDefault();
-                    handleGenerate();
+                    void handleGenerate();
                   }
                 }}
               />
@@ -678,7 +685,7 @@ export function AIToolsPage() {
                   </button>
                 )}
                 <button
-                  onClick={handleGenerate}
+                  onClick={() => void handleGenerate()}
                   disabled={generating || !prompt.trim() || !selectedModel}
                   className={DS.btnPrimary + " " + DS.btnDisabled}
                 >
@@ -707,7 +714,7 @@ export function AIToolsPage() {
           )}
 
           {/* Visualization Canvas */}
-          {messages.some((m) => m.vizConfig) && (
+          {vizConfig && (
             <div className={DS.card}>
               <div className={DS.flexCenter + " mb-3"}>
                 <Palette size={16} className="text-purple-400" />
@@ -720,11 +727,7 @@ export function AIToolsPage() {
                   </div>
                 }
               >
-                <VisualizationCanvas
-                  config={messages.find((m) => m.vizConfig)!.vizConfig!}
-                  width={400}
-                  height={300}
-                />
+                <VisualizationCanvas config={vizConfig} width={400} height={300} />
               </Suspense>
             </div>
           )}
@@ -744,7 +747,7 @@ export function AIToolsPage() {
           setTools={setTools}
           setPrompt={setPrompt}
           promptRef={promptRef}
-          selectedModel={selectedModel || ""}
+          selectedModel={selectedModel ?? ""}
           setSelectedModel={setSelectedModel}
           models={models}
           history={history}

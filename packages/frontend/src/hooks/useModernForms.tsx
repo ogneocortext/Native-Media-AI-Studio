@@ -163,7 +163,7 @@ export function useOptimisticMutation<
     },
     onSettled: (_data, _error, variables) => {
       // Always refetch to get canonical server state
-      queryClient.invalidateQueries({ queryKey: options.queryKey });
+      void queryClient.invalidateQueries({ queryKey: options.queryKey });
       options.onSettled?.(undefined, null, variables);
     },
   });
@@ -392,9 +392,7 @@ export function createSuspensefulFetch<T>(
   let cachedPromise: Promise<T> | null = null;
   
   return async () => {
-    if (!cachedPromise) {
-      cachedPromise = fetcher();
-    }
+    cachedPromise ??= fetcher();
     return cachedPromise;
   };
 }

@@ -91,7 +91,8 @@ export function getBeatPhase(
     if (beats[mid] <= elapsedSec) lo = mid + 1;
     else hi = mid - 1;
   }
-  const next = beats[lo];
+  // lo can equal beats.length (all beats <= elapsedSec), so index may be out of bounds.
+  const next = beats[lo] as number | undefined;
   const prev = lo > 0 ? beats[lo - 1] : undefined;
   const nextBeatIn = next !== undefined ? Math.max(0, next - elapsedSec) : 0;
   if (prev === undefined || next === undefined) {
@@ -119,7 +120,7 @@ export function getNextBeatInFromArray(beats: number[], elapsedSec: number): num
     if (beats[mid] <= elapsedSec) lo = mid + 1;
     else hi = mid - 1;
   }
-  const next = beats[lo];
+  const next = beats[lo] as number | undefined;
   return next !== undefined ? Math.max(0, next - elapsedSec) : 0;
 }
 

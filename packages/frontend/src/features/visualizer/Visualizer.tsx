@@ -29,7 +29,7 @@
  * backend app/api/audio_analysis.py); treat results below the current schema
  * as stale.
  */
-import { useRef, useEffect, useCallback, useMemo, useState } from "react";
+import { useRef, useEffect, useCallback, useMemo, useState, type ComponentProps } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   setPendingTrack as handoffPendingTrack,
@@ -48,7 +48,7 @@ import { VisualizerScene } from "./VisualizerScene";
 import { useLrcSync, computeLrcSync, computeSectionBounds } from "./useLrcSync";
 import type { LrcSyncData } from "./useLrcSync";
 import { ShaderVisualizer, type ShaderFrameAccurateApi } from "./ShaderVisualizer";
-import { ACESFilmicToneMapping } from "three";
+import { ACESFilmicToneMapping, type WebGLRenderer } from "three";
 import {
   useWebGPUDector,
   createVisualizerRenderer,
@@ -103,6 +103,7 @@ import {
   toAnalysisData,
   type Canvas2DMode,
   type LibraryFile,
+  type VizMode,
   selectVizMode,
 } from "./visualizerHelpers";
 
@@ -320,7 +321,7 @@ export function Visualizer() {
   const openRemixStudio = useCallback(() => {
     if (currentFilename) handoffPendingTrack(currentFilename);
     setPendingRemixOpen();
-    navigate("/create/remix");
+    void navigate("/create/remix");
   }, [currentFilename, navigate]);
   // One definition of the mode list, in visualizerHelpers.ts. This used to be an
   // inline 12-member union that had already drifted from the picker's list (it
@@ -470,10 +471,13 @@ export function Visualizer() {
       beat: false,
     },
   });
-  // Handle Canvas onCreated
-  const handleCanvasCreated = useCallback(({ gl }: { gl: any }) => {
-    gl.toneMappingExposure = 0.8;
-    if (gl?.isWebGPURenderer) {
+  // Handle Canvas onCreated. R3F types `gl` as WebGLRenderer; the opt-in
+  // factory can hand us a WebGPURenderer, which shares the tone-mapping
+  // members but adds `isWebGPURenderer` — probe via a narrow intersection.
+  const handleCanvasCreated = useCallback(
+    ({ gl }: { gl: WebGLRenderer & { isWebGPURenderer?: boolean } }) => {
+      gl.toneMappingExposure = 0.8;
+      if (gl.isWebGPURenderer) {
       // WebGPU renderer (Three.js r185) handles tone mapping via TSL node materials;
       // ACESFilmicToneMapping is supported on both backends.
       try {
@@ -774,7 +778,9 @@ export function Visualizer() {
               Track
               <select
                 aria-label="Select track"
-                onChange={async (e) => handleSelectLibraryTrack(e.target.value)}
+                onChange={(e) => {
+                  void handleSelectLibraryTrack(e.target.value);
+                }}
                 value={currentFilename ?? ""}
               >
                 <option value="" disabled>
@@ -782,11 +788,15 @@ export function Visualizer() {
                 </option>
                 {libraryFiles.map((f) => {
                   const ref = audioRefForFile(f);
+                  // Record lookups can really miss — annotate so the
+                  // conditional badges below stay meaningful.
+                  const meta = trackMetadata[ref] as { bpm?: number } | undefined;
+                  const hasAnalysis = (analysisData[ref] as unknown) != null;
                   return (
                     <option key={ref} value={ref}>
                       {optionLabelForFile(f)}
-                      {trackMetadata[ref]?.bpm ? ` (${trackMetadata[ref].bpm} BPM)` : ""}
-                      {analysisData[ref] ? " ✓" : ""}
+                      {meta?.bpm ? ` (${meta.bpm} BPM)` : ""}
+                      {hasAnalysis ? " ✓" : ""}
                     </option>
                   );
                 })}
@@ -799,7 +809,7 @@ export function Visualizer() {
                 value={vizMode}
                 onChange={(e) => {
                   userPickedVizModeRef.current = true;
-                  setVizMode(e.target.value as any);
+                  setVizMode(e.target.value as VizMode);
                 }}
               >
                 <option value="shader">FX</option>
@@ -848,17 +858,17 @@ export function Visualizer() {
           openOverlay={openOverlay !== null}
           currentFilename={currentFilename}
           libraryFiles={libraryFiles}
-          onSelectTrack={handleSelectLibraryTrack}
+          onSelectTrack={(fileRef) => void handleSelectLibraryTrack(fileRef)}
           autoPlay={autoPlay}
           onToggleAutoPlay={toggleAutoPlay}
           analyzing={analyzing}
-          onAnalyzeTrack={handleAnalyzeTrack}
+          onAnalyzeTrack={(filename) => void handleAnalyzeTrack(filename)}
           currentAnalysisData={currentAnalysisData}
           trackMetadata={trackMetadata}
           analysisData={analysisData}
           activeVisualPresetId={activeVisualPresetId}
           visualPresets={visualPresets}
-          onEnhanceWithAI={handleEnhanceWithAI}
+          onEnhanceWithAI={() => void handleEnhanceWithAI()}
           aiEnhancing={aiEnhancing}
           loadedPreset={loadedPreset}
           libraryLoading={libraryLoading}
@@ -894,9 +904,9 @@ export function Visualizer() {
           onSelect2DMode={(m) => setCanvas2DMode(m)}
           isRecording={isRecording}
           recordingTime={recordingTime}
-          onStartRecording={startRecording}
-          onStopRecording={stopRecording}
-          onExportFrameAccurate={async (seconds) => startFrameAccurateExport(seconds)}
+          onStartRecording={() => void startRecording()}
+          onStopRecording={() => void stopRecording()}
+          onExportFrameAccurate={(seconds) => void startFrameAccurateExport(seconds)}
           isExporting={isExporting}
           exportProgress={exportProgress}
           recordedBlob={recordedBlob}
@@ -1006,7 +1016,7 @@ export function Visualizer() {
           {showAudioBrowser && (
             <AudioFileBrowser
               onClose={() => setShowAudioBrowser(false)}
-              onSelect={handleSelectLibraryTrack}
+              onSelect={(fileRef) => void handleSelectLibraryTrack(fileRef)}
             />
           )}
 
@@ -1021,7 +1031,9 @@ export function Visualizer() {
             camera={{ position: [0, 0, 7], fov: 55 }}
             dpr={adaptiveDpr}
             frameloop="always"
-            gl={createVisualizerRenderer as any}
+            gl={
+              createVisualizerRenderer as unknown as ComponentProps<typeof Canvas>["gl"]
+            }
             onCreated={handleCanvasCreated}
           >
             <QualityGovernorProbe

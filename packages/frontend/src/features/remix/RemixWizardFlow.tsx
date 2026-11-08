@@ -58,9 +58,9 @@ export function RemixWizard({
   // B the first substantive other), so opening the wizard never presents a
   // fixture as a song.
   const [step, setStep] = useState(0);
-  const [wizA, setWizA] = useState(() => primaryTrack ?? tracks[0] ?? "");
+  const [wizA, setWizA] = useState(() => primaryTrack ?? tracks.at(0) ?? "");
   const [wizB, setWizB] = useState<string | null>(() => {
-    const a = primaryTrack ?? tracks[0] ?? "";
+    const a = primaryTrack ?? tracks.at(0) ?? "";
     return (
       tracks.find((t) => t !== a && (durations[t] ?? 0) >= MIN_SOURCE_SECONDS) ??
       tracks.find((t) => t !== a) ??

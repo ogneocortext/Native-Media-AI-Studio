@@ -405,18 +405,17 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
     try {
       const res = await fetch(`/api/3d/models`);
       if (res.ok) {
-        const models = await res.json();
+        const models = (await res.json()) as {
+          filename: string;
+          path: string;
+          size_bytes: number;
+          servable_url?: string | null;
+          modified?: number;
+        }[] | null;
         if (Array.isArray(models) && models.length > 0) {
           const mapped = models
             .slice(0, 10)
-            .map(
-              (m: {
-                filename: string;
-                path: string;
-                size_bytes: number;
-                servable_url?: string | null;
-                modified?: number;
-              }) => ({
+            .map((m) => ({
                 filename: m.filename,
                 path: m.path,
                 servable_url: m.servable_url ?? null,
@@ -430,13 +429,15 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
       }
       const res2 = await fetch(`/api/outputs`);
       if (res2.ok) {
-        const d2 = await res2.json();
+        const d2 = (await res2.json()) as {
+          outputs?: { filename: string; path?: string; size?: number }[];
+        };
         const outs = d2.outputs ?? [];
         setGeneratedList(
           outs
-            .filter((f: { filename: string }) => f.filename.endsWith(".glb"))
+            .filter((f) => f.filename.endsWith(".glb"))
             .slice(0, 10)
-            .map((f: { filename: string; path?: string; size?: number }) => ({
+            .map((f) => ({
               filename: f.filename,
               path: f.path ?? "",
               servable_url: null,
@@ -471,7 +472,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
   // flags only while status is still loading or the field is absent.
   const backendHealth = (status3d.backend_health ?? {}) as Record<
     string,
-    { available?: boolean }
+    { available?: boolean } | undefined
   >;
   const healthAvailable = (id: string, fallback: boolean) =>
     backendHealth[id]?.available ?? fallback;

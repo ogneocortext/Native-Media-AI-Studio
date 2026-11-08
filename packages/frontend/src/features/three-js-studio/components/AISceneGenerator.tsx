@@ -52,6 +52,26 @@ import {
 } from "../../../services/api";
 import { getGPUSnapshot } from "../../../services/api";
 
+/** Row parsed from a storyboard markdown overview table. */
+interface StoryboardScene {
+  seq: string;
+  section: string;
+  timecode: string;
+  duration: string;
+  lyric: string;
+  visual: string;
+  technique: string;
+}
+
+/** Normalized view over either a full benchmark result (has
+ *  `validation`) or the shallow `OllamaModel.benchmark` summary. */
+interface BenchLike {
+  score?: number;
+  latency_ms?: number;
+  success?: boolean;
+  validation?: { score: number };
+}
+
 interface AISceneGeneratorProps {
   selectedTrack: string | null;
   onApplyCode: (code: string) => void;
@@ -68,7 +88,7 @@ export function AISceneGenerator({
   storyboardScene,
 }: AISceneGeneratorProps) {
   const { metadata, loading: metaLoading, error: metaError } =
-    useTrackMetadata(selectedTrack || null);
+    useTrackMetadata(selectedTrack ?? null);
   const { generate, cancel, generating, output, getOutput } = useOllamaStream();
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState("");
@@ -122,12 +142,12 @@ export function AISceneGenerator({
   // refiring on later dep changes (model/variation picks) since ?autogenerate
   // stays in the URL for the session; the handle ref keeps the closure fresh.
   const autoGenFiredRef = useRef(false);
-  const handleGenerateRef = useRef<() => Promise<void>>(async () => {});
+  const handleGenerateRef = useRef<(() => Promise<void>) | null>(null);
   useEffect(() => {
     if (autoGenFiredRef.current) return;
     if (autoGenerate && selectedModel && metadata && !generating) {
       autoGenFiredRef.current = true;
-      void handleGenerateRef.current();
+      void handleGenerateRef.current?.();
     }
   }, [autoGenerate, selectedModel, metadata, generating]);
 
@@ -144,13 +164,15 @@ export function AISceneGenerator({
   const loadModels = useCallback(async () => {
     try {
       const m = await getOllamaModels(true);
-      // Fetch benchmarks in parallel and enrich sorting
-      let benchMap: Record<string, OllamaBenchmarkResult> = {};
+      // Fetch benchmarks in parallel and enrich sorting.
+      // `Partial` because the API may omit models that were never benchmarked.
+      let benchMap: Partial<Record<string, OllamaBenchmarkResult>> = {};
       try {
         const data = await getBenchmarkResults();
-        benchMap = data.results || {};
-        setBenchmarks(benchMap);
-        setBenchUpdatedAt(data.updated_at || null);
+        benchMap = data.results;
+        setBenchmarks(data.results);
+        // `|| null` treats "" as missing — preserve that exactly.
+        setBenchUpdatedAt(data.updated_at === "" ? null : data.updated_at);
       } catch {
         /* no benchmarks yet */
       }
@@ -160,8 +182,8 @@ export function AISceneGenerator({
       const sorted = [...m].sort((a, b) => {
         // Verified models first
         if (a.verified !== b.verified) return a.verified ? -1 : 1;
-        const sa = a.benchmark?.score ?? benchMap[a.name]?.validation?.score ?? -1;
-        const sb = b.benchmark?.score ?? benchMap[b.name]?.validation?.score ?? -1;
+        const sa = a.benchmark?.score ?? benchMap[a.name]?.validation.score ?? -1;
+        const sb = b.benchmark?.score ?? benchMap[b.name]?.validation.score ?? -1;
         if (sa !== sb) return sb - sa;
         const la = a.benchmark?.latency_ms ?? benchMap[a.name]?.latency_ms ?? 999999;
         const lb = b.benchmark?.latency_ms ?? benchMap[b.name]?.latency_ms ?? 999999;
@@ -172,17 +194,19 @@ export function AISceneGenerator({
       if (sorted.length > 0 && !selectedModel) {
         // Prefer highest benchmark score among verified models; fallback to qwen3.5:4b
         const verifiedModels = sorted.filter((x) => x.verified);
-        const bestVerified = verifiedModels[0];
+        const bestVerified = verifiedModels.at(0);
         const benchBest =
-          bestVerified?.benchmark?.success !== false &&
-          (bestVerified?.benchmark?.score ?? benchMap[bestVerified.name]?.validation?.score ?? 0) >=
-            40
+          bestVerified &&
+          bestVerified.benchmark?.success !== false &&
+          (bestVerified.benchmark?.score ??
+            benchMap[bestVerified.name]?.validation.score ??
+            0) >= 40
             ? bestVerified
             : null;
         const fallback =
-          sorted.find((x) => x.name === "qwen3.5:4b (3389983735)") ||
+          sorted.find((x) => x.name === "qwen3.5:4b (3389983735)") ??
           sorted.find((x) => x.name.includes("qwen3.5:4b"));
-        const preferred = benchBest || fallback || bestVerified || sorted[0];
+        const preferred = benchBest ?? fallback ?? bestVerified ?? sorted[0];
         setSelectedModel(preferred.name);
       }
     } catch {
@@ -192,7 +216,7 @@ export function AISceneGenerator({
 
   // Load models + benchmarks on mount
   useEffect(() => {
-    loadModels();
+    void loadModels();
   }, [loadModels]);
 
   const handleRunBenchmark = useCallback(async () => {
@@ -200,28 +224,30 @@ export function AISceneGenerator({
     setBenchError(null);
     try {
       const data = await runBenchmark(undefined, 8);
-      setBenchmarks(data.results || {});
-      setBenchUpdatedAt(data.updated_at || null);
-      // Re-sort models by new scores
+      setBenchmarks(data.results);
+      setBenchUpdatedAt(data.updated_at === "" ? null : data.updated_at);
+      // Re-sort models by new scores. `Partial` because the API may
+      // omit models that were never benchmarked.
+      const results: Partial<Record<string, OllamaBenchmarkResult>> = data.results;
       setModels((prev) => {
         const sorted = [...prev].sort((a, b) => {
-          const sa = data.results[a.name]?.validation?.score ?? -1;
-          const sb = data.results[b.name]?.validation?.score ?? -1;
+          const sa = results[a.name]?.validation.score ?? -1;
+          const sb = results[b.name]?.validation.score ?? -1;
           if (sa !== sb) return sb - sa;
           return (
-            (data.results[a.name]?.latency_ms ?? 999999) -
-            (data.results[b.name]?.latency_ms ?? 999999)
+            (results[a.name]?.latency_ms ?? 999999) -
+            (results[b.name]?.latency_ms ?? 999999)
           );
         });
         // Auto-switch to new best if current is not best
-        const best = sorted[0];
-        if (best && data.results[best.name]?.validation?.score >= 60) {
+        const best = sorted.at(0);
+        if (best && (results[best.name]?.validation.score ?? 0) >= 60) {
           setSelectedModel(best.name);
         }
         return sorted;
       });
-    } catch (e: any) {
-      setBenchError(e.message || "Benchmark failed");
+    } catch (e) {
+      setBenchError(e instanceof Error && e.message ? e.message : "Benchmark failed");
     } finally {
       setBenchLoading(false);
     }
@@ -234,7 +260,9 @@ export function AISceneGenerator({
     if (!generating && output && output.length > 50 && savedFile !== output.substring(0, 40)) {
       const id = `${selectedTrack}_${Date.now()}`;
       generationIdRef.current = id;
-      saveGeneratedScene(output, selectedTrack || "unknown", selectedModel || "unknown")
+      // `selectedModel` is a plain string — "" means unset and must map
+      // to "unknown" (hence ||, not ??).
+      void saveGeneratedScene(output, selectedTrack ?? "unknown", selectedModel || "unknown")
         .then((result) => setSavedFile(result.filename))
         .catch(() => {
           void 0;
@@ -249,13 +277,13 @@ export function AISceneGenerator({
       setVariations(vars);
       setActiveVariation(0);
     }
-  }, [metadata, generatePromptVariations]);
+  }, [metadata]);
 
   const handleGenerate = async () => {
     if (!selectedModel || !metadata) return;
     // Reset saved file tracking and cleanup old incomplete files
     setSavedFile(null);
-    cleanupIncompleteScenes(selectedTrack || "unknown", 3).catch(() => {
+    void cleanupIncompleteScenes(selectedTrack ?? "unknown", 3).catch(() => {
       void 0;
     });
 
@@ -264,15 +292,18 @@ export function AISceneGenerator({
     // the default 120 BPM prompt instead of the track-adapted one.
     const liveVariations = generatePromptVariations(metadata);
     const activePrompt =
-      liveVariations[activeVariation]?.prompt ?? liveVariations[0]?.prompt ?? "";
+      liveVariations.at(activeVariation)?.prompt ?? liveVariations.at(0)?.prompt ?? "";
 
     // Build scene context from storyboard if available
     let sceneContext = "";
     if (storyboard && storyboardContent) {
       // Extract relevant scene if storyboardScene index specified
       const scenes = parseStoryboardScenes(storyboardContent);
-      if (storyboardScene !== null && storyboardScene !== undefined && scenes[storyboardScene]) {
-        const scene = scenes[storyboardScene];
+      const scene =
+        storyboardScene !== null && storyboardScene !== undefined
+          ? scenes.at(storyboardScene)
+          : undefined;
+      if (scene) {
         sceneContext = `
 Storyboard Scene ${scene.seq} (${scene.section}):
 - Time: ${scene.timecode} (${scene.duration})
@@ -319,7 +350,7 @@ function applyScene(scene,camera,renderer,THREE){
   return (t,d)=>{ m.rotation.y+=d*0.4; m.position.y=Math.sin(t*1.2)*0.1; m.scale.setScalar(1+Math.sin(t*2.2)*0.05); };
 }
 
-Track: ${metadata.bpm} BPM, ${Math.round(metadata.duration)}s, sections: ${metadata.sections.map((s: any) => s.type).join(", ")}, avgEnergy ${Math.round((metadata.sections.reduce((a: any, c: any) => a + c.energy, 0) / (metadata.sections.length || 1)) * 100)}%
+Track: ${metadata.bpm} BPM, ${Math.round(metadata.duration)}s, sections: ${metadata.sections.map((s) => s.type).join(", ")}, avgEnergy ${Math.round((metadata.sections.reduce((a, c) => a + c.energy, 0) / (metadata.sections.length || 1)) * 100)}%
 ${sceneContext}
 User request: ${activePrompt}
 Return ONLY the function, no fences.`;
@@ -329,11 +360,15 @@ Return ONLY the function, no fences.`;
     let num_ctx = 4096;
     try {
       const gpu = await getGPUSnapshot();
-      const free =
-        (gpu as any).memory_free_mb ??
-        (gpu as any).vram_free_mb ??
-        (gpu as any).memoryFreeMb ??
-        2048;
+      // Probe several field spellings the backend has used for free VRAM.
+      // Widened locally because GPUSnapshot marks the canonical field
+      // required even though older payloads omitted it.
+      const probe = gpu as unknown as {
+        memory_free_mb?: number;
+        vram_free_mb?: number;
+        memoryFreeMb?: number;
+      };
+      const free = probe.memory_free_mb ?? probe.vram_free_mb ?? probe.memoryFreeMb ?? 2048;
       const isLarge = /9b|7b|13b|14b/i.test(selectedModel);
       if (free > 4000) num_ctx = isLarge ? 8192 : 6144;
       else if (free > 2000) num_ctx = 4096;
@@ -353,9 +388,9 @@ Return ONLY the function, no fences.`;
   };
   handleGenerateRef.current = handleGenerate;
 
-  const parseStoryboardScenes = (md: string) => {
+  const parseStoryboardScenes = (md: string): StoryboardScene[] => {
     const lines = md.split("\n");
-    const result: any[] = [];
+    const result: StoryboardScene[] = [];
     let inOverview = false;
     for (const line of lines) {
       if (line.includes("## Overview Map")) {
@@ -388,7 +423,7 @@ Return ONLY the function, no fences.`;
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(output);
+    void navigator.clipboard.writeText(output);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -400,7 +435,7 @@ Return ONLY the function, no fences.`;
     try {
       const result = await saveGeneratedScene(
         code,
-        selectedTrack || "unknown",
+        selectedTrack ?? "unknown",
         selectedModel || "unknown",
       );
       setSavedFile(result.filename);
@@ -485,7 +520,7 @@ Return ONLY the function, no fences.`;
                 <span
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleRunBenchmark();
+                    void handleRunBenchmark();
                   }}
                   className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 ${benchLoading ? "bg-amber-900/50 text-amber-200 border-amber-700/50" : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/20"}`}
                   title="Benchmark all models"
@@ -515,14 +550,16 @@ Return ONLY the function, no fences.`;
                     onChange={(e) => setSelectedModel(e.target.value)}
                     className="flex-1 min-w-0 w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white truncate"
                     title={selectedModel || "No model selected"}
-                    onClick={loadModels}
+                    onClick={() => void loadModels()}
                   >
                     {models.length === 0 && (
                       <option value="">Click to load verified models...</option>
                     )}
                     {models.map((m) => {
-                      const full = benchmarks[m.name] as any;
-                      const bench = full || m.benchmark;
+                      // `benchmarks` is a Record so the index type claims a
+                      // hit; cast to admit misses (never benchmarked).
+                      const full = benchmarks[m.name] as OllamaBenchmarkResult | undefined;
+                      const bench: BenchLike | undefined = full ?? m.benchmark;
                       const score = bench?.validation?.score ?? bench?.score ?? null;
                       const latency = bench?.latency_ms ?? null;
                       const success = bench?.success;
@@ -534,7 +571,8 @@ Return ONLY the function, no fences.`;
                       } else if (score === null) {
                         badge = " [—]";
                       }
-                      const isBest = models[0]?.name === m.name && score !== null && score >= 60;
+                      const isBest =
+                        models.at(0)?.name === m.name && score !== null && score >= 60;
                       return (
                         <option key={m.name} value={m.name}>
                           {m.name} ({formatModelSize(m.size)}){m.verified ? " ✅" : " ⚠️"}
@@ -553,13 +591,14 @@ Return ONLY the function, no fences.`;
                 </div>
                 {(() => {
                   const active = models.find((x) => x.name === selectedModel);
-                  const bFull = active ? (benchmarks[active.name] as any) : null;
-                  const bShallow = active?.benchmark as any;
-                  const b = bFull || bShallow;
+                  const bFull = active
+                    ? (benchmarks[active.name] as OllamaBenchmarkResult | undefined)
+                    : undefined;
+                  const bShallow: BenchLike | undefined = active?.benchmark;
                   // Need full validation for details view; if only shallow, show summary and prompt to benchmark
-                  if (!b?.validation) {
-                    if (b?.score !== undefined) {
-                      const scShallow = b.score;
+                  if (!bFull) {
+                    const scShallow = bShallow?.score;
+                    if (bShallow && scShallow !== undefined) {
                       const colS =
                         scShallow >= 80
                           ? "text-green-400"
@@ -596,9 +635,11 @@ Return ONLY the function, no fences.`;
                             )}
                           </div>
                           <span className={`font-mono font-bold ${colS}`}>
-                            {Math.round(scShallow)}/100 {b.success ? "✓" : "✗"}
+                            {Math.round(scShallow)}/100 {bShallow.success ? "✓" : "✗"}
                           </span>
-                          <span className="text-gray-400 ml-2">{formatLatency(b.latency_ms)}</span>
+                          <span className="text-gray-400 ml-2">
+                            {formatLatency(bShallow.latency_ms)}
+                          </span>
                           <div className="text-gray-500 mt-1">
                             Details from models list only — run{" "}
                             <span className="text-amber-400">Benchmark</span> for full report.
@@ -618,6 +659,9 @@ Return ONLY the function, no fences.`;
                       </div>
                     );
                   }
+                  // Reaching here means `bFull` exists (the !bFull branch
+                  // above always returns), so `b` is the full benchmark.
+                  const b = bFull;
                   const sc = b.validation.score;
                   const col =
                     sc >= 80
@@ -667,52 +711,52 @@ Return ONLY the function, no fences.`;
                       <div className="flex gap-1 text-[9px]">
                         <span
                           className={
-                            b.validation.details.find((d: any) => d.rule === "has_applyScene")
+                            b.validation.details.find((d) => d.rule === "has_applyScene")
                               ?.passed
                               ? "text-green-400"
                               : "text-red-400"
                           }
                         >
                           applyScene{" "}
-                          {b.validation.details.find((d: any) => d.rule === "has_applyScene")
+                          {b.validation.details.find((d) => d.rule === "has_applyScene")
                             ?.passed
                             ? "✓"
                             : "✗"}
                         </span>
                         <span
                           className={
-                            b.validation.details.find((d: any) => d.rule === "has_ai_group")?.passed
+                            b.validation.details.find((d) => d.rule === "has_ai_group")?.passed
                               ? "text-green-400"
                               : "text-red-400"
                           }
                         >
                           __aiGroup{" "}
-                          {b.validation.details.find((d: any) => d.rule === "has_ai_group")?.passed
+                          {b.validation.details.find((d) => d.rule === "has_ai_group")?.passed
                             ? "✓"
                             : "✗"}
                         </span>
                         <span
                           className={
-                            b.validation.details.find((d: any) => d.rule === "no_rAF")?.passed
+                            b.validation.details.find((d) => d.rule === "no_rAF")?.passed
                               ? "text-green-400"
                               : "text-red-400"
                           }
                         >
                           no-rAF{" "}
-                          {b.validation.details.find((d: any) => d.rule === "no_rAF")?.passed
+                          {b.validation.details.find((d) => d.rule === "no_rAF")?.passed
                             ? "✓"
                             : "✗"}
                         </span>
                         <span
                           className={
-                            b.validation.details.find((d: any) => d.rule === "no_markdown_fence")
+                            b.validation.details.find((d) => d.rule === "no_markdown_fence")
                               ?.passed
                               ? "text-green-400"
                               : "text-red-400"
                           }
                         >
                           no-fence{" "}
-                          {b.validation.details.find((d: any) => d.rule === "no_markdown_fence")
+                          {b.validation.details.find((d) => d.rule === "no_markdown_fence")
                             ?.passed
                             ? "✓"
                             : "✗"}
@@ -720,7 +764,7 @@ Return ONLY the function, no fences.`;
                       </div>
                       {showBenchDetails ? (
                         <div className="pt-1 border-t border-gray-800 space-y-0.5 max-h-32 overflow-y-auto">
-                          {b.validation.details.map((d: any) => (
+                          {b.validation.details.map((d) => (
                             <div
                               key={d.rule}
                               className={`flex justify-between ${d.passed ? "text-gray-400" : "text-red-300"}`}
@@ -769,7 +813,7 @@ Return ONLY the function, no fences.`;
               <span className="text-[11px] font-medium text-white flex items-center gap-1.5">
                 <Sparkles size={12} className="text-violet-400" /> Prompt Strategy{" "}
                 <span className="text-[10px] text-white/40">
-                  ({variations[activeVariation]?.name})
+                  ({variations.at(activeVariation)?.name})
                 </span>
               </span>
               {sectionsOpen.prompt ? (
@@ -796,8 +840,10 @@ Return ONLY the function, no fences.`;
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] text-white/40">Preview</span>
                     <button
-                      onClick={async () =>
-                        navigator.clipboard.writeText(variations[activeVariation]?.prompt || "")
+                      onClick={() =>
+                        void navigator.clipboard.writeText(
+                          variations.at(activeVariation)?.prompt ?? "",
+                        )
                       }
                       className="text-[10px] text-violet-300 hover:text-violet-200 flex items-center gap-1"
                     >
@@ -806,7 +852,7 @@ Return ONLY the function, no fences.`;
                     </button>
                   </div>
                   <pre className="text-[11px] text-white/70 max-h-28 overflow-auto whitespace-pre-wrap leading-relaxed">
-                    {variations[activeVariation]?.prompt}
+                    {variations.at(activeVariation)?.prompt}
                   </pre>
                 </div>
               </div>
@@ -861,7 +907,7 @@ Return ONLY the function, no fences.`;
                     {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
                   </button>
                   <button
-                    onClick={handleSave}
+                    onClick={() => void handleSave()}
                     disabled={saving}
                     className="p-1 text-gray-400 hover:text-white"
                     title="Save to file"

@@ -54,10 +54,11 @@ export interface UseVisualizerPlaybackOptions {
   };
 }
 
+// Function-typed properties so destructuring can't trip unbound-method.
 export interface UseVisualizerPlaybackResult {
-  togglePlayPause(): void;
-  cycleVizMode(dir: 1 | -1): void;
-  handlePlayheadClick(e: React.MouseEvent<HTMLDivElement>): void;
+  togglePlayPause: () => void;
+  cycleVizMode: (dir: 1 | -1) => void;
+  handlePlayheadClick: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 export function useVisualizerPlayback({

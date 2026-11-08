@@ -28,7 +28,10 @@ export function PresetFileUpload({
         setError("Invalid JSON");
         return;
       }
-      if (!preset.theme && !preset.visualizer) {
+      // Imported JSON may lack either section despite the required fields
+      // on the VisualPreset type.
+      const candidate = preset as { theme?: unknown; visualizer?: unknown };
+      if (!candidate.theme && !candidate.visualizer) {
         setError("Not a visualizer preset");
         return;
       }
@@ -66,7 +69,7 @@ export function PresetFileUpload({
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragOver(false);
-      const file = e.dataTransfer.files[0];
+      const file = e.dataTransfer.files[0] as File | undefined;
       if (file) processFile(file);
     },
     [processFile],
@@ -81,25 +84,27 @@ export function PresetFileUpload({
 
   // Global Ctrl+V to paste JSON when no input is focused
   useEffect(() => {
-    const handler = async (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "v") {
-        const active = document.activeElement;
-        const isInput =
-          active &&
-          (active.tagName === "INPUT" ||
-            active.tagName === "TEXTAREA" ||
-            (active as HTMLElement).isContentEditable);
-        if (isInput) return; // let normal paste happen in inputs
-        try {
-          const text = await navigator.clipboard.readText();
-          if (text.trim().startsWith("{")) {
-            e.preventDefault();
-            processText(text);
+    const handler = (e: KeyboardEvent) => {
+      void (async () => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "v") {
+          const active = document.activeElement;
+          const isInput =
+            active &&
+            (active.tagName === "INPUT" ||
+              active.tagName === "TEXTAREA" ||
+              (active as HTMLElement).isContentEditable);
+          if (isInput) return; // let normal paste happen in inputs
+          try {
+            const text = await navigator.clipboard.readText();
+            if (text.trim().startsWith("{")) {
+              e.preventDefault();
+              processText(text);
+            }
+          } catch {
+            /* clipboard permission denied — ignore */
           }
-        } catch {
-          /* clipboard permission denied — ignore */
         }
-      }
+      })();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);

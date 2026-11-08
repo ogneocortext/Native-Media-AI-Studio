@@ -38,8 +38,8 @@ export function smoothBeatPhase(targetPhase: number, smoothed: number): number {
 export function estimateOutputLatency(ctx: BaseAudioContext | null): number {
   if (!ctx) return 0;
   const full = ctx as AudioContext;
-  const output = full.outputLatency ?? 0;
-  const base = full.baseLatency ?? 0;
+  const output = full.outputLatency;
+  const base = full.baseLatency;
   const total = output + base;
   if (!Number.isFinite(total) || total < 0) return 0;
   return Math.min(total, 0.5);

@@ -1554,7 +1554,7 @@ export interface VRAMStatus {
     fallback: string;
     name: string;
   };
-  manager: Record<string, unknown>;
+  manager?: Record<string, unknown>;
 }
 
 export interface MusicVideoStyle {

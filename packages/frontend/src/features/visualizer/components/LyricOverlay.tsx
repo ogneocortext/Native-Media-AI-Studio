@@ -19,7 +19,7 @@ interface Props {
 }
 
 export function LyricOverlay({ lyrics, elapsed, visible, template = "fadeReveal", beat }: Props) {
-  const { currentLine, nextLine, progress } = useMemo(() => {
+  const { currentLine, nextLine: nextLineValue, progress } = useMemo(() => {
     if (!lyrics.length) return { currentLine: null, nextLine: null, progress: 0 };
     let lo = 0,
       hi = lyrics.length - 1,
@@ -44,6 +44,9 @@ export function LyricOverlay({ lyrics, elapsed, visible, template = "fadeReveal"
       progress: Math.max(0, Math.min(1, prog)),
     };
   }, [lyrics, elapsed]);
+
+  // Out-of-bounds lyric lookups can be absent at runtime.
+  const nextLine: LyricLine | null = nextLineValue;
 
   const tpl = kineticTemplates[template];
 

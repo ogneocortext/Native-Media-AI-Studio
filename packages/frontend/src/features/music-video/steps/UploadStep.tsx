@@ -53,7 +53,7 @@ export function UploadStep({
           }}
           onDragLeave={() => setDragOver(false)}
           onPaste={(e) => {
-            const f = Array.from(e.clipboardData.files ?? [])[0];
+            const f = Array.from(e.clipboardData.files).at(0);
             if (f) onFileSelect(f);
           }}
           className={`mt-6 border-2 border-dashed rounded-xl p-8 md:p-10 transition-all cursor-pointer group ${dragOver ? "border-violet-500 bg-violet-500/5 ring-2 ring-violet-500/30" : "border-gray-600 hover:border-violet-500 hover:bg-violet-500/5"}`}

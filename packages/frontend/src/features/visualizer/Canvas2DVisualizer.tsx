@@ -54,6 +54,7 @@ import { QualityGovernor } from "./qualityGovernor";
 import { renderMode, type BarModeContext, type BarModeState } from "./canvas2dModes";
 import { FrameAccurateCanvas2D } from "./services/frameAccurateCanvas2d";
 import type { FrameAccurateRenderApi } from "./services/frameAccurateExport";
+import type { LrcSyncData } from "./useLrcSync";
 import { useSpectralTimeline } from "./useSpectralTimeline";
 import type { AudioAnalysisData, AudioData } from "./types";
 import { HtmlCanvasRenderer } from "./HtmlCanvasRenderer";
@@ -84,7 +85,7 @@ interface Props {
   transientRef?: React.MutableRefObject<AnalyserNode | null>;
   isPlaying: boolean;
   mode?: Canvas2DMode;
-  lrcSync?: import("./useLrcSync").LrcSyncData | null;
+  lrcSync?: LrcSyncData | null;
   /**
    * Per-frame live sync written by the parent's elapsed loop (see audioTiming.ts).
    * Preferred over `lrcSync` in the draw loop. Also keeps this effect from
@@ -432,7 +433,9 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
             ? (lrcSyncAtHolder.current?.(vTime) ?? null)
             : (lrcSyncLiveHolder.current?.current ?? lrcSyncPropHolder.current);
         const section = sync?.currentSection ?? "VERSE";
-        const target = palettes[section] || palettes.VERSE;
+        // Section lookups can miss at runtime despite the Record index type.
+        const sectionPalette = palettes[section] as string[] | undefined;
+        const target = sectionPalette ?? palettes.VERSE;
 
         // Prefer blended live+analysis energy for visual punch; fall back to raw
         // analyzed energy only when the blended value is actually invalid (NaN /
@@ -460,7 +463,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           wave = new Uint8Array(analyser?.fftSize ?? 2048);
         }
         // T-VIZ-16 float buffers — sized to the analyser's bin count.
-        const binCount = analyser?.frequencyBinCount ?? freq?.length ?? 1024;
+        const binCount = analyser?.frequencyBinCount ?? freq.length;
         if (freqF?.length !== binCount || freqN?.length !== binCount) {
           freqF = new Float32Array(binCount);
           freqN = new Float32Array(binCount);
@@ -475,9 +478,8 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           wave = api.virtualWaveBuffer;
           // Virtual frames are already deterministic byte data — normalize
           // into freqN so the same stepNorm/onset path serves live and export.
-          if (freqN) {
-            for (let i = 0; i < freqN.length; i++) freqN[i] = freq[i] / 255;
-          }
+          // freqN is non-null here: the sizing block above always fills it.
+          for (let i = 0; i < freqN.length; i++) freqN[i] = freq[i] / 255;
         }
         if (smoothed?.length !== wave.length) {
           smoothed = new Uint8Array(wave.length);
@@ -682,7 +684,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           // The synthesized buffers are already in `freq`/`wave` — do not
           // overwrite them from the analyser (which is frozen or null).
           // `freqN` was filled from `freq` above.
-        } else if (analyser && freqF && freqN) {
+        } else if (analyser) {
           // T-VIZ-16: float path — dB values normalized through the
           // analyser's own min/maxDecibels, no byte quantization.
           analyser.getFloatFrequencyData(freqF);
@@ -708,26 +710,24 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         const envDt =
           lastEnvMs === null ? 0 : Math.min(0.1, Math.max(0, (envNow - lastEnvMs) / 1000));
         lastEnvMs = envNow;
-        if (freqN) {
-          envelope.stepNorm(freqN, envDt);
-        } else {
-          envelope.step(freq, envDt);
-        }
+        // freqN is non-null here: the sizing block above always fills it.
+        envelope.stepNorm(freqN, envDt);
 
         // T-VIZ-16: onset path on the unsmoothed transient analyser.
         // Virtual frames feed the same normalized spectrum (deterministic);
         // live frames read the transient twin's float data.
-        if (onset && freqN) {
+        if (onset) {
           if (!isVirtual) {
             const transient = transientRef?.current;
-            if (transient && transient.frequencyBinCount === freqN.length) {
+            const transientBins = transient?.frequencyBinCount;
+            if (transient && transientBins === freqN.length) {
               transient.getFloatFrequencyData(freqF);
               const tMin = transient.minDecibels;
               const tRange = transient.maxDecibels - tMin || 1;
               // Reuse freqN? No — freqN still feeds the silence check below.
               // Normalize into a dedicated scratch via onset's own buffer:
               // simplest correct approach is a second normalized array.
-              if (!onsetNorm) onsetNorm = new Float32Array(freqN.length);
+              onsetNorm ??= new Float32Array(freqN.length);
               for (let i = 0; i < onsetNorm.length; i++) {
                 onsetNorm[i] = Math.min(1, Math.max(0, (freqF[i] - tMin) / tRange));
               }
@@ -755,12 +755,11 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         {
           // T-VIZ-16: silence is read off the normalized float buffer —
           // `freq` (bytes) is no longer filled on the live path.
+          // freqN is non-null here: the sizing block above always fills it,
+          // and it already holds normalized floats — read it directly.
           let isSilent = true;
-          const silenceSrc = freqN ?? freq;
-          for (let i = 0; i < silenceSrc.length; i += 16) {
-            const v = silenceSrc[i];
-            const norm = freqN ? v : v / 255;
-            if (norm > 0.004) {
+          for (let i = 0; i < freqN.length; i += 16) {
+            if (freqN[i] > 0.004) {
               isSilent = false;
               break;
             }
@@ -926,7 +925,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         </HtmlCanvasRenderer>
         <div className="absolute top-2 right-2 flex flex-col gap-2 z-10">
           <button
-            onClick={handleAnalyze}
+            onClick={() => void handleAnalyze()}
             disabled={analysisLoading}
             className="px-2 py-1 text-xs bg-black/50 hover:bg-black/70 text-white/80 rounded backdrop-blur-sm transition-colors disabled:opacity-50"
             title="Analyze this visualizer frame with Ollama (Ctrl+Shift+V)"

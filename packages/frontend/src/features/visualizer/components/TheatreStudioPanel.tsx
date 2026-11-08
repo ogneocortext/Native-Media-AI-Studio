@@ -66,12 +66,14 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
       return;
     }
 
-    let cancelled = false;
+    // Object ref: a bare `let` narrows to its initializer literal inside
+    // the async closure, which trips no-unnecessary-condition.
+    const cancelled = { current: false };
 
     void (async () => {
       try {
         const { sheet } = await createTheatreProject(`Kinetic Studio — ${activePresetId}/${phase}`);
-        if (cancelled) return;
+        if (cancelled.current) return;
 
         const objects = createAnimationTracks(sheet, TRACKS);
         objectsRef.current = objects;
@@ -85,11 +87,11 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
         setStudioReady(true); // Allow preview even without Theatre.js
       }
 
-      if (!cancelled) setStudioReady(true);
+      if (!cancelled.current) setStudioReady(true);
     })();
 
     return () => {
-      cancelled = true;
+      cancelled.current = true;
     };
   }, [visible, activePresetId, phase]);
 
@@ -99,7 +101,9 @@ export function TheatreStudioPanel({ visible, onClose, activePresetId, onPresetC
       if (!previewRef.current) return;
       const el = previewRef.current;
 
-      const preset = kineticPresets[activePresetId];
+      const preset = kineticPresets[activePresetId] as
+        | (typeof kineticPresets)[string]
+        | undefined;
       if (!preset) return;
 
       const startValues = getPresetStartValues(phase, activePresetId);

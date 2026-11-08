@@ -1,7 +1,19 @@
 import type React from "react";
 import type * as THREE from "three";
-import type { AnimObject, CameraMode, ParticleConfig, SceneConfig } from "../types";
+import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import type { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import type { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import type { AnimObject, CameraMode, KeyframeTrack, ParticleConfig, SceneConfig } from "../types";
 import type { SectionDriverHandle } from "./useTrackMetadata";
+import type { AudioAnalysisResult } from "../../../services/api";
+import type { BeatState } from "../../../hooks/useBeatTimeline";
+
+/** The runtime `three` module namespace — passed to mesh factories and
+ *  applied scene code so they can construct geometries/materials.
+ *  `typeof THREE` (value import) is used instead of `typeof import()`
+ *  because the repo's consistent-type-imports rule forbids import()
+ *  type annotations. */
+export type ThreeModule = typeof THREE;
 
 export interface UseThreeSceneOptions {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -14,15 +26,15 @@ export interface UseThreeSceneOptions {
   cameraMode: CameraMode;
   isPlaying: boolean;
   isAudioPlaying: boolean;
-  beatAnalysis: any;
+  beatAnalysis: AudioAnalysisResult | null;
   activeTemplateId: string | null;
   backgroundImageUrl: string;
   backgroundImageVisible: boolean;
   renderPlaying: boolean;
   animationDuration: number;
-  keyframeTracks: any[];
-  createMeshForObject: (obj: AnimObject, THREE: any) => Promise<THREE.Object3D>;
-  getCurrentBeat: (elapsed: number) => any;
+  keyframeTracks: KeyframeTrack[];
+  createMeshForObject: (obj: AnimObject, THREE: ThreeModule) => Promise<THREE.Object3D>;
+  getCurrentBeat: (elapsed: number) => BeatState;
   generatedSceneUpdateRef: React.RefObject<((time: number, delta: number) => void) | null>;
   onAnimationTimeChange: (time: number) => void;
   onSelectObject?: (id: string | null) => void;
@@ -41,13 +53,13 @@ export interface UseThreeSceneResult {
   cameraRef: React.RefObject<THREE.PerspectiveCamera | null>;
   objectsMapRef: React.RefObject<Map<string, THREE.Object3D>>;
   particlesRef: React.RefObject<THREE.Points | null>;
-  bloomPassRef: React.RefObject<any>;
-  bloomComposerRef: React.RefObject<any>;
-  finalComposerRef: React.RefObject<any>;
-  composerRef: React.RefObject<any>;
-  caPassRef: React.RefObject<any>;
-  grainPassRef: React.RefObject<any>;
-  vignettePassRef: React.RefObject<any>;
+  bloomPassRef: React.RefObject<UnrealBloomPass | null>;
+  bloomComposerRef: React.RefObject<EffectComposer | null>;
+  finalComposerRef: React.RefObject<EffectComposer | null>;
+  composerRef: React.RefObject<EffectComposer | null>;
+  caPassRef: React.RefObject<ShaderPass | null>;
+  grainPassRef: React.RefObject<ShaderPass | null>;
+  vignettePassRef: React.RefObject<ShaderPass | null>;
   shakeRef: React.RefObject<number>;
   bgImageTextureRef: React.RefObject<THREE.Texture | null>;
   audioContextRef: React.RefObject<AudioContext | null>;
@@ -55,10 +67,10 @@ export interface UseThreeSceneResult {
   audioSourceRef: React.RefObject<MediaElementAudioSourceNode | null>;
   audioElementRef: React.RefObject<HTMLAudioElement | null>;
   audioFreqArrayRef: React.RefObject<Uint8Array | null>;
-  threeRef: React.RefObject<any>;
+  threeRef: React.RefObject<ThreeModule | null>;
   lastUiUpdateRef: React.RefObject<number>;
   frameCountRef: React.RefObject<number>;
-  characterMixersRef: React.RefObject<Map<string, any>>;
+  characterMixersRef: React.RefObject<Map<string, THREE.AnimationMixer>>;
   sceneLoading: boolean;
   beatActive: boolean;
   animationTime: number;
@@ -112,11 +124,12 @@ export interface UseTrackManagerOptions {
 }
 
 export interface UseTrackManagerResult {
-  beatAnalysis: any;
+  beatAnalysis: AudioAnalysisResult | null;
   beatLoading: boolean;
   beatError: string | null;
-  getCurrentBeat: (elapsed: number) => any;
-  getCurrentBeatRef: React.RefObject<(elapsed: number) => any>;
+  getCurrentBeat: (elapsed: number) => BeatState;
+  getCurrentBeatRef: React.RefObject<(elapsed: number) => BeatState>;
   handleSelectTrack: (filename: string) => void;
   toggleAudio: () => Promise<void>;
 }
+

@@ -3,12 +3,13 @@ import * as THREE from "three";
 import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import type { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import type { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SCENE_TEMPLATES } from "../sceneTemplates";
 import { BLOOM_LAYER } from "../threeStudioConfig";
-import type { CameraMode } from "../types";
+import type { CameraMode, StudioMaterial } from "../types";
 import type { CameraTransitionState } from "../services/cameraTransitions";
 import type { SectionDriverHandle } from "./useTrackMetadata";
-import type { UseThreeSceneOptions, UseThreeSceneResult } from "./types";
+import type { ThreeModule, UseThreeSceneOptions, UseThreeSceneResult } from "./types";
 import { mountThreeScene } from "./mountThreeScene";
 
 export function useThreeScene({
@@ -58,12 +59,12 @@ export function useThreeScene({
   const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const audioFreqArrayRef = useRef<Uint8Array | null>(null);
-  const threeRef = useRef<any>(null);
+  const threeRef = useRef<ThreeModule | null>(null);
   const lastUiUpdateRef = useRef(0);
   const frameCountRef = useRef(0);
-  const characterMixersRef = useRef<Map<string, any>>(new Map());
+  const characterMixersRef = useRef<Map<string, THREE.AnimationMixer>>(new Map());
   const animationRef = useRef(0);
-  const controlsRef = useRef<any>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
   // F1: an in-flight eased camera blend (mode switch). Null
   // when the camera is driven directly by its mode pose.
   const cameraTransitionRef = useRef<CameraTransitionState | null>(null);
@@ -168,14 +169,14 @@ export function useThreeScene({
   }, [sceneConfig]);
   useEffect(() => {
     activeAudioDrivenRef.current = SCENE_TEMPLATES.find(
-      (t: any) => t.id === activeTemplateId,
+      (t) => t.id === activeTemplateId,
     )?.audioDriven;
   }, [activeTemplateId]);
   // F4: the beat-phrasing flag rides the active template the
   // same way `audioDriven` does — per-template, not global.
   useEffect(() => {
     beatPhraseRef.current = Boolean(
-      SCENE_TEMPLATES.find((t: any) => t.id === activeTemplateId)?.beatPhrase,
+      SCENE_TEMPLATES.find((t) => t.id === activeTemplateId)?.beatPhrase,
     );
   }, [activeTemplateId]);
   useEffect(() => {
@@ -202,30 +203,33 @@ export function useThreeScene({
   // Release GPU resources held by a removed object. Without this the scene
   // accumulates undisposed geometries/materials for the whole session (F1).
   const disposeObject3D = (root: THREE.Object3D) => {
-    root.traverse((child: any) => {
-      child.geometry?.dispose?.();
-      const materials = child.material;
+    root.traverse((child) => {
+      // Duck-typed access: only geometry/material-bearing nodes
+      // (Mesh/Points/Line/Sprite…) carry these fields; plain groups do not.
+      const geometry = (child as { geometry?: THREE.BufferGeometry }).geometry;
+      geometry?.dispose();
+      const materials = (child as { material?: THREE.Material | THREE.Material[] }).material;
       if (!materials) return;
-      (Array.isArray(materials) ? materials : [materials]).forEach((m: any) => {
-        if (!m) return;
-        Object.keys(m).forEach((key) => {
-          const value = m[key];
-          if (
-            value &&
-            typeof value === "object" &&
-            value.isTexture &&
-            value !== bgImageTextureRef.current
-          ) {
-            value.dispose?.();
+      (Array.isArray(materials) ? materials : [materials]).forEach((m) => {
+        const record = m as unknown as Record<string, unknown>;
+        Object.keys(record).forEach((key) => {
+          const value = record[key];
+          if (value && typeof value === "object") {
+            // Probe via unknown — material fields are arbitrary objects
+            // and only real Textures carry isTexture === true.
+            const probe = value as { isTexture?: unknown };
+            if (probe.isTexture === true && value !== bgImageTextureRef.current) {
+              (value as THREE.Texture).dispose();
+            }
           }
         });
-        m.dispose?.();
+        m.dispose();
       });
     });
   };
 
   const disposeEntry = (id: string, root: THREE.Object3D) => {
-    characterMixersRef.current.get(id)?.stopAllAction?.();
+    characterMixersRef.current.get(id)?.stopAllAction();
     characterMixersRef.current.delete(id);
     disposeObject3D(root);
   };
@@ -304,11 +308,14 @@ export function useThreeScene({
   // Object sync
   useEffect(() => {
     if (!sceneRef.current) return;
+    // Read through a getter: a bare `let cancelled = false` stays
+    // narrowed to `false` inside the async IIFE even though the
+    // cleanup flips it after awaits.
     let cancelled = false;
+    const isCancelled = () => cancelled;
     {
-      if (cancelled) return;
       const scene = sceneRef.current;
-      const ids = new Set(objects.map((o: any) => o.id));
+      const ids = new Set(objects.map((o) => o.id));
       objectsMapRef.current.forEach((mesh, id) => {
         if (!ids.has(id)) {
           scene.remove(mesh);
@@ -318,11 +325,12 @@ export function useThreeScene({
       });
       void (async () => {
         for (const obj of objects) {
-          if (cancelled) break;
+          if (isCancelled()) break;
           let mesh = objectsMapRef.current.get(obj.id);
           if (!mesh) {
             mesh = await createMeshForObject(obj, THREE);
-            if (!cancelled && mesh) {
+            // `mesh` is non-null per createMeshForObject's contract.
+            if (!isCancelled()) {
               scene.add(mesh);
               objectsMapRef.current.set(obj.id, mesh);
             }
@@ -334,31 +342,39 @@ export function useThreeScene({
             if (
               obj.type === "character" &&
               obj.modelUrl &&
-              (mesh as any).__modelUrl !== obj.modelUrl
+              mesh.userData.__modelUrl !== obj.modelUrl
             ) {
               scene.remove(mesh);
               disposeEntry(obj.id, mesh);
               const newMesh = await createMeshForObject(obj, THREE);
-              if (!cancelled) {
+              if (!isCancelled()) {
                 scene.add(newMesh);
                 objectsMapRef.current.set(obj.id, newMesh);
-                (newMesh as any).__modelUrl = obj.modelUrl;
+                newMesh.userData.__modelUrl = obj.modelUrl;
               }
               continue;
             }
-            const um = (m: any) => {
-              if (m.material) {
-                if (m.material.color) m.material.color.set(obj.color);
-                if (m.material.emissive) m.material.emissive.set(obj.emissive);
-                m.material.metalness = obj.metalness;
-                m.material.roughness = obj.roughness;
-                m.material.emissiveIntensity = obj.emissiveIntensity;
+            const um = (m: THREE.Object3D) => {
+              if (
+                m instanceof THREE.Mesh ||
+                m instanceof THREE.Points ||
+                m instanceof THREE.Line
+              ) {
+                // Studio meshes carry MeshStandardMaterial; the cast
+                // mirrors the previous duck-typed access (array
+                // materials simply have no .color/.emissive).
+                const material = m.material as StudioMaterial;
+                if (material.color) material.color.set(obj.color);
+                if (material.emissive) material.emissive.set(obj.emissive);
+                material.metalness = obj.metalness;
+                material.roughness = obj.roughness;
+                material.emissiveIntensity = obj.emissiveIntensity;
               }
             };
             if (mesh instanceof THREE.Group) mesh.traverse(um);
             else um(mesh);
-            mesh.traverse((c: any) => {
-              if (c.isMesh) {
+            mesh.traverse((c) => {
+              if (c instanceof THREE.Mesh) {
                 c.layers.set(0);
                 if (obj.bloom) c.layers.enable(BLOOM_LAYER);
               }
@@ -388,7 +404,7 @@ export function useThreeScene({
     if (caPassRef.current)
       caPassRef.current.uniforms.amount.value = sceneConfig.chromaticAberration;
     if (grainPassRef.current)
-      (grainPassRef.current.uniforms as any).intensity.value = sceneConfig.filmGrain;
+      grainPassRef.current.uniforms.intensity.value = sceneConfig.filmGrain;
     if (vignettePassRef.current) {
       vignettePassRef.current.uniforms.offset.value = sceneConfig.vignetteRadius;
       vignettePassRef.current.uniforms.darkness.value = sceneConfig.vignetteStrength;
@@ -443,12 +459,12 @@ export function useThreeScene({
       return;
     }
     let cancelled = false;
+    const isCancelled = () => cancelled;
     void (() => {
-      if (cancelled) return;
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.onload = () => {
-        if (cancelled) return;
+        if (isCancelled()) return;
         const tex = new THREE.Texture(img);
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.minFilter = THREE.LinearFilter;
@@ -513,11 +529,16 @@ export function useThreeScene({
     const applyTextureToObject = (obj: (typeof objects)[number], tex: THREE.Texture) => {
       const mesh = objectsMapRef.current.get(obj.id);
       if (!mesh) return;
-      const setMap = (m: any) => {
-        if (m.material) {
-          if (m.material.map) m.material.map.dispose();
-          m.material.map = tex;
-          m.material.needsUpdate = true;
+      const setMap = (m: THREE.Object3D) => {
+        if (
+          m instanceof THREE.Mesh ||
+          m instanceof THREE.Points ||
+          m instanceof THREE.Line
+        ) {
+          const material = m.material as StudioMaterial;
+          if (material.map) material.map.dispose();
+          material.map = tex;
+          material.needsUpdate = true;
         }
       };
       if (mesh instanceof THREE.Group) mesh.traverse(setMap);

@@ -17,6 +17,7 @@ import { createCompressor, type CompressorState } from "./stemCompressor";
 import type {
   BusChannelState,
   BusName,
+  ChannelMeters,
   ChannelStripState,
   MasterSectionState,
   MixerSnapshot,
@@ -156,7 +157,9 @@ export function useProfessionalMixer({
       const raw = localStorage.getItem("professionalMixer:snapshot");
       if (raw) {
         const parsed = JSON.parse(raw) as MixerSnapshot;
-        if (parsed.strips && parsed.buses && parsed.master) {
+        // Persisted JSON may be missing sections the type declares required.
+        const candidate = parsed as Partial<MixerSnapshot>;
+        if (candidate.strips && candidate.buses && candidate.master) {
           setSnapshot(parsed);
         }
       }
@@ -252,7 +255,9 @@ export function useProfessionalMixer({
   // ─── Bus section ───────────────────────────────────────────────────────────
   const buildBus = useCallback(
     (ctx: AudioContext, name: BusName): InternalBus => {
-      const state = snapshot.buses[name] ?? DEFAULT_MIXER_SNAPSHOT.buses[name];
+      const state =
+        (snapshot.buses[name] as BusChannelState | undefined) ??
+        DEFAULT_MIXER_SNAPSHOT.buses[name];
 
       const input = ctx.createGain();
       const eq = createEQ(ctx, state.eqBands);
@@ -856,7 +861,7 @@ export function useProfessionalMixer({
         return;
       }
 
-      const newMeters: any = {};
+      const newMeters: Record<string, ChannelMeters> = {};
       const now = ctx.currentTime;
 
       // Solo count
@@ -867,7 +872,7 @@ export function useProfessionalMixer({
       internalStemsRef.current.forEach((ch, name) => {
         const state = (snapshot.strips as Record<string, ChannelStripState>)[name];
         const audible = isChannelAudible(state.muted, state.solo);
-        ch.analyser.getByteTimeDomainData(ch.meterBuf as any);
+        ch.analyser.getByteTimeDomainData(ch.meterBuf as Uint8Array<ArrayBuffer>);
         let sum = 0;
         let peak = 0;
         for (const sample of ch.meterBuf) {
@@ -892,7 +897,7 @@ export function useProfessionalMixer({
 
       // Bus meters
       internalBusesRef.current.forEach((bus) => {
-        bus.analyser.getByteTimeDomainData(bus.meterBuf as any);
+        bus.analyser.getByteTimeDomainData(bus.meterBuf as Uint8Array<ArrayBuffer>);
         let sum = 0;
         let peak = 0;
         for (const sample of bus.meterBuf) {
@@ -912,7 +917,7 @@ export function useProfessionalMixer({
       // Master meter
       if (masterRef.current) {
         const m = masterRef.current;
-        m.analyser.getByteTimeDomainData(m.meterBuf as any);
+        m.analyser.getByteTimeDomainData(m.meterBuf as Uint8Array<ArrayBuffer>);
         let sum = 0;
         let peak = 0;
         for (const sample of m.meterBuf) {

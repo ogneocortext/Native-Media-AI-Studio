@@ -283,7 +283,9 @@ const EMPTY_BUDGET: ModeBudget = {
 
 export function getModeBudget(mode: string | null | undefined): ModeBudget {
   if (!mode) return EMPTY_BUDGET;
-  return MODE_BUDGETS[mode as Canvas2DMode] ?? EMPTY_BUDGET;
+  // Unknown modes are absent at runtime despite the Record index type.
+  const budget = MODE_BUDGETS[mode as Canvas2DMode] as ModeBudget | undefined;
+  return budget ?? EMPTY_BUDGET;
 }
 
 /** True when `mode` opts into `effect`. Unknown modes never do. */

@@ -334,7 +334,9 @@ export function resolveTrackVisualProfile(trackName: string): TrackVisualProfile
  * (e.g. the active-preset badge) keep working.
  */
 export function buildTunedPreset(profile: TrackVisualProfile): VisualPreset {
-  const base = visualPresets[profile.basePresetId];
+  // Widened: visualPresets is a Record, so an unknown basePresetId resolves
+  // to undefined at runtime even though indexed access types as defined.
+  const base = visualPresets[profile.basePresetId] as VisualPreset | undefined;
   if (!base)
     throw new Error(
       `Unknown base preset "${profile.basePresetId}" for track profile "${profile.id}"`,

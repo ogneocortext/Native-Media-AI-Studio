@@ -485,7 +485,9 @@ export function BuilderFigure({ audioData, storyBeat, visible, calm = false }: P
       const d = audioData.current;
       const beat = beatRef.current.storyBeat;
       const isCalm = calmRef.current;
-      const target = beat ? (POSES[beat.motif] ?? IDLE_POSE) : IDLE_POSE;
+      const target = beat
+        ? ((POSES[beat.motif] as Pose | undefined) ?? IDLE_POSE)
+        : IDLE_POSE;
 
       // --- Base pose: story truth, frame-rate independent, per-joint tuned ---
       (Object.keys(target) as (keyof Pose)[]).forEach((k) => {
@@ -523,7 +525,7 @@ export function BuilderFigure({ audioData, storyBeat, visible, calm = false }: P
       // Hammer: raised between beats, driven down through the beat
       // (raise 0.15 at impact → 1 mid-interval), plus the anticipatory
       // wind-up dip just before impact. Silent when the act has no hammer.
-      const nextBeatIn = d.nextBeatIn ?? 1;
+      const nextBeatIn = (d as { nextBeatIn?: number }).nextBeatIn ?? 1;
       const isWorking = cur.hammer > 5;
       const raise = 0.15 + 0.85 * smoothstep(0.05, 0.5, phase);
       const windup = isWorking && nextBeatIn < 0.12 ? -7 * ((0.12 - nextBeatIn) / 0.12) : 0;

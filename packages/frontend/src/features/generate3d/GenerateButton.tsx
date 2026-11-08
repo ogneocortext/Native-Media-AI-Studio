@@ -23,7 +23,9 @@ export function GenerateButton({ hook }: GenerateButtonProps) {
   return (
     <>
       <button
-        onClick={genMode === "reference" ? handleGenerateFromReference : handleGenerate}
+        onClick={() =>
+          void (genMode === "reference" ? handleGenerateFromReference() : handleGenerate())
+        }
         disabled={
           generating ||
           !comfyRunning ||

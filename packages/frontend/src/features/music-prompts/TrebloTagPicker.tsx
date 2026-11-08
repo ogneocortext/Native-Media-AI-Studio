@@ -91,7 +91,7 @@ export function TrebloTagPicker() {
     const timer = window.setTimeout(
       () => {
         fetch(url)
-          .then(async (r) => readJson<{ results: string[] }>(r))
+          .then(async (r) => readJson<{ results?: string[] }>(r))
           .then((d) => !cancelled && setProduction(d.results ?? []))
           .catch(() => !cancelled && setProduction([]));
       },
@@ -340,7 +340,9 @@ export function TrebloTagPicker() {
           </p>
           <button
             type="button"
-            onClick={copy}
+            onClick={() => {
+              void copy();
+            }}
             disabled={!tagString}
             className="rounded bg-blue-700 px-3 py-1.5 text-sm font-medium hover:bg-blue-600 disabled:opacity-40"
           >

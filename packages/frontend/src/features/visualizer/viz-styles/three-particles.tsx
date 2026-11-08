@@ -2,7 +2,13 @@ import { useFrame } from "@react-three/fiber";
 import { useRef, useEffect } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
-import { createParticleSystem, type ParticleSystem } from "@newkrok/three-particles";
+import {
+  createParticleSystem,
+  type ParticleSystem,
+  type ParticleSystemConfig,
+  type RendererType,
+  type Shape,
+} from "@newkrok/three-particles";
 import { getStemEnergy } from "./helpers";
 import { attackRelease, beatSnap, energyHue } from "./vizMotion";
 
@@ -20,7 +26,7 @@ export function ThreeParticlesDemo({ audioData, sceneFrozen, stems, audioElapsed
 
   useEffect(() => {
     if (systemRef.current) return;
-    const system = createParticleSystem({
+    const config: ParticleSystemConfig = {
       maxParticles: 800,
       duration: 3,
       looping: true,
@@ -32,21 +38,26 @@ export function ThreeParticlesDemo({ audioData, sceneFrozen, stems, audioElapsed
         max: { r: 1, g: 0.9, b: 0.2 },
       },
       emission: { rateOverTime: 100 },
-      shape: { shape: "SPHERE", sphere: { radius: 2 } },
+      shape: { shape: "SPHERE" as Shape, sphere: { radius: 2 } },
       renderer: {
-        rendererType: "POINTS",
+        // RendererType/Shape are const enums — under isolatedModules only
+        // their types are importable, so the literals are asserted to them.
+        rendererType: "POINTS" as RendererType,
         blending: THREE.AdditiveBlending,
+        discardBackgroundColor: false,
+        backgroundColorTolerance: 0.1,
+        backgroundColor: { r: 0, g: 0, b: 0 },
         transparent: true,
+        depthTest: true,
         depthWrite: false,
-      } as any,
-    } as any);
+      },
+    };
+    const system = createParticleSystem(config);
     systemRef.current = system;
     if (groupRef.current) {
       groupRef.current.add(system.instance);
       // Disable frustum culling so the particle system is never culled
-      if (system.instance.frustumCulled !== undefined) {
-        system.instance.frustumCulled = false;
-      }
+      system.instance.frustumCulled = false;
     }
 
     return () => {
@@ -93,11 +104,11 @@ export function ThreeParticlesDemo({ audioData, sceneFrozen, stems, audioElapsed
       delta: Math.min(delta, 0.1) * speed,
       elapsed: performance.now() * 0.001,
     });
-    // Drive the emitter rate with the beat burst
-    const emission = (systemRef.current as any).emission;
-    if (emission) {
-      emission.rateOverTime = 100 + snap * 400;
-    }
+    // Drive the emitter rate with the beat burst. `emission` only exists on
+    // the internal ParticleSystemInstance — the public API is updateConfig.
+    systemRef.current.updateConfig({
+      emission: { rateOverTime: 100 + snap * 400 },
+    });
     if (groupRef.current) {
       groupRef.current.rotation.y +=
         delta * 0.2 * (1 + d.bass + snap * 0.5 + stemEnergyRef.current.bass * 0.3);

@@ -224,6 +224,6 @@ export async function withDirectBackendFallback<T>(
     if (!response.ok) {
       throw new Error(`Direct backend request failed: ${response.status}`);
     }
-    return response.json();
+    return (await response.json()) as T;
   }
 }

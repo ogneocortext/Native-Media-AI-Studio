@@ -15,7 +15,7 @@ export function GeneratedHistoryCard({ hook }: GeneratedHistoryCardProps) {
           <History size={16} /> Recent Models
         </h3>
         <button
-          onClick={loadHistory}
+          onClick={() => void loadHistory()}
           disabled={historyLoading}
           className="p-1 hover:bg-gray-700 rounded"
         >

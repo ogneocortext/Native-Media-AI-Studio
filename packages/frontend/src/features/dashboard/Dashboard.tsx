@@ -143,7 +143,7 @@ export function Dashboard() {
       <StageHero
         latestVideo={recentOutputs.find((o) => o.file_type === "video") ?? null}
         hasOutputs={hasOutputs}
-        onOpenStage={async () => navigate("/visualizer")}
+        onOpenStage={() => void navigate("/visualizer")}
       />
 
       {/* ONE drop zone — the whole action */}
@@ -182,7 +182,7 @@ export function Dashboard() {
           void handleFiles(e.dataTransfer.files);
         }}
         onPaste={(e) => {
-          const pasted = Array.from(e.clipboardData.files ?? []);
+          const pasted = Array.from(e.clipboardData.files);
           if (pasted.length > 0) {
             e.preventDefault();
             void handleFiles(pasted);
@@ -317,7 +317,7 @@ export function Dashboard() {
                   </div>
                 </a>
                 <button
-                  onClick={async (e) => handleDelete(e, o)}
+                  onClick={(e) => void handleDelete(e, o)}
                   disabled={deleting === o.relative_path}
                   className="absolute top-1 right-1 p-1.5 rounded-lg bg-black/60 backdrop-blur-sm text-white/70 hover:text-red-400 hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
                   title="Delete"
@@ -339,7 +339,7 @@ export function Dashboard() {
             Check Queue — videos render one at a time to avoid VRAM errors.
           </p>
           <button
-            onClick={async () => navigate("/queue")}
+            onClick={() => void navigate("/queue")}
             className="mt-3 text-xs px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10"
           >
             View Queue →
@@ -362,7 +362,7 @@ export function Dashboard() {
               in 6s.
             </p>
             <button
-              onClick={async () => navigate("/music-video-wizard")}
+              onClick={() => void navigate("/music-video-wizard")}
               className="mt-2 text-xs text-violet-300 light:text-violet-700 hover:underline"
             >
               Open wizard →
@@ -386,7 +386,7 @@ export function Dashboard() {
           ].map((l) => (
             <button
               key={l.path}
-              onClick={async () => navigate(l.path)}
+              onClick={() => void navigate(l.path)}
               className="px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.02] text-xs text-white/70 hover:text-white hover:border-violet-500/40 hover:bg-violet-500/5 transition-colors"
             >
               {l.label}
@@ -432,7 +432,7 @@ function QuickStartBanner() {
       </div>
       <button
         type="button"
-        onClick={async () => navigate("/onboarding")}
+        onClick={() => void navigate("/onboarding")}
         className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition flex items-center gap-1.5"
       >
         Quick start

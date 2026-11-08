@@ -1529,3 +1529,34 @@ Rules: `docs/plans/tasks/README.md`
   docs/plans/tasks/platform-and-workflow.md.
 - **Acceptance:** satisfied at completion.
 - **Last session:** Devin, 2026-11-08 — commit pending.
+
+### T-LINT-01 — Eliminate ~2.5k ESLint warnings at root cause
+- **Status:** done
+- **Goal:** The db2110ca API-layer rewrite era left ~2,559 ESLint
+  warnings (0 errors) across packages/frontend/src — mostly
+  no-unsafe-* (any leakage at fetch/JSON boundaries),
+  no-unnecessary-condition, no-misused-promises. Warnings don't fail
+  the gate but they mask real type-safety regressions and keep
+  recurring in every lint run.
+- **Changes:** six parallel subagents on disjoint directory scopes
+  (three-js-studio 895, visualizer 677, services/state/hooks/shared/
+  utils/data ~190, features batch D ~380, features batch E ~320,
+  features tail + components ~160). Each fixes root causes — types at
+  boundaries, dead-condition removal, promise hygiene — with no
+  eslint-disable additions. Board claim: devin-lint-sweep on
+  packages/frontend/src.
+- **Files:** packages/frontend/src/** (scoped per agent)
+- **Verification:** six parallel subagents on disjoint scopes, all
+  root-cause fixes (typed fetch/JSON/SSE boundaries, honest optional
+  types, dead-condition removal, promise hygiene, ~20 stale
+  eslint-disable directives removed, zero new suppressions). Parent
+  re-verified repo-wide: eslint src = 0 errors / 0 warnings (was
+  2,559 warnings); pnpm type-check = 0 errors; vitest = 979/979.
+  Latent bugs found en route: AnimationAction.pause() (nonexistent in
+  three.js — would throw at runtime) in three-js-studio
+  useObjectManager; Theatre.js read-only obj.value assignment in
+  visualizer AnimationDemo.
+- **Acceptance:** satisfied — eslint src reports 0 warnings;
+  type-check clean; unit tests pass.
+- **Last session:** Devin, 2026-11-08 — sweep complete, all six
+  scopes verified, commit+push.

@@ -39,16 +39,16 @@ interface LyricWarning {
 }
 
 interface GenResult {
-  title: string;
-  style: string;
-  prompt: string;
-  exclude: string;
-  lyrics: string;
-  settings: Record<string, unknown>;
-  notes: string[];
-  warnings: (string | LyricWarning)[];
-  platform: string;
-  model_used: string;
+  title?: string;
+  style?: string;
+  prompt?: string;
+  exclude?: string;
+  lyrics?: string;
+  settings?: Record<string, unknown>;
+  notes?: string[];
+  warnings?: (string | LyricWarning)[];
+  platform?: string;
+  model_used?: string;
   title_chars?: number;
   title_limit?: number | null;
   style_chars?: number;
@@ -65,7 +65,7 @@ interface PresetEntry {
   name: string;
   description: string;
   tags: string[];
-  form_values: Record<string, string | boolean | number>;
+  form_values: Record<string, string | boolean | number | undefined>;
 }
 
 interface PresetsResponse {
@@ -74,6 +74,26 @@ interface PresetsResponse {
     count: number;
     platforms: string[];
   };
+}
+
+interface LyricTechniqueEntry {
+  techniques?: string[];
+  vocal_delivery?: string;
+}
+
+interface CreditNoteEntry {
+  label?: string;
+  balance_visible?: boolean;
+  strategy: string;
+  daily_credits?: number | null;
+  rollover?: boolean;
+}
+
+interface TemplatesResponse {
+  default_model?: string;
+  platforms?: Record<string, PlatformSpec>;
+  lyric_techniques?: Record<string, LyricTechniqueEntry>;
+  credit_notes?: Record<string, CreditNoteEntry>;
 }
 
 const PLATFORM_FALLBACK: Record<PlatformId, string> = {
@@ -90,6 +110,10 @@ const LABELS: Record<PlatformId, string> = {
   happyshrimp_10: "HappyShrimp 1.0",
   lyria_35: "Lyria 3.5 Pro",
 };
+
+function orFallback(value: string | undefined, fallback: string): string {
+  return value !== undefined && value !== "" ? value : fallback;
+}
 
 function Count({ value, limit }: { value: number; limit?: number | null }) {
   if (!limit) return <span className="text-xs text-white/40">{value} chars</span>;
@@ -137,20 +161,8 @@ export function MusicPromptGenerator({
 
   const [platform, setPlatform] = useState<PlatformId>("suno_v6");
   const [specs, setSpecs] = useState<Record<string, PlatformSpec> | null>(null);
-  const [creditNotes, setCreditNotes] = useState<Record<
-    string,
-    {
-      label?: string;
-      balance_visible?: boolean;
-      strategy: string;
-      daily_credits: number | null;
-      rollover?: boolean;
-    }
-  > | null>(null);
-  const [lyricTechniques, setLyricTechniques] = useState<Record<
-    string,
-    { techniques: string[]; vocal_delivery?: string }
-  > | null>(null);
+  const [creditNotes, setCreditNotes] = useState<Record<string, CreditNoteEntry> | null>(null);
+  const [lyricTechniques, setLyricTechniques] = useState<Record<string, LyricTechniqueEntry> | null>(null);
   const [presets, setPresets] = useState<PresetsResponse | null>(null);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
   const [theme, setTheme] = useState(initialTheme ?? "");
@@ -225,7 +237,7 @@ export function MusicPromptGenerator({
 
   useEffect(() => {
     fetch(`${getApiBase()}/api/music-prompts/templates`)
-      .then(async (r) => (r.ok ? r.json() : null))
+      .then(async (r) => (r.ok ? ((await r.json()) as TemplatesResponse | null) : null))
       .then((d) => {
         if (d?.default_model) setModel(d.default_model);
         if (d?.platforms) setSpecs(d.platforms);
@@ -236,7 +248,7 @@ export function MusicPromptGenerator({
         void 0;
       });
     fetch(`${getApiBase()}/api/music-prompts/presets`)
-      .then(async (r) => (r.ok ? r.json() : null))
+      .then(async (r) => (r.ok ? ((await r.json()) as PresetsResponse | null) : null))
       .then((d) => {
         if (d?.presets) setPresets(d);
       })
@@ -281,10 +293,12 @@ export function MusicPromptGenerator({
         }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        const err = (await res
+          .json()
+          .catch(() => ({ detail: res.statusText }))) as { detail?: string };
         throw new Error(err.detail ?? "Generation failed");
       }
-      const data = await res.json();
+      const data = (await res.json()) as GenResult;
       setResult(data);
       void savePromptResult({
         platform,
@@ -293,7 +307,7 @@ export function MusicPromptGenerator({
         style: data.style ?? data.prompt ?? "",
         exclude: data.exclude ?? "",
         lyrics: data.lyrics ?? "",
-        settings: (data.settings ?? {}) as Record<string, unknown>,
+        settings: data.settings ?? {},
       });
     } catch (e) {
       setError(
@@ -309,9 +323,9 @@ export function MusicPromptGenerator({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    await generate();
+    void generate();
   };
 
   const copy = async (key: string, text: string) => {
@@ -422,7 +436,7 @@ export function MusicPromptGenerator({
               >
                 <option value="">— select a preset —</option>
                 {Object.entries(presets.presets).map(([plat, list]) => (
-                  <optgroup key={plat} label={LABELS[plat as PlatformId] ?? plat}>
+                  <optgroup key={plat} label={(LABELS as Record<string, string>)[plat] ?? plat}>
                     {list.map((pr) => (
                       <option key={pr.id} value={pr.id}>
                         {pr.name} — {pr.description}
@@ -751,7 +765,9 @@ export function MusicPromptGenerator({
               <p className="text-sm text-red-400">{error}</p>
               <button
                 type="button"
-                onClick={generate}
+                onClick={() => {
+                  void generate();
+                }}
                 className="text-xs text-violet-300 hover:text-violet-200 border border-violet-500/30 rounded-lg px-3 py-1.5"
               >
                 Retry
@@ -768,14 +784,16 @@ export function MusicPromptGenerator({
               <h2 className="font-semibold text-sm">Title</h2>
               <button
                 type="button"
-                onClick={async () => copy("title", result.title ?? "")}
+                onClick={() => {
+                  void copy("title", result.title ?? "");
+                }}
                 className="text-white/60 hover:text-white"
                 aria-label="Copy title"
               >
                 {copied === "title" ? <Check size={16} /> : <Copy size={16} />}
               </button>
             </div>
-            <p className="text-sm text-white/85">{result.title || "(empty)"}</p>
+            <p className="text-sm text-white/85">{orFallback(result.title, "(empty)")}</p>
             <div className="mt-2">
               <Count
                 value={result.title_chars ?? (result.title ?? "").length}
@@ -788,7 +806,9 @@ export function MusicPromptGenerator({
               <h2 className="font-semibold text-sm">Style — paste into {LABELS[platform]}</h2>
               <button
                 type="button"
-                onClick={async () => copy("style", result.style ?? result.prompt ?? "")}
+                onClick={() => {
+                  void copy("style", result.style ?? result.prompt ?? "");
+                }}
                 className="text-white/60 hover:text-white"
                 aria-label="Copy style"
               >
@@ -796,7 +816,7 @@ export function MusicPromptGenerator({
               </button>
             </div>
             <pre className="whitespace-pre-wrap text-sm text-white/85 max-h-96 overflow-auto">
-              {(result.style ?? result.prompt) || "(empty)"}
+              {orFallback(result.style ?? result.prompt, "(empty)")}
             </pre>
             <div className="mt-2">
               <Count
@@ -817,7 +837,9 @@ export function MusicPromptGenerator({
                 </h2>
                 <button
                   type="button"
-                  onClick={async () => copy("exclude", result.exclude ?? "")}
+                  onClick={() => {
+                  void copy("exclude", result.exclude ?? "");
+                }}
                   className="text-white/60 hover:text-white"
                   aria-label="Copy exclude"
                 >
@@ -825,7 +847,7 @@ export function MusicPromptGenerator({
                 </button>
               </div>
               <pre className="whitespace-pre-wrap text-sm text-white/85 max-h-96 overflow-auto">
-                {result.exclude || "(empty — nothing to avoid)"}
+                {orFallback(result.exclude, "(empty — nothing to avoid)")}
               </pre>
             </Card>
           )}
@@ -834,7 +856,9 @@ export function MusicPromptGenerator({
               <h2 className="font-semibold text-sm">Lyrics — with section tags</h2>
               <button
                 type="button"
-                onClick={async () => copy("lyrics", result.lyrics)}
+                onClick={() => {
+                  void copy("lyrics", result.lyrics ?? "");
+                }}
                 className="text-white/60 hover:text-white"
                 aria-label="Copy lyrics"
               >
@@ -842,11 +866,11 @@ export function MusicPromptGenerator({
               </button>
             </div>
             <pre className="whitespace-pre-wrap text-sm text-white/85 max-h-96 overflow-auto">
-              {result.lyrics || "(empty)"}
+              {orFallback(result.lyrics, "(empty)")}
             </pre>
             <div className="mt-2">
               <Count
-                value={result.lyrics_chars ?? result.lyrics.length}
+                value={result.lyrics_chars ?? (result.lyrics ?? "").length}
                 limit={result.lyrics_limit}
               />
             </div>
@@ -865,9 +889,9 @@ export function MusicPromptGenerator({
               </h2>
               <button
                 type="button"
-                onClick={async () =>
-                  copy("settings", JSON.stringify(result.settings ?? {}, null, 2))
-                }
+                onClick={() => {
+                  void copy("settings", JSON.stringify(result.settings ?? {}, null, 2));
+                }}
                 className="text-white/60 hover:text-white"
                 aria-label="Copy settings"
               >
@@ -880,7 +904,7 @@ export function MusicPromptGenerator({
                   <div key={k} className="flex gap-2 text-sm">
                     <dt className="text-white/40 shrink-0">{k}:</dt>
                     <dd className="text-white/85">
-                      {typeof v === "object" ? JSON.stringify(v) : String(v)}
+                      {typeof v === "object" ? JSON.stringify(v) : String(v as string | number | boolean)}
                     </dd>
                   </div>
                 ))}
@@ -892,20 +916,20 @@ export function MusicPromptGenerator({
           <Card className="p-4 md:col-span-2">
             <button
               type="button"
-              onClick={async () =>
-                copy(
+              onClick={() => {
+                void copy(
                   "all",
                   [result.title, result.style ?? result.prompt, result.exclude, result.lyrics]
                     .filter(Boolean)
                     .join("\n\n"),
-                )
-              }
+                );
+              }}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:border-white/25 text-xs mb-2"
             >
               {copied === "all" ? <Check size={14} /> : <Copy size={14} />} Copy all sections
             </button>
             {(result.warnings ?? []).map((w, i) => {
-              const isObj = typeof w === "object" && w !== null;
+              const isObj = typeof w === "object";
               const kind = isObj ? w.kind : "generic";
               const kindColor: Record<string, string> = {
                 instruction_text: "bg-red-500/20 text-red-400 border-red-500/40",
@@ -993,7 +1017,7 @@ export function MusicPromptGenerator({
                   <div key={key} className="text-sm">
                     <h4 className="font-medium text-white/90 mb-1">{key}</h4>
                     <ul className="space-y-1 text-white/70 mb-1">
-                      {(entry.techniques || []).map((t, i) => (
+                      {(entry.techniques ?? []).map((t, i) => (
                         <li key={i} className="list-disc ml-4">
                           • {t}
                         </li>

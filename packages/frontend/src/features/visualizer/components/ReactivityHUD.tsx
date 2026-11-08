@@ -99,10 +99,18 @@ export const ReactivityHUD = memo(function ReactivityHUD({
   // renderer. In other modes they must look disabled, not silently dead.
   const shaderOnly = vizMode !== undefined && vizMode !== "shader";
 
-  const bassPercent = Math.min(100, Math.round((audioData.bass ?? 0) * 100));
-  const midPercent = Math.min(100, Math.round((audioData.mid ?? 0) * 100));
-  const treblePercent = Math.min(100, Math.round((audioData.treble ?? 0) * 100));
-  const energyPercent = Math.min(100, Math.round((audioData.energy ?? 0) * 100));
+  // Band levels can be absent on partial frames even though AudioData
+  // declares them required.
+  const levels = audioData as {
+    bass?: number;
+    mid?: number;
+    treble?: number;
+    energy?: number;
+  };
+  const bassPercent = Math.min(100, Math.round((levels.bass ?? 0) * 100));
+  const midPercent = Math.min(100, Math.round((levels.mid ?? 0) * 100));
+  const treblePercent = Math.min(100, Math.round((levels.treble ?? 0) * 100));
+  const energyPercent = Math.min(100, Math.round((levels.energy ?? 0) * 100));
 
   return (
     <div

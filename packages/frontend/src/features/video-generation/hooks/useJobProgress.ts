@@ -36,7 +36,7 @@ export function useJobProgress() {
       clearInterval(progressIntervalRef.current);
     }
 
-    progressIntervalRef.current = setInterval(async () => {
+    const poll = async () => {
       if (!isMountedRef.current) return;
       trackedJobIdsRef.current.add(jobId);
       try {
@@ -46,7 +46,7 @@ export function useJobProgress() {
           signal,
         });
         if (res.ok) {
-          const data: JobProgress = await res.json();
+          const data = (await res.json()) as JobProgress;
           setJobProgress(data);
           if (
             data.status === "completed" ||
@@ -66,6 +66,10 @@ export function useJobProgress() {
       } catch {
         // Polling error — continue polling
       }
+    };
+
+    progressIntervalRef.current = setInterval(() => {
+      void poll();
     }, 3000);
   }, []);
 

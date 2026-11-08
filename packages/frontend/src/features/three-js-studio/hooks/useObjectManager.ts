@@ -1,7 +1,7 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type * as THREE from "three";
-import type { AnimObject, CameraMode } from "../types";
+import type { AnimObject, CameraMode, CharacterAnimData, ParticleConfig } from "../types";
 import type { SceneTemplate } from "../sceneTemplates";
 
 export function useObjectManager({
@@ -20,10 +20,10 @@ export function useObjectManager({
   setObjects: React.Dispatch<React.SetStateAction<AnimObject[]>>;
   selectedObject: string | null;
   setSelectedObject: React.Dispatch<React.SetStateAction<string | null>>;
-  characterAnimDataRef: React.RefObject<Map<string, { mixer: any; action: any; clips: string[] }>>;
+  characterAnimDataRef: React.RefObject<Map<string, CharacterAnimData>>;
   cameraRef: React.RefObject<THREE.PerspectiveCamera | null>;
   rendererRef: React.RefObject<THREE.WebGLRenderer | null>;
-  setParticleConfig?: (config: any) => void;
+  setParticleConfig?: (config: ParticleConfig) => void;
   setCameraMode?: (mode: CameraMode) => void;
   setActiveTemplateId?: (id: string | null) => void;
 }) {
@@ -99,10 +99,10 @@ export function useObjectManager({
 
   const removeObject = useCallback(
     (id: string) => {
-      setObjects((prev) => prev.filter((obj: any) => obj.id !== id));
+      setObjects((prev) => prev.filter((obj) => obj.id !== id));
       setActiveTemplateId?.(null);
       if (selectedObject === id) {
-        const remaining = objects.filter((obj: any) => obj.id !== id);
+        const remaining = objects.filter((obj) => obj.id !== id);
         setSelectedObject(remaining[0]?.id || null);
       }
     },
@@ -119,14 +119,14 @@ export function useObjectManager({
 
   const loadTemplate = useCallback(
     (template: SceneTemplate) => {
-      setObjects(template.objects.map((o: any) => ({ ...o })));
-      if (setParticleConfig && template.particleConfig) {
+      setObjects(template.objects.map((o) => ({ ...o })));
+      if (setParticleConfig) {
         setParticleConfig({ ...template.particleConfig });
       }
-      if (setCameraMode && template.cameraMode) {
+      if (setCameraMode) {
         setCameraMode(template.cameraMode);
       }
-      setSelectedObject(template.objects[0]?.id ?? null);
+      setSelectedObject(template.objects.at(0)?.id ?? null);
       setActiveTemplateId?.(template.id);
     },
     [setObjects, setSelectedObject, setParticleConfig, setCameraMode, setActiveTemplateId],
@@ -150,9 +150,13 @@ export function useObjectManager({
     if (!selectedObject) return;
     const data = characterAnimDataRef.current.get(selectedObject);
     if (data?.action) {
+      // NOTE: AnimationAction has no pause() method — pausing is the
+      // `paused` flag, and play() does not clear it, so resume must
+      // reset the flag explicitly.
       if (data.action.isRunning()) {
-        data.action.pause();
+        data.action.paused = true;
       } else {
+        data.action.paused = false;
         data.action.play();
       }
       refreshCharacterAnimState(selectedObject);
@@ -180,8 +184,10 @@ export function useObjectManager({
         const clip = data.mixer.existingAction(clipName) ? clipName : data.clips[0];
         if (clip) {
           data.action?.stop();
+          // `clipAction(string)` resolves by clip name and returns null
+          // when no clip matches — guard rather than crash the handler.
           const newAction = data.mixer.clipAction(clip);
-          newAction.play();
+          newAction?.play();
           data.action = newAction;
           refreshCharacterAnimState(selectedObject);
         }

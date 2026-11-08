@@ -247,7 +247,7 @@ export async function getStemsStatus(): Promise<StemsStatusResponse> {
  */
 export async function listAudioFiles(): Promise<AudioFileListItem[]> {
   const base = getApiBase();
-  const data = await fetchJson<AudioFileListItem[] | { files: AudioFileListItem[] }>(
+  const data = await fetchJson<AudioFileListItem[] | { files?: AudioFileListItem[] | null } | null>(
     `${base}${BASE}/files`,
     { timeout: 30000 },
   );

@@ -181,7 +181,7 @@ export function GpuProcessList({
         <div className="space-y-2 max-h-[520px] overflow-auto pr-1">
           {filtered.map((proc) => {
             const label = labelForProcess(proc.name);
-            const mem = proc.mem_mb ?? 0;
+            const mem = proc.mem_mb;
             const isLarge = mem >= 1024;
             const share = vramTotal ? (mem / vramTotal) * 100 : 0;
             return (

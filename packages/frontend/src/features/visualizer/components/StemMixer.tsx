@@ -18,7 +18,7 @@
 import React, { useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import { enhanceStems } from "../../../services/api";
-import { DEFAULT_EQ_PRESETS } from "../audioEQ";
+import { DEFAULT_EQ_PRESETS, type EQBand } from "../audioEQ";
 import { usePanelCollapsed } from "../usePanelCollapsed";
 import { friendlyPipelineError, SEPARATION_FAILED_HEADLINE } from "../../../utils/errorCopy";
 import {
@@ -95,7 +95,6 @@ export function StemMixerPanel({
   }, [muted, volumes, eqBands, onStateChange]);
 
   useEffect(() => {
-    if (!syncTransport) return;
     // 500 ms interval sync — seeking is expensive (re-buffers the element),
     // so checking every frame caused audible skipping. 500 ms is frequent
     // enough to catch drift before it becomes noticeable.
@@ -193,7 +192,7 @@ export function StemMixerPanel({
               </select>
             </div>
             <button
-              onClick={ensureStems}
+              onClick={() => void ensureStems()}
               className="w-full py-2 text-xs rounded-lg bg-violet-600/80 hover:bg-violet-500 text-white transition-colors"
             >
               Load Stems (vocals / drums / bass / other)
@@ -241,7 +240,7 @@ export function StemMixerPanel({
               </details>
             )}
             <button
-              onClick={ensureStems}
+              onClick={() => void ensureStems()}
               className="w-full py-1.5 text-[11px] rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors"
             >
               Retry
@@ -326,7 +325,7 @@ export function StemMixerPanel({
                 </h4>
                 {category.keys.map((name: StemName) => {
                   const def = STEM_BY_KEY[name];
-                  const bands = eqBands[name] || [];
+                  const bands = (eqBands[name] as EQBand[] | undefined) ?? [];
                   const stemColor = def.color.replace("bg-", "text-").replace("/70", "/90");
                   return (
                     <div key={name} className="flex flex-col gap-1" data-stem={name}>
@@ -366,7 +365,7 @@ export function StemMixerPanel({
                         <div className="grid grid-cols-5 gap-1 pl-[4.5rem]">
                           {bands.map((band, idx: number) => (
                             <div
-                              key={band.id ?? idx}
+                              key={band.id || idx}
                               className="flex flex-col items-center gap-0.5"
                             >
                               <input
@@ -481,7 +480,7 @@ function EnhanceButton({
         </label>
       </div>
       <button
-        onClick={handleEnhance}
+        onClick={() => void handleEnhance()}
         disabled={loading}
         className="w-full py-1.5 text-[11px] rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50"
       >

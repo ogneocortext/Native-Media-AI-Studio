@@ -44,10 +44,8 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
             <p className="text-xs text-muted">
               {status.running
                 ? `Running on port ${status.port}`
-                : status.installed && !status.running
-                  ? "Not running — click Start below"
-                  : "Not installed"}
-              {status.version?.version && ` • v${status.version.version.replace(/^v+/, "")}`}
+                : "Not running — click Start below"}
+              {status.version.version && ` • v${status.version.version.replace(/^v+/, "")}`}
             </p>
           </div>
         </div>
@@ -110,7 +108,7 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
         </div>
       </div>
 
-      {status.version && (
+      {(
         <div className="flex items-center justify-between text-xs text-muted pt-3 border-t border-border">
           <div className="flex items-center gap-4">
             {status.version.behind_remote !== undefined && status.version.behind_remote > 0 && (
@@ -147,7 +145,7 @@ export function ComfyUICard({ status, loading, action, vramStatus, onAction }: C
                   {Math.floor(status.uptime_seconds % 60)}s{status.pid && ` • PID: ${status.pid}`}
                 </span>
               )}
-              {!status.running && status.installed && (
+              {!status.running && (
                 <>
                   <AlertTriangle size={12} className="text-amber-400" />
                   <span className="ml-1">

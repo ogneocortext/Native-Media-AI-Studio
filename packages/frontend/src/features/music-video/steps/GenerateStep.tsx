@@ -26,7 +26,7 @@ export function GenerateStep({
   onConfigChange: (c: GenerationConfig) => void;
 }) {
   const [sectionRoutes, setSectionRoutes] = useState<
-    Record<string, { model: string; tier: string; reason: string }>
+    Record<string, { model: string; tier: string; reason: string } | undefined>
   >({});
   const [routing, setRouting] = useState(false);
   const [canvasOutput, setCanvasOutput] = useState<string | null>(null);
@@ -108,7 +108,7 @@ export function GenerateStep({
     try {
       const width = config.verticalFirst ? 1080 : 1920;
       const height = config.verticalFirst ? 1920 : 1080;
-      const shot_manifest = (analysis.sections ?? []).map((s, i) => ({
+      const shot_manifest = analysis.sections.map((s, i) => ({
         id: `section-${i}`,
         section: s.type,
         duration_seconds: s.end - s.start,
@@ -181,7 +181,7 @@ export function GenerateStep({
           <div className="mt-4 flex items-center justify-center gap-3">
             <button
               type="button"
-              onClick={loadRouting}
+              onClick={() => void loadRouting()}
               disabled={routing || sections.length === 0}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white rounded-xl text-xs font-semibold border border-gray-600 flex items-center gap-2"
             >
@@ -190,7 +190,7 @@ export function GenerateStep({
             </button>
             <button
               type="button"
-              onClick={handleCreateCanvas}
+              onClick={() => void handleCreateCanvas()}
               disabled={creatingCanvas}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white rounded-xl text-xs font-semibold border border-gray-600 flex items-center gap-2"
             >
@@ -203,7 +203,7 @@ export function GenerateStep({
             </button>
             <button
               type="button"
-              onClick={handleAssemble}
+              onClick={() => void handleAssemble()}
               disabled={assembling || sections.length === 0}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white rounded-xl text-xs font-semibold border border-gray-600 flex items-center gap-2"
             >
@@ -212,7 +212,7 @@ export function GenerateStep({
             </button>
             <button
               type="button"
-              onClick={handleStemViz}
+              onClick={() => void handleStemViz()}
               disabled={loadingStemViz}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white rounded-xl text-xs font-semibold border border-gray-600 flex items-center gap-2"
             >

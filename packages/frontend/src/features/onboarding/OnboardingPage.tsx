@@ -24,7 +24,7 @@ export function OnboardingPage() {
   const navigate = useNavigate();
   const { complete } = useFirstRunDetector();
 
-  const handleExit = async () => navigate("/");
+  const handleExit = () => void navigate("/");
 
   return (
     <OnboardingFlow

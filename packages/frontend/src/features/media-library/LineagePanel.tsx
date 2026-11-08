@@ -58,7 +58,7 @@ export function LineagePanel({ filename }: Props) {
   const key = stemKeyOf(filename);
 
   useEffect(() => {
-    let live = true;
+    const liveRef = { current: true };
     setEntries(null);
     setError(null);
     setExpanded(null);
@@ -71,7 +71,7 @@ export function LineagePanel({ filename }: Props) {
       for (const candidate of candidates) {
         try {
           const data = await getTrackLineage(candidate);
-          if (!live) return;
+          if (!liveRef.current) return;
           if (data.remixes.length > 0 || candidate === candidates[candidates.length - 1]) {
             setEntries(data.remixes);
             return;
@@ -80,10 +80,10 @@ export function LineagePanel({ filename }: Props) {
           lastError = (e as Error).message;
         }
       }
-      if (live) setError(lastError);
+      if (liveRef.current) setError(lastError);
     })();
     return () => {
-      live = false;
+      liveRef.current = false;
     };
   }, [key, filename]);
 

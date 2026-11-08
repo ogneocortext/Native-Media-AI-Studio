@@ -68,8 +68,9 @@ export function useAudioAnalysis() {
     setError(null);
     try {
       const result = await ensureAnalysis(filename, backend);
-      if (result.analysis) {
-        setAnalysis(result.analysis);
+      const ensuredAnalysis = result.analysis as AudioAnalysisResult | undefined;
+      if (ensuredAnalysis) {
+        setAnalysis(ensuredAnalysis);
       }
       return result;
     } catch (err: unknown) {

@@ -34,7 +34,8 @@ export function UploadPrompt({ hasAudio, onFile, quiet = false }: Props) {
       onDrop={(e) => {
         e.preventDefault();
         setDragOver(false);
-        const file = e.dataTransfer.files[0];
+        // FileList indexing can be out of bounds at runtime.
+        const file = e.dataTransfer.files[0] as File | undefined;
         if (file) onFile(file);
       }}
     >

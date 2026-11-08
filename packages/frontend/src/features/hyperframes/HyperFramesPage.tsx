@@ -71,7 +71,7 @@ export function HyperFramesPage() {
       setError(null);
       setPreviewing(true);
       const res = await launchHyperFramesPreview();
-      const url = (res.url as string) || getVideoEditorUrl();
+      const url = res.url || getVideoEditorUrl();
       setPreviewUrl(url);
     } catch {
       setError("Failed to start preview server");
@@ -95,7 +95,7 @@ export function HyperFramesPage() {
       });
       setRenderResult(res as unknown as Record<string, unknown>);
     } catch (e) {
-      setError("Render failed: " + ((e as Error).message ?? String(e)));
+      setError("Render failed: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setRendering(false);
     }
@@ -130,7 +130,7 @@ export function HyperFramesPage() {
             <p className="text-xs text-red-300/80 mt-1">{error}</p>
           </div>
           <button
-            onClick={handleRetry}
+            onClick={() => void handleRetry()}
             className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/20 px-3 py-1.5 text-xs font-medium text-red-200 hover:bg-red-500/30 focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -190,7 +190,7 @@ export function HyperFramesPage() {
 
       <div className="flex flex-wrap gap-3">
         <button
-          onClick={handlePreview}
+          onClick={() => void handlePreview()}
           disabled={previewing}
           className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
@@ -198,7 +198,7 @@ export function HyperFramesPage() {
           {previewing ? "Starting..." : "Launch Preview"}
         </button>
         <button
-          onClick={handleRender}
+          onClick={() => void handleRender()}
           disabled={rendering}
           className="inline-flex items-center gap-2 rounded-lg bg-gray-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >

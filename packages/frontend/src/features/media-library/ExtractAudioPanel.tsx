@@ -98,7 +98,9 @@ export function ExtractAudioPanel({ sourcePath, onComplete }: Props) {
       </div>
 
       <button
-        onClick={handleExtract}
+        onClick={() => {
+          void handleExtract();
+        }}
         disabled={running}
         className="w-full py-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 disabled:bg-gray-700 disabled:cursor-wait text-white text-sm flex items-center justify-center gap-2 transition-colors"
       >

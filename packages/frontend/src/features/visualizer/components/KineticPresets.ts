@@ -326,7 +326,7 @@ const wavyPreset: KineticPreset = {
   wordClass: "kinetic-word-wavy",
   enterAnimation: (el) => {
     // Split text into characters for wave effect
-    const chars = el.textContent.split("") || [];
+    const chars = el.textContent.split("");
     el.innerHTML = chars.map((c) => `<span class="char">${c}</span>`).join("");
 
     const charElements = el.querySelectorAll(".char");
@@ -369,7 +369,7 @@ const rainingPreset: KineticPreset = {
   containerClass: "kinetic-raining",
   wordClass: "kinetic-word-raining",
   enterAnimation: (el) => {
-    const chars = el.textContent.split("") || [];
+    const chars = el.textContent.split("");
     el.innerHTML = chars.map((c) => `<span class="char">${c}</span>`).join("");
 
     const charElements = el.querySelectorAll(".char");
@@ -452,7 +452,7 @@ const explodePreset: KineticPreset = {
   containerClass: "kinetic-explode",
   wordClass: "kinetic-word-explode",
   enterAnimation: (el) => {
-    const chars = el.textContent.split("") || [];
+    const chars = el.textContent.split("");
     el.innerHTML = chars
       .map((c) => `<span class="char" style="display:inline-block">${c}</span>`)
       .join("");

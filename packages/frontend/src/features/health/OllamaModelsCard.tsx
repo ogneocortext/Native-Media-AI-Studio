@@ -4,6 +4,9 @@ import { Card } from "../../components/common";
 import { useHealthStore } from "../../state/healthStore";
 import { usePolling } from "../../hooks";
 import { formatElapsed } from "../../utils/format";
+import type { DiagnosticsModelsResponse } from "../../services/api";
+
+type ModelActivity = NonNullable<DiagnosticsModelsResponse["activity"]>[string];
 
 export function OllamaModelsCard() {
   const [now, setNow] = useState(Date.now());
@@ -20,7 +23,7 @@ export function OllamaModelsCard() {
   }, []);
 
   const data = granular.ollamaModels ?? { loaded: false, models: [], activity: {} };
-  const models = data.models || [];
+  const models = data.models;
   const activity = data.activity ?? {};
 
   return (
@@ -40,7 +43,7 @@ export function OllamaModelsCard() {
       ) : (
         <div className="space-y-2">
           {models.map((m) => {
-            const active = activity[m.name];
+            const active = activity[m.name] as ModelActivity | undefined;
             const elapsed = active?.started_at ? Math.floor(now / 1000 - active.started_at) : null;
             return (
               <div

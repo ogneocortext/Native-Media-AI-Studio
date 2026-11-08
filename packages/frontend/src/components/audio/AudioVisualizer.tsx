@@ -319,7 +319,7 @@ export function AudioVisualizer({
 
       <div className="flex items-center justify-between">
         <button
-          onClick={togglePlay}
+          onClick={() => void togglePlay()}
           className="btn btn-secondary flex items-center gap-2"
           disabled={!audioRef.current}
         >

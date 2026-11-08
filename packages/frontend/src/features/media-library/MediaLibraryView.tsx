@@ -81,7 +81,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
 
   const [filter, setFilter] = useState<{
     query: string;
-    fileType: string | "all";
+    fileType: string;
     tagFilter: string | null;
     sortBy: "name" | "size" | "date";
     sortOrder: "asc" | "desc";
@@ -423,7 +423,9 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
             <BulkBar
               selectedCount={selectedPaths.size}
               onClear={clearSelection}
-              onDeleteSelected={handleBulkDeleteSelected}
+              onDeleteSelected={() => {
+                void handleBulkDeleteSelected();
+              }}
               isDeleting={isOperating}
             />
           ) : (
@@ -483,7 +485,9 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
             itemCollections={itemCollections}
             itemTags={itemTags}
             onToggleFavorite={handleToggleFavorite}
-            onGenerateThumbnail={handleGenerateThumbnail}
+            onGenerateThumbnail={(file) => {
+              void handleGenerateThumbnail(file);
+            }}
             collisionNames={collisionNames}
           />
           <Pagination
@@ -575,9 +579,15 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
           isOpen
           onClose={() => setView("library")}
           trash={trash}
-          restoreTrashItem={restoreTrashItem}
-          purgeTrashItem={purgeTrashItem}
-          emptyTrash={emptyTrash}
+          restoreTrashItem={(relativePath) => {
+            void restoreTrashItem(relativePath);
+          }}
+          purgeTrashItem={(relativePath) => {
+            void purgeTrashItem(relativePath);
+          }}
+          emptyTrash={() => {
+            void emptyTrash();
+          }}
           // Restores/purges change the file listing too, not just org state.
           refetchOrg={() => {
             void refetchOrg();
@@ -656,7 +666,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
 
             <div className="space-y-2 text-sm text-muted">
               <p>File Type: {selectedFile.file_type}</p>
-              <p>Size: {formatFileSize(selectedFile.size_bytes ?? selectedFile.size ?? 0)}</p>
+              <p>Size: {formatFileSize(selectedFile.size_bytes)}</p>
               <p>
                 Modified:{" "}
                 {formatDateTime(selectedFile.modified_at ?? selectedFile.modified_time ?? "")}
@@ -831,7 +841,9 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
         <DuplicatesPanel
           isOpen={duplicatesOpen}
           onClose={() => setDuplicatesOpen(false)}
-          onRefetch={refetchFiles}
+          onRefetch={() => {
+            void refetchFiles();
+          }}
         />
       )}
     </main>

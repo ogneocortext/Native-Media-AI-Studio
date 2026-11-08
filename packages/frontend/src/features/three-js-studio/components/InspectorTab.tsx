@@ -49,7 +49,7 @@ export function InspectorTab({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files[0];
+    const file = e.dataTransfer.files.item(0);
     if (file && (file.name.endsWith(".glb") || file.name.endsWith(".gltf"))) {
       const url = URL.createObjectURL(file);
       onUpdate(object.id, { modelUrl: url });
@@ -211,21 +211,23 @@ export function InspectorTab({
                 disabled={generatingTexture}
               />
               <button
-                onClick={async () => {
-                  if (!texturePrompt.trim() || !object || !onGenerateTexture) return;
-                  setTextureGenError(null);
-                  try {
-                    const url = await onGenerateTexture(texturePrompt, object.id);
-                    setTexturePrompt("");
-                    // Auto-select the generated texture
-                    onUpdate(object.id, { textureUrl: url });
-                  } catch (err) {
-                    setTextureGenError(err instanceof Error ? err.message : "Generation failed");
-                  }
+                onClick={() => {
+                  void (async () => {
+                    if (!texturePrompt.trim()) return;
+                    setTextureGenError(null);
+                    try {
+                      const url = await onGenerateTexture(texturePrompt, object.id);
+                      setTexturePrompt("");
+                      // Auto-select the generated texture
+                      onUpdate(object.id, { textureUrl: url });
+                    } catch (err) {
+                      setTextureGenError(
+                        err instanceof Error ? err.message : "Generation failed",
+                      );
+                    }
+                  })();
                 }}
-                disabled={
-                  !texturePrompt.trim() || generatingTexture || !object || !onGenerateTexture
-                }
+                disabled={!texturePrompt.trim() || generatingTexture === true}
                 className="px-2 py-1 text-xs rounded bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white"
               >
                 {generatingTexture ? "Generating…" : "Generate"}
@@ -249,7 +251,7 @@ export function InspectorTab({
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
-            const file = e.dataTransfer.files[0];
+            const file = e.dataTransfer.files.item(0);
             if (
               file &&
               (file.type.startsWith("image/") || (/\.(png|jpg|jpeg|webp|gif)$/i.exec(file.name)))

@@ -348,6 +348,6 @@ export function exportLyricsToJSON(data: LyricsData): string {
  * Import lyrics data from JSON string.
  */
 export function importLyricsFromJSON(json: string): LyricsData {
-  const data = JSON.parse(json);
+  const data: unknown = JSON.parse(json);
   return data as LyricsData;
 }

@@ -57,7 +57,9 @@ export function ServiceChecksCard() {
       headerActions={
         <div className="flex items-center gap-2">
           <button
-            onClick={checkAll}
+            onClick={() => {
+              void checkAll();
+            }}
             className="p-1.5 rounded-lg bg-white/5 text-muted hover:text-white"
             title="Check all services now"
           >
@@ -77,7 +79,7 @@ export function ServiceChecksCard() {
         {/* No "backend" row — this page cannot render without it, so it is
             tautological. Only externally-probed services are listed. */}
         {PROBED_SERVICES.map((service) => {
-          const check = checks[service];
+          const check = checks[service] as ServiceCheck | undefined;
           // Guard: service may not have been checked yet
           if (!check) {
             return (
@@ -108,9 +110,7 @@ export function ServiceChecksCard() {
                       ? "bg-emerald-400"
                       : check.status === "offline"
                         ? "bg-red-400"
-                        : check.status === "checking"
-                          ? "bg-amber-400 animate-pulse"
-                          : "bg-gray-600"
+                        : "bg-amber-400 animate-pulse"
                   }`}
                 />
                 <span className="text-sm text-white capitalize">{service}</span>
@@ -120,7 +120,7 @@ export function ServiceChecksCard() {
               </div>
               {check.status === "checking" ? (
                 <Loader2 size={14} className="animate-spin text-amber-400" />
-              ) : check.status === "online" || check.status === "offline" ? (
+              ) : (
                 <div className="flex items-center gap-1.5 shrink-0">
                   <span
                     className={`flex items-center gap-1 text-xs ${check.status === "online" ? "text-emerald-400" : "text-red-400"}`}
@@ -129,7 +129,9 @@ export function ServiceChecksCard() {
                     {check.status}
                   </span>
                   <button
-                    onClick={async () => handleCheck(service)}
+                    onClick={() => {
+                      void handleCheck(service);
+                    }}
                     className="h-6 w-6 flex items-center justify-center rounded text-muted hover:text-white hover:bg-white/10"
                     title={`Re-check ${service}`}
                     aria-label={`Re-check ${service}`}
@@ -137,13 +139,6 @@ export function ServiceChecksCard() {
                     <RefreshCw size={11} />
                   </button>
                 </div>
-              ) : (
-                <button
-                  onClick={async () => handleCheck(service)}
-                  className="text-xs px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 hover:bg-violet-500/30"
-                >
-                  Check
-                </button>
               )}
             </div>
           );

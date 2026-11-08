@@ -1,14 +1,15 @@
 import { useCallback, useRef } from "react";
+import type * as THREE_TYPES from "three";
 import { createGLTFLoader } from "../../../utils/gltfLoader";
 import { BLOOM_LAYER } from "../threeStudioConfig";
+import type { AnimObject, CharacterAnimData } from "../types";
+import type { ThreeModule } from "./types";
 
 export function useMeshFactory() {
-  const characterMixersRef = useRef<Map<string, any>>(new Map());
-  const characterAnimDataRef = useRef<Map<string, { mixer: any; action: any; clips: string[] }>>(
-    new Map(),
-  );
+  const characterMixersRef = useRef<Map<string, THREE_TYPES.AnimationMixer>>(new Map());
+  const characterAnimDataRef = useRef<Map<string, CharacterAnimData>>(new Map());
 
-  const createMeshForObject = useCallback(async (obj: any, THREE: any) => {
+  const createMeshForObject = useCallback(async (obj: AnimObject, THREE: ThreeModule) => {
     const mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(obj.color),
       metalness: obj.metalness,
@@ -16,7 +17,7 @@ export function useMeshFactory() {
       emissive: new THREE.Color(obj.emissive),
       emissiveIntensity: obj.emissiveIntensity,
     });
-    let meshGroup: any;
+    let meshGroup: THREE_TYPES.Object3D;
     if (obj.type === "crown") {
       const group = new THREE.Group();
       group.add(new THREE.Mesh(new THREE.TorusGeometry(1, 0.15, 16, 32), mat));
@@ -52,13 +53,13 @@ export function useMeshFactory() {
       // mountThreeScene registers it via registerGLTFRenderer on boot.
       const loader = createGLTFLoader();
       const url = obj.modelUrl;
-      meshGroup = await new Promise<any>((resolve, _reject) => {
+      meshGroup = await new Promise<THREE_TYPES.Object3D>((resolve, _reject) => {
         loader.load(
           url,
           (gltf) => {
             const model = gltf.scene;
-            model.traverse((child: any) => {
-              if (child.isMesh) {
+            model.traverse((child) => {
+              if (child instanceof THREE.Mesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
                 child.layers.set(0);
@@ -66,13 +67,13 @@ export function useMeshFactory() {
               }
             });
             const mixer = new THREE.AnimationMixer(model);
-            if (gltf.animations && gltf.animations.length > 0) {
+            if (gltf.animations.length > 0) {
               const requestedName = obj.animationName ?? gltf.animations[0].name;
-              const clipName = gltf.animations.find((a: any) => a.name === requestedName)
+              const clipName = gltf.animations.find((a) => a.name === requestedName)
                 ? requestedName
                 : gltf.animations[0].name;
               const action = mixer.clipAction(
-                gltf.animations.find((a: any) => a.name === clipName) ?? gltf.animations[0],
+                gltf.animations.find((a) => a.name === clipName) ?? gltf.animations[0],
               );
               action.setLoop(
                 obj.animationLoop !== false ? THREE.LoopRepeat : THREE.LoopOnce,
@@ -83,7 +84,7 @@ export function useMeshFactory() {
               characterAnimDataRef.current.set(obj.id, {
                 mixer,
                 action,
-                clips: gltf.animations.map((a: any) => a.name),
+                clips: gltf.animations.map((a) => a.name),
               });
             } else {
               characterAnimDataRef.current.set(obj.id, {
@@ -153,8 +154,8 @@ export function useMeshFactory() {
             shadowContact.position.y = 0.01;
             fallback.rotation.x = 0.03;
             fallback.add(body, head, armL, armR, legL, legR, shadowContact);
-            fallback.traverse((c: any) => {
-              if (c.isMesh) {
+            fallback.traverse((c) => {
+              if (c instanceof THREE.Mesh) {
                 c.castShadow = true;
                 c.receiveShadow = true;
               }
@@ -172,8 +173,8 @@ export function useMeshFactory() {
     meshGroup.visible = obj.visible;
     meshGroup.castShadow = true;
     meshGroup.receiveShadow = true;
-    meshGroup.traverse((child: any) => {
-      if (child.isMesh) {
+    meshGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
         child.layers.set(0);
         if (obj.bloom) child.layers.enable(BLOOM_LAYER);
       }

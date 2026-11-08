@@ -25,7 +25,7 @@ export function FFmpegStatus() {
   useEffect(() => {
     const data = granular.ffmpeg;
     if (data) {
-      setFfmpeg({ running: data.running, count: data.count, processes: data.processes || [] });
+      setFfmpeg({ running: data.running, count: data.count, processes: data.processes });
     }
   }, [granular.ffmpeg]);
 

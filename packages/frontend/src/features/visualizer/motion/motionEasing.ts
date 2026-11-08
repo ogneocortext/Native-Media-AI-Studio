@@ -286,5 +286,7 @@ const FALLBACK_SECTION: MotionSection = "verse";
 export function getSectionEasing(section: string | null | undefined): SectionEasing {
   if (!section) return SECTION_EASING[FALLBACK_SECTION];
   const key = section.trim().toLowerCase() as MotionSection;
-  return SECTION_EASING[key] ?? SECTION_EASING[FALLBACK_SECTION];
+  // Unknown section names are absent at runtime despite the Record index type.
+  const easing = SECTION_EASING[key] as SectionEasing | undefined;
+  return easing ?? SECTION_EASING[FALLBACK_SECTION];
 }

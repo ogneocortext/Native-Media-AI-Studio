@@ -13,6 +13,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import type { WebGPURenderer } from "three/webgpu";
 
 export interface WebGPUDetectResult {
   supported: boolean;
@@ -124,11 +125,12 @@ export function useWebGPUDector(): WebGPUDetectResult {
  * This function keeps a stable identity, reads the decision at configure time,
  * and falls back to WebGL if WebGPU is opted-in but fails to initialize.
  */
-export async function createVisualizerRenderer(defaultProps: RendererInitProps): Promise<any> {
+export async function createVisualizerRenderer(
+  defaultProps: RendererInitProps,
+): Promise<THREE.WebGLRenderer | WebGPURenderer> {
   if (isWebGPUOptIn() && (await detectWebGPUSupport())) {
     try {
-      const renderer = await createWebGPURenderer(defaultProps);
-      if (renderer) return renderer;
+      return await createWebGPURenderer(defaultProps);
     } catch (err) {
       console.warn("[WebGPU] renderer init failed — falling back to WebGL:", err);
     }
@@ -153,7 +155,7 @@ export async function createWebGPURenderer(
     | HTMLCanvasElement
     | { canvas: HTMLCanvasElement; antialias?: boolean; alpha?: boolean; powerPreference?: string },
   maybeOptions: { antialias?: boolean; alpha?: boolean; powerPreference?: string } = {},
-): Promise<any> {
+): Promise<WebGPURenderer> {
   let canvas: HTMLCanvasElement;
   let options: { antialias?: boolean; alpha?: boolean; powerPreference?: string };
   if (canvasOrOptions instanceof HTMLCanvasElement) {
@@ -164,14 +166,16 @@ export async function createWebGPURenderer(
     options = canvasOrOptions;
   }
 
-  const mod = await import("three/webgpu");
-  const WebGPURenderer = mod.WebGPURenderer as new (params: any) => any;
+  const { WebGPURenderer: WebGPURendererClass } = await import("three/webgpu");
 
-  const renderer = new WebGPURenderer({
+  const renderer = new WebGPURendererClass({
     canvas,
     antialias: options.antialias ?? true,
     alpha: options.alpha ?? true,
-    powerPreference: options.powerPreference ?? "high-performance",
+    // The runtime accepts the same preference strings R3F forwards; the
+    // WebGPU typings only declare the two GPU power modes.
+    powerPreference: (options.powerPreference ??
+      "high-performance") as "low-power" | "high-performance",
   });
 
   try {
@@ -196,7 +200,11 @@ export async function detectWebGPUSupport(timeoutMs = 3000): Promise<boolean> {
   if (adapterProbe) return adapterProbe;
   adapterProbe = (async () => {
     try {
-      const nav = navigator as Navigator & { gpu?: { requestAdapter: () => Promise<any> } };
+      // The adapter object itself is never inspected — only its presence —
+      // so `unknown` is the honest type for the probe result.
+      const nav = navigator as Navigator & {
+        gpu?: { requestAdapter: () => Promise<unknown> };
+      };
       if (!nav.gpu) return false;
       const adapter = await Promise.race([
         nav.gpu.requestAdapter(),
@@ -204,7 +212,7 @@ export async function detectWebGPUSupport(timeoutMs = 3000): Promise<boolean> {
           setTimeout(() => reject(new Error("WebGPU requestAdapter timeout")), timeoutMs),
         ),
       ]);
-      return !!adapter;
+      return adapter != null;
     } catch {
       return false;
     }

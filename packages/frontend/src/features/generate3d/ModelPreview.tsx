@@ -46,7 +46,6 @@ function ModelView({ url, onLoading }: { url: string; onLoading?: (v: boolean) =
   // Without this, useMemo blocks the main thread during first render and
   // the user sees a frozen UI for 1-2 seconds with no feedback.
   useEffect(() => {
-    if (!scene) return;
     let cancelled = false;
     onLoading?.(true);
     const timer = setTimeout(() => {
@@ -98,8 +97,8 @@ async function processScene(scene: THREE.Object3D): Promise<THREE.Object3D> {
   const decimate: { mesh: THREE.Mesh; geom: THREE.BufferGeometry; removeCount: number }[] = [];
 
   c.traverse((obj: THREE.Object3D) => {
+    if (!(obj instanceof THREE.Mesh)) return;
     const mesh = obj as THREE.Mesh;
-    if (!mesh.isMesh || !mesh.geometry) return;
 
     const geom = mesh.geometry;
     // Ensure the geometry is indexed (computeVertexNormals needs indices
@@ -108,10 +107,7 @@ async function processScene(scene: THREE.Object3D): Promise<THREE.Object3D> {
     // per-face normals. mergeVertices welds coincident vertices first
     // so the resulting normals are smooth across the mesh.
     if (!geom.index) {
-      const merged = mergeVertices(geom, 0.0001);
-      if (merged) {
-        mesh.geometry = merged;
-      }
+      mesh.geometry = mergeVertices(geom, 0.0001);
     }
     const g = mesh.geometry;
 

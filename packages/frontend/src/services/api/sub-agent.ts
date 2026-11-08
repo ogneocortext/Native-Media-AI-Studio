@@ -70,45 +70,45 @@ export function subscribeToSubAgentSSE(
 
   eventSource.addEventListener("agent_output", (e) => {
     try {
-      const data = JSON.parse(e.data);
+      const data = JSON.parse(e.data as string) as SubAgentEvent["data"];
       onEvent({ type: "agent_output", data, timestamp: data.timestamp });
     } catch (err) {
-      onError?.(new Error(`Failed to parse agent_output event: ${err}`));
+      onError?.(new Error(`Failed to parse agent_output event: ${String(err)}`));
     }
   });
 
   eventSource.addEventListener("agent_done", (e) => {
     try {
-      const data = JSON.parse(e.data);
+      const data = JSON.parse(e.data as string) as SubAgentEvent["data"];
       onEvent({ type: "agent_done", data, timestamp: data.timestamp });
       eventSource.close();
     } catch (err) {
-      onError?.(new Error(`Failed to parse agent_done event: ${err}`));
+      onError?.(new Error(`Failed to parse agent_done event: ${String(err)}`));
     }
   });
 
   eventSource.addEventListener("agent_error", (e) => {
     try {
-      const data = JSON.parse(e.data);
+      const data = JSON.parse(e.data as string) as SubAgentEvent["data"];
       onEvent({ type: "agent_error", data, timestamp: data.timestamp });
       eventSource.close();
     } catch (err) {
-      onError?.(new Error(`Failed to parse agent_error event: ${err}`));
+      onError?.(new Error(`Failed to parse agent_error event: ${String(err)}`));
     }
   });
 
   eventSource.addEventListener("agent_cancelled", (e) => {
     try {
-      const data = JSON.parse(e.data);
+      const data = JSON.parse(e.data as string) as SubAgentEvent["data"];
       onEvent({ type: "agent_cancelled", data, timestamp: data.timestamp });
       eventSource.close();
     } catch (err) {
-      onError?.(new Error(`Failed to parse agent_cancelled event: ${err}`));
+      onError?.(new Error(`Failed to parse agent_cancelled event: ${String(err)}`));
     }
   });
 
   eventSource.addEventListener("error", (e) => {
-    onError?.(new Error(`SSE connection error: ${e}`));
+    onError?.(new Error(`SSE connection error: ${e.type}`));
     eventSource.close();
   });
 

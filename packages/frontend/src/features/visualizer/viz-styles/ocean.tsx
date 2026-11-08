@@ -7,8 +7,9 @@ import {
   updateTerrainMaterial,
   makeTerrainMaterialTSL,
   updateTerrainMaterialTSL,
+  type TerrainTSLMaterial,
 } from "../VisualizationFX";
-import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
+import { useDisposeOnUnmount, getStemEnergy, isWebGPURendererInstance } from "./helpers";
 import { beatSnap, energyHue } from "./vizMotion";
 
 // =============================================================================
@@ -24,7 +25,7 @@ export function OceanWaves({
 }: VizProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const { gl } = useThree();
-  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+  const isWebGPU = isWebGPURendererInstance(gl);
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   // 2026: GPU ocean — layered noise swells, luminous crests, fresnel sheen
@@ -72,14 +73,14 @@ export function OceanWaves({
     const eHue = energyHue(energy);
     if (isWebGPU) {
       updateTerrainMaterialTSL(
-        mat,
+        mat as TerrainTSLMaterial,
         t,
         { bass, mid, treble, energy },
         vizParams.glowIntensity * 0.5 * stemLift * (1 + snap * 0.4),
       );
     } else {
       updateTerrainMaterial(
-        mat,
+        mat as THREE.ShaderMaterial,
         t,
         { bass, mid, treble, energy },
         vizParams.glowIntensity * 0.5 * stemLift * (1 + snap * 0.4),
@@ -94,7 +95,7 @@ export function OceanWaves({
     // Tint the wave field toward the energy hue so the
     // ocean warms in loud sections instead of staying teal.
     const m = meshRef.current.material as THREE.MeshStandardMaterial;
-    if (m.color) m.color.setHSL(eHue, 0.75, 0.5);
+    m.color.setHSL(eHue, 0.75, 0.5);
   });
 
   return (

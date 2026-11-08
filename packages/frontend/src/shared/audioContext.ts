@@ -21,7 +21,7 @@ let sharedCtx: AudioContext | null = null;
 
 function createContext(): AudioContext {
   const Ctor =
-    window.AudioContext ??
+    (window.AudioContext as typeof AudioContext | undefined) ??
     (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctor) throw new Error("Web Audio API is not supported in this browser");
   return new Ctor({ renderSizeHint: "hardware" } as AudioContextOptions);

@@ -58,10 +58,10 @@ export interface FileCardProps {
   collections?: Collection[];
   onSelect?: (file: MediaFile) => void;
   onClick?: (file: MediaFile) => void;
-  onDelete?: (file: MediaFile) => void;
-  onRename?: (file: MediaFile) => void;
+  onDelete?: (file: MediaFile) => void | Promise<void>;
+  onRename?: (file: MediaFile) => void | Promise<void>;
   onSendToWizard?: (file: MediaFile) => void;
-  onToggleFavorite?: (file: MediaFile) => void;
+  onToggleFavorite?: (file: MediaFile) => void | Promise<void>;
   onGenerateThumbnail?: (file: MediaFile) => void;
   /** Display names that collide elsewhere in the library; when set, the
    *  parent folder is shown so same-named files in different folders stay
@@ -124,9 +124,9 @@ function WaveformVisualizer({
 
     const sliceWidth = width / data.length;
     let x = 0;
-    for (let i = 0; i < data.length; i++) {
+    for (const peak of data) {
       // Server peaks are normalized floats in [-1, 1].
-      const v = Math.min(1, Math.abs(data[i]));
+      const v = Math.min(1, Math.abs(peak));
       const barHeight = Math.max(2, v * (height / 2));
       const y = height / 2 - barHeight / 2;
       ctx.fillRect(x, y, Math.max(1, sliceWidth - 0.5), barHeight);
@@ -223,7 +223,7 @@ function WaveformVisualizer({
     const filePath = file.relative_path || file.filename;
     getMediaWaveform(filePath, WAVEFORM_BAR_COUNT)
       .then((res) => {
-        if (res.peaks && res.peaks.length > 0) {
+        if (res.peaks.length > 0) {
           drawWaveform(res.peaks);
           waveformDataRef.current = res.peaks;
         } else {
@@ -294,8 +294,7 @@ export function FileCard({
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const sizeLabel =
-    file.size_bytes != null ? formatFileSize(file.size_bytes) : formatFileSize(file.size ?? 0);
+  const sizeLabel = formatFileSize(file.size_bytes);
   const typeColor = FILE_TYPE_COLORS[file.file_type] || "bg-gray-500/20";
   const typeIcon = FILE_TYPE_ICONS[file.file_type] || "📁";
   // audioEntryLabel handles unnamed files (bare hash/uuid names) by rendering
@@ -330,11 +329,11 @@ export function FileCard({
     };
   }, []);
 
-  const handleGenerateThumbnail = async () => {
+  const handleGenerateThumbnail = () => {
     if (!onGenerateThumbnail) return;
     setGeneratingThumbnail(true);
     try {
-      await onGenerateThumbnail(file);
+      onGenerateThumbnail(file);
     } finally {
       setGeneratingThumbnail(false);
     }
@@ -343,7 +342,7 @@ export function FileCard({
   return (
     <div
       className={`
-        ${className || ""} p-2 transition-colors rounded-lg cursor-pointer group
+        ${className ?? ""} p-2 transition-colors rounded-lg cursor-pointer group
         ${selected ? "ring-2 ring-violet-500 bg-black/60" : "bg-black/40 border border-white/10 hover:bg-black/50"}
       `}
       onClick={handleCardClick}
@@ -370,7 +369,7 @@ export function FileCard({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onToggleFavorite(file);
+            void onToggleFavorite(file);
           }}
           className={`absolute top-1 left-1 z-10 p-1 rounded ${
             isFavorited
@@ -464,7 +463,7 @@ export function FileCard({
                 className="w-full h-full object-cover"
                 playsInline
                 muted
-                poster={coverUrl || undefined}
+                poster={coverUrl ?? undefined}
                 onPlay={() => setIsVideoPlaying(true)}
                 onPause={() => setIsVideoPlaying(false)}
                 onEnded={() => setIsVideoPlaying(false)}
@@ -502,7 +501,7 @@ export function FileCard({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        void handleGenerateThumbnail();
+                        handleGenerateThumbnail();
                       }}
                       className="text-xs text-violet-400 hover:text-violet-300"
                       title={coverUrl ? "Regenerate thumbnail" : "Generate thumbnail"}
@@ -534,7 +533,7 @@ export function FileCard({
                 <Image size={24} className="text-white" />
               </button>
             </div>
-          ) : coverUrl && !isAudio ? (
+          ) : coverUrl ? (
             <div className="relative">
               <img
                 src={coverUrl}
@@ -552,11 +551,7 @@ export function FileCard({
                 className="absolute inset-0 bg-black/40 hover:bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label="Open"
               >
-                {isVideo ? (
-                  <Play size={28} className="text-white ml-1" />
-                ) : (
-                  <Image size={24} className="text-white" />
-                )}
+                <Image size={24} className="text-white" />
               </button>
             </div>
           ) : (
@@ -570,9 +565,9 @@ export function FileCard({
                   onClick?.(file);
                 }}
                 className="absolute inset-0 bg-black/40 hover:bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                aria-label={isVideo ? "Play video" : "Open"}
+                aria-label="Open"
               >
-                {isVideo || file.file_type === "image" ? (
+                {file.file_type === "image" ? (
                   <Play size={28} className="text-white ml-1" />
                 ) : (
                   <Image size={24} className="text-white" />
@@ -596,8 +591,10 @@ export function FileCard({
             <span>{sizeLabel}</span>
           </div>
           <div className="flex items-center gap-1 text-xs text-muted truncate">
-            <time title={formatDateTime(file.modified_at || file.modified_time || "")}>
-              {formatDateTime(file.modified_at || file.modified_time || "")}
+            <time
+              title={formatDateTime(file.modified_at ?? file.modified_time ?? "")}
+            >
+              {formatDateTime(file.modified_at ?? file.modified_time ?? "")}
             </time>
           </div>
           {isAudio && folder && collisionNames?.has(displayName) && (
@@ -647,7 +644,7 @@ export function FileCard({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete(file);
+                  void onDelete(file);
                 }}
                 className="text-xs text-red-500 hover:text-red-300 p-1"
                 title="Move to trash"
@@ -659,7 +656,7 @@ export function FileCard({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onRename(file);
+                  void onRename(file);
                 }}
                 className="text-xs text-violet-500 hover:text-violet-300 p-1"
                 title="Rename"

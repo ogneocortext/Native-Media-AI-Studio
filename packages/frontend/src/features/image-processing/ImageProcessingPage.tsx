@@ -86,12 +86,14 @@ export function ImageProcessingPage() {
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Processing failed" }));
+        const err = (await res
+          .json()
+          .catch(() => ({ detail: "Processing failed" }))) as { detail?: string };
         throw new Error(err.detail ?? "Image processing failed");
       }
 
-      const data = await res.json();
-      setResult(data.output_path);
+      const data = (await res.json()) as { output_path?: string };
+      setResult(data.output_path ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Image processing failed");
     } finally {
@@ -219,7 +221,7 @@ export function ImageProcessingPage() {
           <div className="panel-section">
             <button
               className="btn btn-primary"
-              onClick={handleGenerate}
+              onClick={() => void handleGenerate()}
               disabled={processing || !image}
             >
               {processing ? "Processing..." : "Generate Image"}

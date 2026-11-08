@@ -33,7 +33,9 @@ export function ToolExecutionCard() {
       entry.duration = stats.p95;
     } else if (metric === "count") {
       entry.count = stats.count;
-      const errorStats = metrics[`${name.replace(".count", ".duration")}.false`];
+      const errorStats = metrics[
+        `${name.replace(".count", ".duration")}.false`
+      ] as (typeof metrics)[string] | undefined;
       if (errorStats) {
         entry.errors = errorStats.count;
       }

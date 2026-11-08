@@ -372,7 +372,8 @@ export function UnityControlPage() {
     try {
       return JSON.stringify(data, null, 2);
     } catch {
-      return String(data);
+      const fallback = data as string | number | boolean | null | undefined;
+      return String(fallback);
     }
   };
 
@@ -382,7 +383,7 @@ export function UnityControlPage() {
         <h1 className="text-2xl font-bold">Unity Control</h1>
         <div className="flex items-center gap-3">
           <button
-            onClick={async () => refreshStatus(true)}
+            onClick={() => void refreshStatus(true)}
             className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
             title="Refresh status"
           >
@@ -390,7 +391,7 @@ export function UnityControlPage() {
             <span className="text-sm">Refresh</span>
           </button>
           <button
-            onClick={handleCapture}
+            onClick={() => void handleCapture()}
             disabled={capturing || statusState !== "online"}
             className="flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/40 rounded-lg transition-colors"
             title="Capture Scene View"
@@ -423,7 +424,7 @@ export function UnityControlPage() {
             </p>
           </div>
           <button
-            onClick={handleCapture}
+            onClick={() => void handleCapture()}
             disabled={capturing || statusState !== "online"}
             className="flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/40 rounded-lg transition-colors"
           >
@@ -574,7 +575,7 @@ export function UnityControlPage() {
                 </select>
               </div>
               <button
-                onClick={handleQuickCreate}
+                onClick={() => void handleQuickCreate()}
                 disabled={running || statusState !== "online"}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/40 rounded-lg transition-colors"
               >
@@ -605,14 +606,14 @@ export function UnityControlPage() {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={handleQuickShow}
+                  onClick={() => void handleQuickShow()}
                   disabled={running || statusState !== "online"}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-500/80 hover:bg-emerald-600 disabled:bg-emerald-500/30 rounded-lg transition-colors"
                 >
                   <Eye size={16} /> Show
                 </button>
                 <button
-                  onClick={handleQuickHide}
+                  onClick={() => void handleQuickHide()}
                   disabled={running || statusState !== "online"}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-500/80 hover:bg-red-600 disabled:bg-red-500/30 rounded-lg transition-colors"
                 >
@@ -655,7 +656,7 @@ export function UnityControlPage() {
                 />
               </div>
               <button
-                onClick={handleQuickAddComponent}
+                onClick={() => void handleQuickAddComponent()}
                 disabled={running || statusState !== "online"}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/40 rounded-lg transition-colors"
               >
@@ -699,14 +700,14 @@ export function UnityControlPage() {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={handleQuickPlayAnim}
+                  onClick={() => void handleQuickPlayAnim()}
                   disabled={running || statusState !== "online"}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-500/80 hover:bg-emerald-600 disabled:bg-emerald-500/30 rounded-lg transition-colors"
                 >
                   <Play size={16} /> Play
                 </button>
                 <button
-                  onClick={handleQuickStopAnim}
+                  onClick={() => void handleQuickStopAnim()}
                   disabled={running || statusState !== "online"}
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-500/80 hover:bg-red-600 disabled:bg-red-500/30 rounded-lg transition-colors"
                 >
@@ -725,7 +726,7 @@ export function UnityControlPage() {
               <div className="space-y-3">
                 <div className="flex gap-2">
                   <button
-                    onClick={handleListShaders}
+                    onClick={() => void handleListShaders()}
                     disabled={running || statusState !== "online"}
                     className="flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/40 rounded-lg transition-colors text-sm"
                   >
@@ -754,7 +755,7 @@ export function UnityControlPage() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={handleGetShaderProperties}
+                    onClick={() => void handleGetShaderProperties()}
                     disabled={running || statusState !== "online" || !selectedShader}
                     className="flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/40 rounded-lg transition-colors text-sm"
                   >
@@ -791,7 +792,7 @@ export function UnityControlPage() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={handleGetMaterialProperties}
+                    onClick={() => void handleGetMaterialProperties()}
                     disabled={running || statusState !== "online" || !materialTarget}
                     className="flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/40 rounded-lg transition-colors text-sm"
                   >
@@ -814,7 +815,7 @@ export function UnityControlPage() {
                     placeholder="Value (JSON or string)"
                   />
                   <button
-                    onClick={handleSetMaterialProperty}
+                    onClick={() => void handleSetMaterialProperty()}
                     disabled={
                       running ||
                       statusState !== "online" ||
@@ -860,7 +861,9 @@ export function UnityControlPage() {
                   type="text"
                   value={customCommand}
                   onChange={(e) => setCustomCommand(e.target.value)}
-                  onKeyDown={async (e) => e.key === "Enter" && handleCustomCommand()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleCustomCommand();
+                  }}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-indigo-500"
                   placeholder="e.g. create_gameobject, editor_status, list_animations"
                 />
@@ -880,7 +883,7 @@ export function UnityControlPage() {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={handleCustomCommand}
+                  onClick={() => void handleCustomCommand()}
                   disabled={running || !customCommand.trim() || statusState !== "online"}
                   className="flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/40 rounded-lg transition-colors"
                 >
@@ -893,7 +896,7 @@ export function UnityControlPage() {
                 </button>
                 {commandsError ? (
                   <button
-                    onClick={async () => loadCommands()}
+                    onClick={() => void loadCommands()}
                     className="px-3 py-2 text-xs bg-amber-500/10 border border-amber-500/40 text-amber-300 rounded-lg transition-colors hover:bg-amber-500/20"
                     title={commandsError}
                   >

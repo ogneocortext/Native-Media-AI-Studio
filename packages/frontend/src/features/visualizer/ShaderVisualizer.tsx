@@ -493,10 +493,10 @@ export function ShaderVisualizer({
       // requires the analysis curves alone.
       if (!isVirtual && stemsProMetersRef.current) {
         const pm = stemsProMetersRef.current;
-        stemEnergy.vocals = pm.vocals.rms ?? stemEnergy.vocals;
-        stemEnergy.drums = pm.drums.rms ?? stemEnergy.drums;
-        stemEnergy.bass = pm.bass.rms ?? stemEnergy.bass;
-        stemEnergy.other = pm.other.rms ?? stemEnergy.other;
+        stemEnergy.vocals = pm.vocals.rms;
+        stemEnergy.drums = pm.drums.rms;
+        stemEnergy.bass = pm.bass.rms;
+        stemEnergy.other = pm.other.rms;
       }
       const stemBoost =
         stemEnergy.vocals * 0.18 +

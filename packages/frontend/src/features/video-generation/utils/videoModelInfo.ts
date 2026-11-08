@@ -63,7 +63,7 @@ export function getVideoModelInfo(modelName: string, meta?: Partial<RawVideoMode
         bestFor: supports8gb
           ? "Animate a still for consistent identity — 832×480 on 8GB"
           : "Image-to-video",
-        variant: variant ?? "1.3B",
+        variant,
         size_mb: meta?.size_mb,
         path: meta?.path,
       };
@@ -73,7 +73,7 @@ export function getVideoModelInfo(modelName: string, meta?: Partial<RawVideoMode
       description: `Wan 2.1 T2V 1.3B — 6GB class text-to-video${vramNote}`,
       type: "Text-to-Video (1.3B)",
       bestFor: supports8gb ? "832×480, 49–97 frames on 8GB — fastest iteration" : "Text-to-video",
-      variant: variant ?? "1.3B",
+      variant,
       size_mb: meta?.size_mb,
       path: meta?.path,
     };
@@ -129,7 +129,7 @@ export function getVideoModelInfo(modelName: string, meta?: Partial<RawVideoMode
       bestFor: supports8gb
         ? "Fast text-to-video on 8GB — 768×512, 25 frames at ~210s"
         : "Fast text-to-video (needs ~5GB VRAM)",
-      variant: variant ?? "ltx_2_3",
+      variant,
       size_mb: meta?.size_mb,
       path: meta?.path,
       supports_8gb: true,

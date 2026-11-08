@@ -9,9 +9,10 @@ import {
   updateTerrainMaterial,
   makeTerrainMaterialTSL,
   updateTerrainMaterialTSL,
+  type TerrainTSLMaterial,
 } from "../VisualizationFX";
 import { InstancedParticles } from "./instancedParticles";
-import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
+import { useDisposeOnUnmount, getStemEnergy, isWebGPURendererInstance } from "./helpers";
 import { attackRelease, beatSnap, energyHue, gammaDrive, rolloff } from "./vizMotion";
 
 export function GeometricViz({
@@ -36,7 +37,7 @@ export function GeometricViz({
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   const { gl } = useThree();
-  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+  const isWebGPU = isWebGPURendererInstance(gl);
 
   // TSL audio-reactive core material for WebGPU
   const coreMat = useMemo(() => {
@@ -233,7 +234,7 @@ export function GeometricViz({
           { bass, mid, treble, energy },
           vizParams.glowIntensity * 0.6,
         );
-      } else if (coreRef.current.material) {
+      } else {
         const m = coreRef.current.material as THREE.MeshStandardMaterial;
         // Rolloff-capped emissive: the pre-2026 linear gains clipped
         // the core to a featureless white disc under bloom.
@@ -432,7 +433,7 @@ export function AudioReactiveCore({
 }: VizProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const { gl } = useThree();
-  const isWebGPU = (gl as any)?.isWebGPURenderer === true;
+  const isWebGPU = isWebGPURendererInstance(gl);
 
   const mat = useMemo(
     () =>
@@ -472,14 +473,14 @@ export function AudioReactiveCore({
     const snap = beatPhase != null ? beatSnap(beatPhase) : 0;
     if (isWebGPU) {
       updateTerrainMaterialTSL(
-        mat,
+        mat as TerrainTSLMaterial,
         t,
         { bass, mid, treble, energy },
         vizParams.glowIntensity * 0.6 * (1 + snap * 0.5),
       );
     } else {
       updateTerrainMaterial(
-        mat,
+        mat as THREE.ShaderMaterial,
         t,
         { bass, mid, treble, energy },
         vizParams.glowIntensity * 0.6 * (1 + snap * 0.5),

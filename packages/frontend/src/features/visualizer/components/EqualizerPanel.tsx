@@ -123,7 +123,7 @@ export function EqualizerPanel({
 
   const handlePreset = useCallback(
     (name: string) => {
-      const preset = presets[name];
+      const preset = presets[name] as EQBand[] | undefined;
       if (!preset) return;
       const mapped: EQBand[] = preset.map((b) => ({
         id: b.id,
@@ -233,7 +233,7 @@ export function EqualizerPanel({
         ) : (
           <div className="grid grid-cols-1 gap-2">
             {bands.map((band, idx) => (
-              <div key={band.id ?? idx} className="flex items-center gap-2">
+              <div key={band.id || idx} className="flex items-center gap-2">
                 <span
                   className="w-12 text-[10px] text-muted"
                   title={`${band.type} @ ${band.frequency} Hz, Q=${band.Q}`}
