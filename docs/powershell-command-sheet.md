@@ -18,11 +18,14 @@ Read this before running your first command. Keep it open while working.
 
 > **Enforced:** `.devin/hooks.v1.json` + `.claude/settings.json` run
 > `tools/hooks/check-exec-command.py` as a PreToolUse hook on every shell
-> command. Commands containing heredocs (`<<EOF`, `python - <<'PY'`),
-> non-pwsh shells (`bash`, `sh`, `cmd`, `wsl`), or `powershell.exe` are
-> **blocked before execution** with the correct pattern in the reason.
-> Do not test whether the hook is active — it is. Write file-based
-> commands from the start.
+> command. Blocked before execution: heredocs (`<<EOF`, `python - <<'PY'`),
+> non-pwsh shells (`bash`, `sh`, `cmd`, `wsl`), `powershell.exe`, multi-line
+> `git commit -m` / `python -c` / `node -e` payloads, expandable
+> here-strings (`@"..."@`), and destructive git ops (`push --force`,
+> `reset --hard`, `clean -fd`, `checkout --`, `restore .` — override via
+> `.devin/.allow-destructive`). Each block reason carries the correct
+> pattern. Do not test whether the hook is active — it is. Write
+> file-based commands from the start.
 
 **The decision rule: if a command contains a newline, a backtick, `$`, or both
 single AND double quotes — do NOT inline it. Write it to a file with the `write`
