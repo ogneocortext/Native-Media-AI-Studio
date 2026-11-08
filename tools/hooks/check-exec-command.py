@@ -7,6 +7,13 @@ Exit 0 always — the JSON decision carries the outcome. Any crash exits
 non-zero, which the CLI logs but does NOT block on, so a broken hook can
 never wedge the session.
 
+Platform scope: the pwsh/heredoc/unix-utility rules below are WINDOWS-ONLY
+(os.name == "nt") — they exist because this machine's agents kept reaching
+for bash idioms that fail under pwsh. On Linux/macOS clones (e.g. a VM
+workspace) heredocs, bash, and unix utilities are all valid, so only the
+destructive-git guard applies there. Set EXEC_GUARD_FORCE_POSIX=1 to
+exercise the POSIX path on Windows (used by the test suite).
+
 Blocked patterns (all verified recurring failures on this machine):
   - Bash heredocs/herestrings: <<EOF, <<'PY', python - <<'PY', cat <<EOF,
     cat <<< "text", etc. pwsh has no such syntax; the command fails with a
@@ -41,6 +48,9 @@ import sys
 
 PROJECT_DIR = os.environ.get("DEVIN_PROJECT_DIR") or os.getcwd()
 DESTRUCTIVE_FLAG = os.path.join(PROJECT_DIR, ".devin", ".allow-destructive")
+# pwsh-specific bans apply on Windows only; POSIX clones get just the
+# destructive-git guard. Env override exists for the test suite.
+IS_WINDOWS = os.name == "nt" and not os.environ.get("EXEC_GUARD_FORCE_POSIX")
 
 HEREDOC_TAIL_RE = re.compile(r"<<-?\s*['\"]?[A-Za-z_]")
 
@@ -222,19 +232,19 @@ def main() -> int:
 
     has_newline = "\n" in command or "\r" in command
 
-    if _has_heredoc(command):
+    if IS_WINDOWS and _has_heredoc(command):
         block("heredoc")
-    elif PS51_RE.search(command):
+    elif IS_WINDOWS and PS51_RE.search(command):
         block("ps51")
-    elif FOREIGN_SHELL_RE.search(command):
+    elif IS_WINDOWS and FOREIGN_SHELL_RE.search(command):
         block("foreign-shell")
-    elif UNIX_UTIL_RE.search(command):
+    elif IS_WINDOWS and UNIX_UTIL_RE.search(command):
         block("unix-util")
-    elif GIT_COMMIT_RE.search(command) and COMMIT_M_MULTILINE_RE.search(command):
+    elif IS_WINDOWS and GIT_COMMIT_RE.search(command) and COMMIT_M_MULTILINE_RE.search(command):
         block("commit-msg")
-    elif has_newline and INLINE_SCRIPT_RE.search(command):
+    elif IS_WINDOWS and has_newline and INLINE_SCRIPT_RE.search(command):
         block("inline-script")
-    elif HERESTRING_OPEN_RE.search(command) and HERESTRING_CLOSE_RE.search(command):
+    elif IS_WINDOWS and HERESTRING_OPEN_RE.search(command) and HERESTRING_CLOSE_RE.search(command):
         block("expandable-herestring")
     elif not os.path.exists(DESTRUCTIVE_FLAG) and any(r.search(command) for r in DESTRUCTIVE_RES):
         block("destructive")

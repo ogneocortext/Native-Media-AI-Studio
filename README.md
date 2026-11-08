@@ -81,7 +81,8 @@ output/              Your generated media (gitignored)
 
 Building with an AI coding assistant? **`AGENTS.md`** is the entry point — it
 covers repo conventions, service management, quality gates, and per-tool skill
-locations. Quality checks run via `python tools/run-gates.py`.
+locations. Human and external-agent setup (hooks, gates, commit rules):
+**`CONTRIBUTING.md`**. Quality checks run via `python tools/run-gates.py`.
 
 ## License
 

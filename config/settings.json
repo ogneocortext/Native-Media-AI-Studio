@@ -4,7 +4,7 @@
   "atomic_chat_enabled": true,
   "blender_exe": null,
   "max_queue_workers": 1,
-  "output_dir": "D:\\Backup of Important Data for Windows 11 Upgrade\\Native Media AI Studio\\output",
+  "output_dir": "output",
   "log_level": "INFO",
   "default_model": "gemma4:e2b-it-qat",
   "vision_model": "gemma4:e2b-it-qat",

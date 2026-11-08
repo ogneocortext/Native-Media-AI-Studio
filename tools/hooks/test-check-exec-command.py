@@ -1,10 +1,13 @@
 """Adversarial test matrix for tools/hooks/check-exec-command.py.
 
 Each case: (command, expected) where expected is None (pass) or a reason key.
-Run: python docs/scratch/test-exec-hook.py
+POSIX_CASES simulate a Linux/macOS clone via EXEC_GUARD_FORCE_POSIX=1 —
+there only the destructive-git guard should fire.
+Run: python tools/hooks/test-check-exec-command.py
 """
 
 import json
+import os
 import subprocess
 import sys
 
@@ -91,8 +94,27 @@ CASES = [
 ]
 
 
-def run_hook(command: str):
+# On POSIX clones only destructive git is blocked — heredocs, bash, unix
+# utilities, and multi-line payloads are all valid there.
+POSIX_CASES = [
+    ("python - <<'PY'\nprint(1)\nPY", None),
+    ("cat <<EOF > out.txt\nhello\nEOF", None),
+    ("bash -lc 'ls -la'", None),
+    ("find . -name '*.py' | xargs grep -l foo", None),
+    ("git commit -m \"line1\nline2\"", None),
+    ("python -c \"print(1)\nprint(2)\"", None),
+    ("powershell.exe -Command Get-Date", None),
+    ("git push --force", "destructive"),
+    ("git reset --hard HEAD~1", "destructive"),
+    ("git status", None),
+]
+
+
+def run_hook(command: str, *, posix: bool = False):
     payload = json.dumps({"tool_input": {"command": command}})
+    env = dict(os.environ)
+    if posix:
+        env["EXEC_GUARD_FORCE_POSIX"] = "1"
     proc = subprocess.run(
         [sys.executable, HOOK],
         input=payload,
@@ -100,6 +122,7 @@ def run_hook(command: str):
         text=True,
         encoding="utf-8",
         timeout=10,
+        env=env,
     )
     out = proc.stdout.strip()
     if not out:
@@ -131,7 +154,17 @@ def main() -> int:
             failures.append((command, expected, got))
         print(f"{status} expected={expected or 'pass':<22} got={got or 'pass':<22} cmd={command[:70]!r}")
     print(f"\n{len(CASES) - len(failures)}/{len(CASES)} passed")
-    return 1 if failures else 0
+
+    posix_failures = []
+    for command, expected in POSIX_CASES:
+        got = run_hook(command, posix=True)
+        if got != expected:
+            posix_failures.append((command, expected, got))
+        print(f"{'OK ' if got == expected else 'FAIL'} [posix] expected={expected or 'pass':<22} got={got or 'pass':<22} cmd={command[:60]!r}")
+    total = len(CASES) + len(POSIX_CASES)
+    failed = len(failures) + len(posix_failures)
+    print(f"\n{total - failed}/{total} passed")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

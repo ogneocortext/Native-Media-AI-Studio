@@ -54,6 +54,16 @@ class AppConfig(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    @field_validator("output_dir")
+    @classmethod
+    def resolve_output_dir(cls, v: Path) -> Path:
+        """Relative output_dir values resolve against the repo root, not cwd.
+
+        config/settings.json is committed, so it stores the portable form
+        ("output"); an absolute path still wins for per-machine overrides.
+        """
+        return v if v.is_absolute() else PROJECT_ROOT / v
+
     @field_validator("backend_port", "frontend_port", "ws_port")
     @classmethod
     def validate_port(cls, v: int) -> int:
@@ -216,6 +226,13 @@ def save_config(config: AppConfig) -> None:
                 "go_ports_url",
             }
         )
+        # Keep output_dir portable: store it relative to the repo root when
+        # possible so a committed settings.json never carries one machine's
+        # absolute path into every other clone.
+        try:
+            settings["output_dir"] = str(config.output_dir.relative_to(PROJECT_ROOT))
+        except ValueError:
+            pass
         with open(config_file, "w") as f:
             json.dump(settings, f, indent=2, default=str)
         logger.info(f"Configuration saved to {config_file}")
