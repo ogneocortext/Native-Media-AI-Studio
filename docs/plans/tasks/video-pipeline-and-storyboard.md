@@ -391,6 +391,11 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   clay. Remaining unverified link: concept_path recovery inside a
   live _submit_workflow request (degrades to T0-only if history format
   differs — low risk, code path reviewed).
+  Postprocess hardening: _postprocess_glb now validates the GLB (magic
+  bytes + size) before AND after all stages; missing/invalid output is
+  recovered from .decimated.glb/.original.glb leftovers or returns
+  success:false instead of a phantom model_path. Verified: rejects
+  Y_Bot.glb (14-byte '404:' text) and nonexistent paths.
 
 ### T-VID-13 — Design the frame-package contract: control-pass rendering from owned scenes
 - **Status:** done

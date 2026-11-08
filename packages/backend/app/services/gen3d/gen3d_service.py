@@ -1185,6 +1185,12 @@ class Gen3DService:
         (ingest_existing_glb) so every GLB that reaches the preview canvas
         has passed the same cleanup stages.
         """
+        if not self._is_valid_glb(dst):
+            return {
+                "success": False,
+                "error": f"source asset missing or not a GLB: {dst}",
+                "model_path": str(dst),
+            }
         # Post-process: decimate if mesh is too large. When the request
         # carries an asset-budget role, the role's max_triangles cap is
         # the ceiling instead of the flat per-backend target (T-VID-12).
@@ -1255,7 +1261,38 @@ class Gen3DService:
                 "detail": (check["stderr"] or check["stdout"])[-400:],
             }
 
-        return {
+        # Final integrity gate: every stage above is allowed to fail
+        # non-fatally, but the returned model_path must point at a real GLB.
+        # If an external process ate the file mid-pipeline (observed once on
+        # the generated_3d share), recover from the decimate leftovers rather
+        # than reporting a phantom success.
+        recovered_from: str | None = None
+        if not self._is_valid_glb(dst):
+            for candidate in (
+                dst.with_suffix(".decimated.glb"),
+                dst.with_suffix(".original.glb"),
+            ):
+                if self._is_valid_glb(candidate):
+                    shutil.copy2(candidate, dst)
+                    recovered_from = candidate.name
+                    logger.warning(
+                        "Recovered %s from leftover %s after postprocess", dst.name, candidate.name
+                    )
+                    break
+        if not self._is_valid_glb(dst):
+            return {
+                "success": False,
+                "error": "postprocess produced no valid GLB "
+                f"(decimate={decimate_result}, texture={texture_stage.get('method', 'n/a')})",
+                "model_path": str(dst),
+                "decimate": decimate_result,
+                "texture_stage": texture_stage,
+                "texture_ingest": ingest_result,
+                "budget": budget_report,
+                "role": role,
+            }
+
+        result: dict[str, Any] = {
             "success": True,
             "model_path": str(dst),
             "prompt_id": prompt_id,
@@ -1265,6 +1302,23 @@ class Gen3DService:
             "texture_ingest": ingest_result,
             "role": role,
         }
+        if recovered_from:
+            result["recovered_from"] = recovered_from
+            result["warning"] = (
+                f"final GLB was missing after postprocess; restored from {recovered_from}"
+            )
+        return result
+
+    @staticmethod
+    def _is_valid_glb(path: Path) -> bool:
+        """True when path exists, is non-trivial, and carries the glTF magic."""
+        try:
+            if not path.is_file() or path.stat().st_size < 20:
+                return False
+            with path.open("rb") as fh:
+                return fh.read(4) == b"glTF"
+        except OSError:
+            return False
 
     # Roots an ingest source path may resolve under. Anything else is rejected
     # so the endpoint can't be used to decimate arbitrary files on disk.
