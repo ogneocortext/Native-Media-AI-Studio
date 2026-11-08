@@ -61,7 +61,8 @@
 > research → improve → re-verify), `gates-commit-push` (commit/push
 > protocol with the Co-authored-by trailer), `ollama-model-ops` (model
 > selection, vision pre-warm, VRAM/timeout budgets), `vision-page-analysis`,
-> `music-video-vision`, `blender-mcp`, `comfyui-mcp`, `unity-mcp`. Load one
+> `music-video-vision`, `blender-mcp`, `comfyui-mcp`, `unity-mcp`,
+> `storage-sweep` (storage/ + repo-debris hygiene). Load one
 > with the `skill` tool when the task matches its description.
 >
 > **If you are a rotated-in agent (D21):** the models used here rotate, so the
