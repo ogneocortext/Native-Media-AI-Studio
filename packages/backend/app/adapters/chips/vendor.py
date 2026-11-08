@@ -12,8 +12,6 @@ Usage:
 """
 
 import argparse
-import json
-import os
 import shutil
 import subprocess
 import sys
@@ -31,7 +29,7 @@ REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
 TOOLS_DIR = REPO_ROOT / "tools"
 
 
-def run_cmd(cmd: list, cwd: Path = None, capture: bool = True) -> subprocess.CompletedProcess:
+def run_cmd(cmd: list, cwd: Path = None, *, capture: bool = True) -> subprocess.CompletedProcess:
     """Run a command and return result."""
     print(f"  $ {' '.join(cmd)}")
     if cmd[0] == "git":
@@ -41,65 +39,65 @@ def run_cmd(cmd: list, cwd: Path = None, capture: bool = True) -> subprocess.Com
     return subprocess.run(cmd, cwd=cwd, capture_output=capture, check=False, encoding="utf-8", errors="replace")
 
 
-def vendor_core(core: str, force: bool = False) -> bool:
+def vendor_core(core: str, *, force: bool = False) -> bool:
     """Vendor a single core."""
     if core not in UPSTREAM_VERSIONS:
         print(f"Unknown core: {core}")
         return False
-    
+
     info = UPSTREAM_VERSIONS[core]
     local_path = TOOLS_DIR / info["local_path"]
     repo_url = info["repo"]
     commit = info["commit"]
-    
+
     print(f"\n=== Vendoring {core} ===")
     print(f"  Repo: {repo_url}")
     print(f"  Version: {info['version']} ({commit})")
     print(f"  Target: {local_path}")
-    
+
     # Check if already exists
     if local_path.exists():
         if force:
-            print(f"  Removing existing...")
+            print("  Removing existing...")
             shutil.rmtree(local_path)
         else:
-            print(f"  Already exists, skipping (use --force to update)")
+            print("  Already exists, skipping (use --force to update)")
             return True
-    
+
     # Clone repository
-    print(f"  Cloning...")
+    print("  Cloning...")
     result = run_cmd(["git", "clone", "--depth", "1", "--branch", commit, repo_url, str(local_path)])
     if result.returncode != 0:
         # Try without branch (maybe tag)
-        print(f"  Branch failed, trying as tag/commit...")
+        print("  Branch failed, trying as tag/commit...")
         shutil.rmtree(local_path, ignore_errors=True)
         result = run_cmd(["git", "clone", repo_url, str(local_path)])
         if result.returncode != 0:
-            print(f"  ERROR: Clone failed")
+            print("  ERROR: Clone failed")
             return False
         # Checkout specific commit
         result = run_cmd(["git", "checkout", commit], cwd=local_path)
         if result.returncode != 0:
-            print(f"  ERROR: Checkout failed")
+            print("  ERROR: Checkout failed")
             return False
-    
+
     print(f"  ✓ Vendored {core} successfully")
     return True
 
 
-def vendor_all(force: bool = False) -> None:
+def vendor_all(*, force: bool = False) -> None:
     """Vendor all cores."""
     print("Vendoring all chip emulator upstreams...")
     success = 0
     failed = 0
-    
+
     for core in list_cores():
-        if vendor_core(core, force):
+        if vendor_core(core, force=force):
             success += 1
         else:
             failed += 1
-    
-    print(f"\n=== Summary ===")
+
+    print("\n=== Summary ===")
     print(f"  Success: {success}")
     print(f"  Failed: {failed}")
 
@@ -123,17 +121,17 @@ def main():
     parser.add_argument("--all", action="store_true", help="Vendor all cores")
     parser.add_argument("--force", action="store_true", help="Force update existing")
     parser.add_argument("--list", action="store_true", help="List tracked cores")
-    
+
     args = parser.parse_args()
-    
+
     if args.list:
         list_tracked()
         return
-    
+
     if args.all or not args.core:
-        vendor_all(args.force)
+        vendor_all(force=args.force)
     else:
-        vendor_core(args.core, args.force)
+        vendor_core(args.core, force=args.force)
 
 
 if __name__ == "__main__":
