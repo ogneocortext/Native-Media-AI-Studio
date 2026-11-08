@@ -6,6 +6,13 @@
   "scripts": {
     "dev": "vite",
     "dev:stable": "set NODE_OPTIONS=--max-old-space-size=4096 && vite",
+    "dev:clean": "node packages/frontend/scripts/start-dev-server.ts --clean",
+    "dev:force": "node packages/frontend/scripts/start-dev-server.ts --force-reoptimize",
+    "dev:full-reset": "node packages/frontend/scripts/start-dev-server.ts --clean --force-reoptimize",
+    "dev:ps": "pwsh -NoProfile -ExecutionPolicy Bypass -File packages/frontend/scripts/start-dev-server.ps1",
+    "dev:ps:clean": "pwsh -NoProfile -ExecutionPolicy Bypass -File packages/frontend/scripts/start-dev-server.ps1 -Clean",
+    "dev:ps:force": "pwsh -NoProfile -ExecutionPolicy Bypass -File packages/frontend/scripts/start-dev-server.ps1 -ForceReoptimize",
+    "dev:ps:full-reset": "pwsh -NoProfile -ExecutionPolicy Bypass -File packages/frontend/scripts/start-dev-server.ps1 -Clean -ForceReoptimize",
     "build": "tsc -b && vite build",
     "type-check": "tsc -b && tsc -p tsconfig.tests.json --noEmit",
     "type-check:app": "tsc -b",
@@ -23,6 +30,7 @@
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
     "clean": "node -e \"const fs=require('fs');['dist','node_modules/.vite'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true})}catch(e){}})\"",
+    "clean:all": "node -e \"const fs=require('fs');['dist','node_modules/.vite','.turbo'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true})}catch(e){}})\"",
     "prepare": "husky"
   },
   "dependencies": {

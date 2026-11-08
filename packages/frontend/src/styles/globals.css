@@ -245,6 +245,17 @@
     --shadow-md: 0 4px 6px -1px oklch(0% 0 0 / 0.1), 0 2px 4px -2px oklch(0% 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px oklch(0% 0 0 / 0.1), 0 4px 6px -4px oklch(0% 0 0 / 0.1);
     --shadow-glow: 0 0 20px var(--glow-primary);
+
+    /* === VST Host specific tokens (brand palette kit v0.1) === */
+    --color-vst-violet: oklch(55% 0.22 260);         /* #7B5CFF */
+    --color-vst-violet-deep: oklch(20% 0.15 260);   /* #2A1A4A */
+    --color-vst-cyan: oklch(70% 0.15 200);          /* #00F0FF */
+    --color-vst-magenta: oklch(60% 0.25 340);       /* #FF2E88 */
+    --color-vst-fg: oklch(93% 0.004 260);           /* #F0E6FF */
+    --color-vst-dim: oklch(50% 0.08 260);           /* #6E5AA8 */
+    --color-vst-faint: oklch(30% 0.05 260);         /* #3A2E5C */
+    --color-vst-base: oklch(15% 0.012 260);         /* #0D0A16 */
+    --color-vst-panel: oklch(20% 0.012 260);        /* #141020 */
   }
 
   /* ===== ACCESSIBILITY DEFAULTS ===== */

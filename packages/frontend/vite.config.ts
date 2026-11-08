@@ -88,6 +88,24 @@ function getPortConfig(mode: string): PortConfig {
   return config;
 }
 
+/**
+ * Files to warm up on dev server startup to prevent transform waterfalls.
+ * Run `vite --debug transform` to identify slow transforms.
+ */
+const WARMUP_CLIENT_FILES = [
+  "./src/main.tsx",
+  "./src/App.tsx",
+  "./src/components/layout/Sidebar.tsx",
+  "./src/components/layout/TopBar.tsx",
+  "./src/features/vst/VSTPage.tsx",
+  "./src/features/vst/components/VSTPluginCard.tsx",
+  "./src/features/vst/components/VSTChainBuilder.tsx",
+  "./src/styles/designSystem.ts",
+  "./src/styles/globals.css",
+];
+
+const WARMUP_SSR_FILES: string[] = [];
+
 export default defineConfig(({ mode }) => {
   const portConfig = getPortConfig(mode);
   const backendUrl = portConfig.backend_url;
@@ -163,6 +181,14 @@ export default defineConfig(({ mode }) => {
       },
       hmr: {
         overlay: true,
+        // Ensure HMR uses the same port for WebSocket
+        port: portConfig.frontend_port,
+      },
+      // Warm up frequently used files to prevent transform waterfalls
+      // (Vite 8: server.warmup option)
+      warmup: {
+        clientFiles: WARMUP_CLIENT_FILES,
+        ssrFiles: WARMUP_SSR_FILES,
       },
       // Never auto-open the browser on dev startup. Set NMA_OPEN_BROWSER=true
       // to restore the old behavior.
@@ -203,6 +229,10 @@ export default defineConfig(({ mode }) => {
         "lucide-react",
         "zustand",
       ],
+      // Force re-optimization when config or lockfile changes (Vite 8)
+      force: !isProd && process.env.VITE_FORCE_REOPTIMIZE !== "false",
+      // Disable automatic discovery for heavy optional deps
+      disabled: false,
     },
     // Replace __DEV__ so dev-only code paths can be tree-shaken in production.
     define: {

@@ -1,0 +1,213 @@
+/* VSTPage.module.css */
+
+.page {
+  max-width: 72rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-foreground);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.subtitle {
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  margin-top: 0.25rem;
+}
+
+.scanBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius: 6px;
+  background: var(--color-vst-violet-deep);
+  color: var(--color-vst-fg);
+  border: 1px solid var(--color-vst-violet);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.scanBtn:hover:not(:disabled) {
+  background: var(--color-vst-violet);
+  color: white;
+}
+
+.scanBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0, 240, 255, 0.3);
+  border-top-color: var(--color-vst-cyan);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 1.5rem;
+  padding: 4px;
+  background: var(--color-vst-panel);
+  border: 1px solid var(--color-vst-faint);
+  border-radius: 10px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--color-vst-dim);
+}
+
+.tab:hover {
+  color: var(--color-vst-fg);
+}
+
+.tabActive {
+  composes: tab;
+  background: var(--color-vst-violet);
+  color: white;
+}
+
+.pluginGrid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .pluginGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .pluginGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .pluginGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.emptyState {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: var(--color-vst-dim);
+  text-align: center;
+}
+
+.emptyIcon {
+  margin-bottom: 1rem;
+  color: var(--color-vst-faint);
+}
+
+.emptyText {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--color-vst-fg);
+  margin-bottom: 0.25rem;
+}
+
+.emptySubtext {
+  font-size: 0.875rem;
+}
+
+.resultCard {
+  margin-top: 1.5rem;
+}
+
+.resultGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .resultGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.resultItem {
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: var(--color-vst-panel);
+  border: 1px solid var(--color-vst-faint);
+}
+
+.resultLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-vst-dim);
+}
+
+.resultValue {
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  color: var(--color-vst-fg);
+  margin-top: 4px;
+  display: block;
+}
+
+.resultValueCyan {
+  composes: resultValue;
+  color: var(--color-vst-cyan);
+}
+
+.audioPlayer {
+  width: 100%;
+  margin-top: 1rem;
+}
