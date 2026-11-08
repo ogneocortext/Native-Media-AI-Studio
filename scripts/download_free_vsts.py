@@ -8,15 +8,10 @@ Usage:
 """
 
 import argparse
-import json
-import os
 import shutil
-import subprocess
-import sys
 import tempfile
 import zipfile
 from pathlib import Path
-from urllib.parse import urlparse
 
 import requests
 from tqdm import tqdm
@@ -298,9 +293,9 @@ def install_vst3(source_vst3: Path, plugin_name: str) -> bool:
 
 def download_and_install(key: str, info: dict) -> bool:
     """Download and install a single plugin"""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Processing: {info['name']} ({key})")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Check if already installed
     existing = VST_DIR / f"{key}.vst3"
@@ -318,7 +313,7 @@ def download_and_install(key: str, info: dict) -> bool:
 
     # Try GitHub releases first (if repo_url is present)
     if "repo_url" in info and "download_pattern" in info:
-        print(f"  Checking GitHub releases...")
+        print("  Checking GitHub releases...")
         download_url = fetch_github_latest_release(info["repo_url"], info["download_pattern"])
 
     # Fall back to direct download URL
@@ -326,7 +321,7 @@ def download_and_install(key: str, info: dict) -> bool:
         download_url = info["download_url"]
 
     if not download_url:
-        print(f"  No download URL available")
+        print("  No download URL available")
         return False
 
     # Download
@@ -339,7 +334,7 @@ def download_and_install(key: str, info: dict) -> bool:
             return False
 
         # Extract
-        print(f"  Extracting...")
+        print("  Extracting...")
         extracted = extract_zip(zip_path, tmpdir, ".vst3")
 
         # Find VST3
@@ -364,11 +359,11 @@ def download_and_install(key: str, info: dict) -> bool:
                     break
 
         if not vst3_path:
-            print(f"  Could not find VST3 in extracted files")
+            print("  Could not find VST3 in extracted files")
             return False
 
         # Install
-        print(f"  Installing...")
+        print("  Installing...")
         if install_vst3(vst3_path, key):
             print(f"  ✓ Successfully installed {info['name']}")
             return True
@@ -413,9 +408,9 @@ def main():
                 success += 1
             else:
                 failed += 1
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Results: {success} succeeded, {failed} failed")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         return
 
     # Default: show help

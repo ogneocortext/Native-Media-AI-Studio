@@ -28,7 +28,7 @@ CONFIG_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / "con
 def load_vst_config() -> dict:
     """Load VST configuration from YAML file."""
     try:
-        with open(CONFIG_PATH, "r") as f:
+        with open(CONFIG_PATH) as f:
             return yaml.safe_load(f)
     except Exception as e:
         logger.warning(f"Failed to load VST config from {CONFIG_PATH}: {e}")
@@ -164,7 +164,7 @@ class VSTHost:
 
             # Get parameter info
             parameters = []
-            for param_name, param in plugin.parameters.items():
+            for _param_name, param in plugin.parameters.items():
                 # pedalboard parameter objects have different attribute names
                 default_val = getattr(param, 'default_raw_value', getattr(param, 'raw_value', None))
                 parameters.append({
