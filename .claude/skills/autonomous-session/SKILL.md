@@ -23,12 +23,22 @@ while nobody is watching.
 1. `git status` + `git log --oneline -5` — learn what is **yours** vs other
    agents' uncommitted work. You cannot push past their broken files; you
    also must not "fix" files they are actively rewriting.
-2. Read the task ledger for the area you're touching
+2. **Check the agent board** — other live sessions may hold claims on the
+   paths you need:
+   ```powershell
+   python tools/orchestration/board.py status
+   python tools/orchestration/board.py conflicts --paths "<your paths>"
+   ```
+   Protocol: `docs/plans/orchestration.md`. Claim before editing
+   (`board.py claim --agent <id> --paths ... --task T-XXX`), heartbeat at
+   commit checkpoints, `board.py check` before committing when others are
+   live, `release`/`handoff` when done. Fail-open — if it errors, proceed.
+3. Read the task ledger for the area you're touching
    (`docs/plans/tasks/*.md`) — status and acceptance criteria live there,
    not in your head.
-3. If the task spans services, confirm they're up
+4. If the task spans services, confirm they're up
    (`scripts/manage-servers.ps1 -Action status` or the health endpoints).
-4. Write the todo list with one in-progress item — it is your resume point
+5. Write the todo list with one in-progress item — it is your resume point
    if the session is interrupted.
 
 ## Chaining router
@@ -94,6 +104,10 @@ must not do any of them:
   (port 9876, one addon stack at a time); reproducible/batch work =
   `blender --background --python <script>`. Committed bpy scripts are the
   source of truth.
+- **Subagent writes need boundaries.** `run_subagent` workers are
+  stateless and can't see the board — give each a disjoint path set in
+  the prompt, or claim the union yourself first. Read-only explore
+  agents need no claim.
 - **DB work:** one live DB (`storage/studio.db`); backups →
   `storage/backups/` newest-only. Never merge SQLite files by copying rows.
 

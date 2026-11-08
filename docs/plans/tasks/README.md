@@ -103,6 +103,14 @@ steps, files, and the decisions, made once, in writing. The
   `tools/model-reliability/observed.jsonl` like any other failure —
   see the roster entry for GPT-6 Luna.
 
+## Multi-agent claims
+
+When more than one agent session is live, coordinate through
+`tools/orchestration/board.py` — claim path globs before editing,
+heartbeat during long work, release or `handoff` when done. Protocol:
+`docs/plans/orchestration.md`. Claims are advisory and ephemeral; this
+file remains the durable plan/handoff layer.
+
 ## Status discipline
 
 - `done` means the acceptance check passed — for refactors, the
