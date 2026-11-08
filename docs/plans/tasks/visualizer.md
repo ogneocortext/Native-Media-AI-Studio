@@ -1407,4 +1407,15 @@ evidence above.
 - **Files:** tools/characters/house_rig.py (landed); tools/characters/{skin_weights,retarget_mixamo,export_clips}.py (planned); docs/knowledge-library/blender-headless-vs-mcp-character-pipeline-operations-guide-2026.md (workflow research); packages/frontend/src/features/visualizer/ (VisualizerCharacter, stageEnvironment.tsx hero slot)
 - **Acceptance:** rigged textured DJ GLB <=64 bones / <=4 influences passes torture-test clip; renders in stage-env with audio-reactive motion; BuilderFigure overlay retired or gated per-mode.
 - **Gate:** Implementation on the owner's word; mesh authoring prefers interactive MCP (viewport QA loop) — Blender GUI + addon server must be running (`get_addon_status` currently fails: Blender not running).
-- **Last session:** Devin, 2026-11-08 — HouseRig_v1 armature builder landed and smoke-tested headless (blender -b): base=49 bones, hero=61, GLB skin verified. Blender headless-vs-MCP research completed -> knowledge-library doc (capability matrix, Blender 5.x pitfalls incl. slotted Actions, three-phase hybrid workflow, tooling gaps list).
+- **Last session:** Devin, 2026-11-08 (pm) — first rigged character
+  exists: stylized low-poly DJ built via MCP interactive session
+  (head/neck/headphones/face vinyl-style + primitives body, 5 mats,
+  690 verts) -> joined DJ_Mesh -> `skin_weights.py` ARMATURE_AUTO +
+  <=4-influence enforcement (49 vgs, max 5->4) -> `idle_clip.py`
+  4s/24fps idle loop NLA-stashed -> `hero_dj.glb` (632KB, 1 skin/49
+  joints, 'idle' animation verified in GLB JSON). Torture render
+  (arms overhead) clean per vision QA; GLB re-import frame-48 render
+  intact. Assets: `public/models/characters/hero_dj.glb` +
+  `public/models/blends/hero_dj.blend`. Blender MCP confirmed live
+  (upstream stack, protocol 15 addon v1.8, telemetry off).
+- **Prior session:** Devin, 2026-11-08 — HouseRig_v1 armature builder landed and smoke-tested headless (blender -b): base=49 bones, hero=61, GLB skin verified. Blender headless-vs-MCP research completed -> knowledge-library doc (capability matrix, Blender 5.x pitfalls incl. slotted Actions, three-phase hybrid workflow, tooling gaps list).

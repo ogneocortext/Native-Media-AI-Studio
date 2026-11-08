@@ -176,4 +176,5 @@ def main() -> None:
     print("RIG_REPORT " + json.dumps(report))
 
 
-main()
+if __name__ == "__main__":
+    main()
