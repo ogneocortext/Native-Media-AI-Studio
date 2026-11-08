@@ -63,7 +63,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 - ✅ `organizational-consistency-2026.md`  → `#production`, `#documentation`, `#knowledge-library`
 
-### 🛠️ Technical Implementation (31/31 completed) ✅
+### 🛠️ Technical Implementation (32/32 completed) ✅
+- ✅ `blender-headless-vs-mcp-character-pipeline-operations-guide-2026.md`  → `#technical`
 - ✅ `ai-generated-mesh-topology-why-local-gen3d-output-is-not-rigging-ready-2026.md`  → `#technical`
 - ✅ `texture-generation-stage-for-ai-generated-3d-assets-2026.md`  → `#technical`
 - ✅ `stylized-3d-environment-design-for-browser-music-visualizers-2026.md`  → `#technical`

@@ -53,6 +53,7 @@ date: 2026-09-30
 - [[organizational-consistency-2026|🧭 Organizational Consistency]] — One source per organizational fact: the 2026-11-06 drift census, canonical task-block/index/frontmatter rules (R1–R6), the area↔category crosswalk, and the checker that enforces them (NEW 2026-11-06)
 
 ### 🛠️ Technical Implementation (Code & Systems)
+- [[blender-headless-vs-mcp-character-pipeline-operations-guide-2026|Blender Headless vs MCP: Character Pipeline Operations Guide]] — Blender Headless vs MCP: Character Pipeline Operations Guide
 - [[ai-generated-mesh-topology-why-local-gen3d-output-is-not-rigging-ready-2026|AI-Generated Mesh Topology: Why Local gen3d Output Is Not Rigging-Ready]] — AI-Generated Mesh Topology: Why Local gen3d Output Is Not Rigging-Ready
 - [[texture-generation-stage-for-ai-generated-3d-assets-2026|Texture generation stage for AI-generated 3D assets]] — Texture generation stage for AI-generated 3D assets
 - [[stylized-3d-environment-design-for-browser-music-visualizers-2026|3D environment]] — Stylized 3D Environment Design for Browser Music Visualizers
@@ -202,7 +203,7 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 23 documents |
-|| `#technical/*` | System implementation & code | 32 documents |
+|| `#technical/*` | System implementation & code | 33 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |

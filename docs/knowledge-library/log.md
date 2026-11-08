@@ -186,6 +186,8 @@ for AI agents.
 
 - Added `docs/knowledge-library/ai-generated-mesh-topology-why-local-gen3d-output-is-not-rigging-ready-2026.md` → `#technical`
 
+- Added `docs/knowledge-library/blender-headless-vs-mcp-character-pipeline-operations-guide-2026.md` → `#technical`
+
 
 ## How to use this log
 

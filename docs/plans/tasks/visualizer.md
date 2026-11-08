@@ -1399,3 +1399,12 @@ evidence above.
   node TRS); speakers + deck verified visible; boombox marginal.
   Mesh-topology research completed — gen3d output is blockout/props
   only, character needs rigged base or cloud retopo+rig path.
+
+### T-VIZ-55 — Hero character: HouseRig_v1 toolchain + stylized DJ build
+- **Status:** doing
+- **Goal:** Replace the 2D BuilderFigure canvas overlay with a real rigged 3D character on the stage-env set. Path decided by research (ai-generated-mesh-topology doc): authored/parametric clean base -> HouseRig_v1 -> T1 concept texture -> KTX2/toon -> R3F AnimationMixer + audio-reactive bone offsets. Raw gen3d output is blockout/props only — never rigged.
+- **Plan:** (1) `tools/characters/house_rig.py` — HouseRig_v1 bone table -> armature, headless-safe (DONE, verified: 49 base / 61 hero bones, single Hips root, GLB skin exports 49 joints). (2) `skin_weights.py` — ARMATURE_AUTO + vertex_groups fixes + <=4-influence enforcement (glTF hard limit). (3) Stylized low-poly DJ mesh authored in Blender (interactive MCP session when GUI Blender is up; script-replayed headless otherwise). (4) Torture-test clip per verdicts §2 as rig acceptance gate. (5) `VisualizerCharacter` R3F component: GLB + AnimationMixer + bone offsets from shared audioData; retire BuilderFigure overlay once proven.
+- **Files:** tools/characters/house_rig.py (landed); tools/characters/{skin_weights,retarget_mixamo,export_clips}.py (planned); docs/knowledge-library/blender-headless-vs-mcp-character-pipeline-operations-guide-2026.md (workflow research); packages/frontend/src/features/visualizer/ (VisualizerCharacter, stageEnvironment.tsx hero slot)
+- **Acceptance:** rigged textured DJ GLB <=64 bones / <=4 influences passes torture-test clip; renders in stage-env with audio-reactive motion; BuilderFigure overlay retired or gated per-mode.
+- **Gate:** Implementation on the owner's word; mesh authoring prefers interactive MCP (viewport QA loop) — Blender GUI + addon server must be running (`get_addon_status` currently fails: Blender not running).
+- **Last session:** Devin, 2026-11-08 — HouseRig_v1 armature builder landed and smoke-tested headless (blender -b): base=49 bones, hero=61, GLB skin verified. Blender headless-vs-MCP research completed -> knowledge-library doc (capability matrix, Blender 5.x pitfalls incl. slotted Actions, three-phase hybrid workflow, tooling gaps list).
