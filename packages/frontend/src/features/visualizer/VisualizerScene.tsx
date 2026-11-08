@@ -17,6 +17,7 @@ import {
   PpanikBlobField,
   PulseRings,
   SpectrumBars,
+  StageEnvironment,
   StemScene,
   StormViz,
   TerrainFlyover,
@@ -222,6 +223,8 @@ export function VisualizerScene({
           return <StemScene {...props} />;
         case "terrain":
           return <TerrainFlyover {...props} />;
+        case "stage-env":
+          return <StageEnvironment {...props} />;
       }
     })();
 

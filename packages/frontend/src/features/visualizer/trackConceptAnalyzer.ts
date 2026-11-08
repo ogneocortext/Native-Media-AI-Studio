@@ -26,7 +26,8 @@ export type VisualizationStyle =
   | "three-particles"
   | "pppanik"
   | "stem-scene"
-  | "terrain";
+  | "terrain"
+  | "stage-env";
 
 export interface VisualizationOption {
   id: VisualizationStyle;
@@ -158,6 +159,14 @@ export const VISUALIZATION_OPTIONS: VisualizationOption[] = [
       "Endless ridged-terrain flyover — spectrum shapes the ridgeline, bass drives speed and heave",
     icon: "mountain",
     bestFor: ["cinematic", "flyover", "ambient", "experimental"],
+  },
+  {
+    id: "stage-env",
+    name: "Stage Environment",
+    description:
+      "Basement-club concert stage — truss, speakers, beams and crowd driven by the audio rig",
+    icon: "spotlight",
+    bestFor: ["edm", "techno", "house", "live", "club"],
   },
 ];
 

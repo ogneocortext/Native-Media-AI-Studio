@@ -1355,11 +1355,39 @@ class Gen3DService:
         if resolved.suffix.lower() not in {".glb", ".gltf"} or not resolved.is_file():
             return {"success": False, "error": "source is not a .glb/.gltf file"}
 
-        dst = OUTPUT_DIR / f"ingest_{self._sanitize_name(resolved.stem)}_{int(time.time())}.glb"
-        try:
-            shutil.copy2(resolved, dst)
-        except OSError as e:
-            return {"success": False, "error": f"could not stage source: {e}"}
+        import subprocess
+
+        # Sketchfab-style imports all share the stem "scene" — disambiguate
+        # with the parent directory so ingested assets stay identifiable.
+        stem = resolved.stem
+        if stem.lower() in {"scene", "asset", "model", "mesh"}:
+            stem = f"{resolved.parent.name}_{stem}"
+        dst = OUTPUT_DIR / f"ingest_{self._sanitize_name(stem)}_{int(time.time())}.glb"
+        if resolved.suffix.lower() == ".gltf":
+            # A .gltf is JSON referencing external .bin/texture files — copying
+            # just it produces a broken GLB. gltf-transform `copy` resolves
+            # the external resources and writes a self-contained .glb.
+            pnpm = shutil.which("pnpm") or shutil.which("pnpm.cmd")
+            if not pnpm:
+                return {"success": False, "error": "pnpm not found; cannot convert .gltf to .glb"}
+            conv = subprocess.run(
+                [pnpm, "dlx", "@gltf-transform/cli@4.5.1", "copy", str(resolved), str(dst)],
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=300,
+            )
+            if conv.returncode != 0 or not dst.is_file():
+                return {
+                    "success": False,
+                    "error": "gltf->glb conversion failed: "
+                    + (conv.stderr or conv.stdout or "unknown")[-300:],
+                }
+        else:
+            try:
+                shutil.copy2(resolved, dst)
+            except OSError as e:
+                return {"success": False, "error": f"could not stage source: {e}"}
 
         # Chrome auto-apply is name-triggered only for ingested assets — the
         # generation path's blanket 'any decimated mesh' rule would repaint

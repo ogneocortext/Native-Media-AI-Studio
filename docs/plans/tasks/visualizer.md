@@ -1327,3 +1327,49 @@ Module map: `docs/architecture/visualizer.md` (D14). Never touch
 - **Acceptance:** both modes re-scored ≥3.0 on verified audio (met: 4.0/4.0)
 - **Last session:** Devin, 2026-11-07 — commit 857a5573 + re-score
 evidence above.
+
+### T-VIZ-54 — StageEnvironment: basement-club concert stage kit (v1)
+
+- **Status:** doing (v1 renders verified; polish/re-score pending)
+- **Goal:** Give the 3D visualizer a designed space per
+  `stylized-3d-environment-design-for-browser-music-visualizers-2026.md`
+  — platform, truss, props, beams, crowd, reactive rig — ahead of the
+  BuilderFigure character rebuild (character path deferred: generated
+  Hunyuan3D mesh is fragmented/untopo'd, not riggable).
+- **Asset pipeline (all verified live):**
+  - `.gltf` ingest bug fixed: sources were copied verbatim into `.glb`
+    names producing JSON-in-GLB files; `ingest_existing_glb` now runs
+    `gltf-transform copy` for `.gltf` sources and disambiguates generic
+    `scene` stems with the parent dir (`ingest_speakers_scene_*`).
+  - Ingested through `/api/3d/ingest`: speakers (2,439 tris),
+    turntable (1,966), boombox (2,078), concert_stage (6,452) —
+    staged to `packages/frontend/public/models/env/*.glb` (~2.7 MB
+    total, KTX2 textures).
+  - First live text-to-3D character generation also verified end-to-end
+    (concept SaveImage → decimate → T1 projection → KTX2 → budget);
+    mesh judged non-riggable (fragmented topology) — see T-VIZ-12 notes.
+- **Component:** `viz-styles/stageEnvironment.tsx` — new `stage-env`
+  visualization style. Platform + edge strip, two truss towers +
+  overhead bar (drei Instances for rungs), LED screen (hue/energy
+  reactive), 5 additive beam cones (3 front-wash on stage, 2 backlight
+  onto crowd), 2 reactive spotlights, 28-card crowd field (imperative
+  InstancedMesh, group-level downbeat bounce), 4 GLB props under
+  per-prop Suspense (useLoader + KTX2-aware getGLTFLoader).
+- **Verified:** playwright capture `output/tests/stage-env-v2.png` —
+  truss/beams/screen/props render; crowd confirmed via pixel analysis
+  (VLM can't distinguish near-black silhouettes — expected).
+- **Bugs found en route:** drei `<Instances>` rejects `<group>` children
+  (must be `<Instance>`) — was crashing the whole R3F tree ('attributes'
+  null ×3, page stuck Loading); crowd initially placed below frame and
+  inside the platform volume; `pnpm install` by another process pruned
+  the .pnpm store mid-session (restored, 789 pkgs).
+- **Next:** prop texture/scale audit (vision pass on env GLBs),
+  crowd readability vs beams, mode re-score via viz-capture, then
+  BuilderFigure replacement once a rigged character exists.
+- **Files:** packages/frontend/src/features/visualizer/viz-styles/
+  stageEnvironment.tsx, viz-styles/index.ts, VisualizerScene.tsx,
+  trackConceptAnalyzer.ts; packages/frontend/public/models/env/*.glb;
+  packages/backend/app/services/gen3d/gen3d_service.py (.gltf ingest fix)
+- **Acceptance:** stage-env mode renders a coherent reactive stage in
+  the live visualizer (met for v1); pending re-score vs baseline.
+- **Last session:** Devin, 2026-11-07 — in progress.
