@@ -24,7 +24,6 @@ import type {
   RemixJobStatus,
   RemixTrackLineage,
   RemixVersion,
-  StemName,
 } from "./types";
 
 export const STEM_NAMES = ["vocals", "drums", "bass", "other"] as const;
@@ -248,3 +247,5 @@ export function remixFileUrl(name: string, which: StemName | "master", version?:
   const base = `${getApiBase()}${BASE}/${encodeURIComponent(name)}/file/${which}`;
   return version ? `${base}?version=${version}` : base;
 }
+
+export type * from "./types";

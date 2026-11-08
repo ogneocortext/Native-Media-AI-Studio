@@ -571,7 +571,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
         cfg: vizParams.cfg,
       });
       serverTiming = (data as { timing?: ServerGenTiming }).timing ?? null;
-      setResult(data);
+      setResult(data as unknown as Record<string, unknown>);
       if ((data as { success?: boolean }).success === false) {
         setError(
           (data as { error?: string }).error ?? "Generation failed — check ComfyUI and VRAM",
@@ -635,7 +635,7 @@ export function useGeneration3D(navigate: ReturnType<typeof useNavigate>): UseGe
     try {
       const data = await generate3DFromImage(refFile, { steps, model });
       serverTiming = (data as { timing?: ServerGenTiming }).timing ?? null;
-      setResult(data);
+      setResult(data as unknown as Record<string, unknown>);
       if ((data as { success?: boolean }).success === false) {
         setError(
           (data as { error?: string }).error ??

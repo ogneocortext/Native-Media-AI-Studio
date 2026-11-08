@@ -17,7 +17,7 @@ import {
   clearCompletedJobs as apiClearCompletedJobs,
   clearFailedJobs as apiClearFailedJobs,
 } from "../services/api";
-import { JobStatus } from "@shared/types";
+import { JobStatus, type JobType } from "@shared/types";
 import { sseService } from "../services/sseService";
 
 const AUTO_REFRESH_INTERVAL_MS = 5000;
@@ -139,7 +139,7 @@ export const useJobStore = create<JobState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const job = await apiCreateJob(jobType, params, maxRetries);
+      const job = await apiCreateJob(jobType as JobType, params, maxRetries);
       get().addJob(job);
       // Refresh stats to reflect new pending job
       const stats = await fetchQueueStats();

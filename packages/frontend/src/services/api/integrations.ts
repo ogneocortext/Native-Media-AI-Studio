@@ -109,3 +109,5 @@ export async function upscaleImage(params: {
 }): Promise<UpscaleResponse> {
   return postJson<UpscaleResponse>(`${BASE}/upscale`, params, { timeout: 600000 });
 }
+
+export type * from "./types";

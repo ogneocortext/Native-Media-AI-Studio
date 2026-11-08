@@ -555,3 +555,5 @@ export async function measureMasterLoudness(filename: string): Promise<MasterMea
 export async function masterAudio(body: MasterRequest): Promise<MasterResponse> {
   return postJson<MasterResponse>(`${BASE}/master`, body, { timeout: 600000 });
 }
+
+export type * from "./types";

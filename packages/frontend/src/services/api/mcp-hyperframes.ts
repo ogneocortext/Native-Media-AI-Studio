@@ -51,6 +51,7 @@ export async function getHyperFramesAudioPayload(
   fps = 30,
   bands = 16,
 ): Promise<HyperFramesAudioPayload> {
+  const base = getApiBase();
   return getJson<HyperFramesAudioPayload>(
     `${base}/api/audio/hyperframes-payload/${encodeURIComponent(filename)}?fps=${fps}&bands=${bands}`,
     { timeout: 30000 },
@@ -78,7 +79,7 @@ export async function getHyperFramesExamples(): Promise<HyperFramesExample[]> {
  */
 export async function launchHyperFramesPreview(): Promise<{ url: string }> {
   const base = getApiBase();
-  return getJson<{ url: string }>(`${base}${HF_BASE}/preview`, { method: "POST", timeout: 30000 });
+  return postJson<{ url: string }>(`${base}${HF_BASE}/preview`, {}, { timeout: 30000 });
 }
 
 /**
@@ -96,3 +97,5 @@ export async function renderHyperFramesComposition(params: {
   const base = getApiBase();
   return postJson<RenderHyperFramesResponse>(`${base}${HF_BASE}/render`, params, { timeout: 300000 });
 }
+
+export type * from "./types";

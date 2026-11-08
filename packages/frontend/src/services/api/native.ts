@@ -63,3 +63,5 @@ export async function getFFmpegStatus(): Promise<{
     processes: FFmpegProcessInfo[];
   }>(`${base}/api/health/ffmpeg`, { timeout: 30000 });
 }
+
+export type * from "./types";

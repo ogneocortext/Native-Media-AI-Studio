@@ -183,3 +183,5 @@ export async function emptyTrash(): Promise<number> {
   return fetchJson<{ removed: number }>(`${BASE}/trash`, { method: "DELETE", timeout: 15000 })
     .then((r) => r.removed);
 }
+
+export type * from "./types";

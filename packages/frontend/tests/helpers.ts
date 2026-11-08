@@ -448,6 +448,30 @@ export async function mockApiHealth(
 }
 
 /**
+ * Mock a single API endpoint with a JSON body.
+ * COMPOSABLE: Does NOT call cleanupRoutes().
+ */
+export async function mockApiResponse(
+  page: Page,
+  path: string,
+  body: unknown,
+  status = 200,
+): Promise<void> {
+  registerRouteHandler(page, async (route) => {
+    const pathname = getPathname(route.request().url());
+    if (pathname === path) {
+      await route.fulfill({
+        status,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
+    } else {
+      await route.fallback();
+    }
+  });
+}
+
+/**
  * Mock the `/api/jobs` endpoint with an empty queue.
  * COMPOSABLE: Does NOT call cleanupRoutes().
  */

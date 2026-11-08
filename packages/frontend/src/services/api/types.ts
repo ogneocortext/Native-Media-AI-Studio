@@ -4,8 +4,10 @@
  * Single source of truth for frontend-backend contracts.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- re-exported for consumers
-import type { Job, JobType, JobStatus, QueueStats, QueueMetrics, PortConfig } from "@shared/types";
+import type { QueueStats } from "@shared/types";
+import type { AudioData } from "../../features/visualizer/types";
+
+export type { Job, JobType, JobStatus, QueueStats, QueueMetrics, PortConfig } from "@shared/types";
 
 // ============================================================================
 // Core / Health / System Types
@@ -91,10 +93,15 @@ export interface AudioUploadResponse {
   stored_path: string;
   size_bytes: number;
   message: string;
+  /** True when the upload arrived as video and was converted to .m4a. */
   converted?: boolean;
+  /** The video filename the user dropped, when `converted` is true. */
   source_filename?: string | null;
+  /** True when the audio was remuxed with `-c:a copy` (bit-identical). */
   lossless?: boolean;
+  /** True when an existing library file with the same content was reused. */
   deduplicated?: boolean;
+  /** Output-relative path (e.g. "audio/video-extracted/x.m4a") for serving. */
   relative_path: string;
 }
 
@@ -111,8 +118,8 @@ export interface StemSeparationResponse {
 
 export interface SeparationQualityOptions {
   mode?: "single" | "hierarchical";
-  segment_size?: number;
-  overlap?: number;
+  segment_size?: number; // seconds; clamped to the model's trained max
+  overlap?: number; // 0.25–0.75
   denoise?: boolean;
 }
 
@@ -134,6 +141,7 @@ export interface AudioAnalysisResult {
   confidence: number;
   amplitude_envelope: number[];
   stored_path: string | null;
+  /** Output-relative path (e.g. "audio/track.wav"), for /api/audio/file/*. */
   relative_path?: string | null;
   job_id: string | null;
   beats_truncated?: boolean;
@@ -164,11 +172,15 @@ export interface AudioAnalysisResult {
   spectral_rolloff?: number[];
   spectral_bandwidth?: number[];
   zero_crossing_rate?: number[];
+  // Key detection (schema v2+). key_confidence is the clamped display value;
+  // key_confidence_r is the raw correlation used by the chroma->hue mapper.
   estimated_key?: string | null;
   key_confidence?: number | null;
   key_confidence_r?: number | null;
   key_runner_up?: string | null;
   key_runner_up_r?: number | null;
+  // Tier 2 chroma: per-frame 12-bin pitch-class vectors for the visualizer.
+  // Consumed by useKeyPalette; kept out of the analysis UI (large arrays).
   chroma_frames?: {
     fps?: number;
     t0?: number;
@@ -228,18 +240,21 @@ export interface TimingMetadata {
 }
 
 export interface StemsAnalysisResponse {
-  stems: Record<string, {
-    file: string;
-    url: string;
-    duration: number;
-    sample_rate: number;
-    rms_mean: number;
-    rms_std: number;
-    centroid_mean: number;
-    zcr_mean: number;
-    energy_curve: number[];
-    energy_curve_points: number;
-  }>;
+  stems: Record<
+    string,
+    {
+      file: string;
+      url: string;
+      duration: number;
+      sample_rate: number;
+      rms_mean: number;
+      rms_std: number;
+      centroid_mean: number;
+      zcr_mean: number;
+      energy_curve: number[];
+      energy_curve_points: number;
+    }
+  >;
   separated: boolean;
 }
 
@@ -288,7 +303,11 @@ export interface LyricLine {
   end: number;
   text: string;
   section?: string;
-  words?: { word: string; start: number; end: number }[];
+  words?: {
+    word: string;
+    start: number;
+    end: number;
+  }[];
 }
 
 export interface TranscriptionResult {
@@ -359,6 +378,7 @@ export interface VideoGenerateRequest {
   audio_filename?: string;
   method?: "comfyui" | "visualization";
   model?: string;
+  /** Visualization config (mode, palette, …) for the `visualization` method. */
   visualization?: Record<string, unknown>;
 }
 
@@ -442,9 +462,13 @@ export interface MasterRequest {
   target_lufs?: MasterTarget;
   ceiling_dbtp?: number;
   tone_fixes?: boolean;
+  /** Manual trim in dB applied after normalization, before limiting. */
   gain_trim_db?: number;
+  /** Apply corrective-balance finishing chain before loudness normalization. */
   finishing?: boolean;
+  /** dB of low-shelf cut at 120 Hz (sub tame). Only applied when finishing. */
   sub_cut_db?: number;
+  /** dB of peaking lift at 3.2 kHz (vocal presence). Only applied when finishing. */
   presence_db?: number;
 }
 
@@ -485,29 +509,41 @@ export interface MasterResponse {
 
 export interface RemixSource {
   track: string;
-  stems_available: string[];
-  bpm?: number;
-  duration?: number;
-  first_audible_bar?: number;
+  model: string;
+  stems: Record<StemName, boolean>;
+  /** BPM from the cached probe, when one exists. */
+  bpm?: number | null;
+  duration_sec?: number | null;
+  first_audible_sec?: number | null;
+  /** B6: the library filename this stem directory joined to, when
+   *  unambiguous. Lets a picker speak the library's identity. */
+  library_file?: string;
 }
 
 export interface RemixProbe {
   track: string;
   bpm: number;
-  key: string;
+  duration_sec: number;
+  first_audible_sec: number;
+  /** Advisory only. Detection is unreliable on this material - see key_confident. */
+  key_advisory: string;
+  key_correlation: number;
+  chroma_flatness: number;
   key_confident: boolean;
-  duration: number;
-  first_audible_bar?: number;
+  beat_count: number;
+  analysed_stem: StemName;
 }
 
 export interface RemixLayerSpec {
   track: string;
-  stem: string;
+  stem: StemName;
   gain_db: number;
   key_shift_semitones: number;
   source_start_bar: number;
-  lowpass_hz?: number;
-  brightness_db?: number;
+  // B4 tone shaping; omitted/None leaves the stem untouched, and the
+  // renderer treats them the same way.
+  lowpass_hz?: number | null;
+  brightness_db?: number | null;
 }
 
 export interface RemixSlotSpec {
@@ -520,80 +556,81 @@ export interface RemixRecipeSpec {
   name: string;
   target_bpm: number;
   slots: RemixSlotSpec[];
-  beats_per_bar?: number;
+  beats_per_bar: number;
+  key?: string | null;
+  overwrite?: boolean;
 }
 
-export interface RemixRecipeRoundTrip {
-  recipe: RemixRecipeSpec;
-  warnings: string[];
-}
+export type RemixRecipeRoundTrip = RemixRecipeSpec;
 
 export interface RemixPreview {
-  timeline: {
-    slot: number;
-    layers: {
-      track: string;
-      stem: string;
-      gain_db: number;
-      key_shift_semitones: number;
-      source_start_bar: number;
-      start_beat: number;
-      end_beat: number;
-      stretch_ratio: number;
-    }[];
-    bars: number;
-    crossfade_bars: number;
-  }[];
-  per_source: Record<string, {
+  duration_sec: number;
+  total_bars: number;
+  bar_seconds: number;
+  sample_rate: number;
+  stretch_ratios: Record<string, number>;
+  layers: {
+    track: string;
+    stem: StemName;
+    source_bpm: number;
+    measured_rms_db: number;
     stretch_ratio: number;
-    measured_loudness: number;
-    measured_duration: number;
-  }>;
-  warnings: {
-    type: string;
-    message: string;
-    layer?: RemixLayerSpec;
+    source_start_bar: number;
+  }[];
+  warnings: string[];
+  /** Same facts as `warnings`, structured for agents:
+   * {code, layer_ref, field, measured_rms_db, suggestion}. */
+  warnings_detail?: {
+    code: string;
+    layer_ref: string;
+    field: string;
+    measured_rms_db: number;
+    suggestion: string;
   }[];
 }
 
 export interface RemixPreviewAudio {
+  /** Playable URL for the excerpt. */
   url: string;
-  duration: number;
-  sample_rate: number;
+  duration_sec: number;
+  /** True when the excerpt is shorter than the arrangement. */
+  truncated: boolean;
+  warnings: string[];
 }
 
 export interface RemixDraft {
+  /** The exact /build request shape, ready for review then render. */
   recipe: RemixRecipeSpec;
   explanation: string;
   warnings: string[];
-  changes?: string[];
+  model_used: string | null;
+  source: "ollama" | "heuristic";
+  /** R1: human-readable diff of base vs revised; [] for fresh drafts. */
+  changes: string[];
 }
 
 export interface RemixBuildResult {
   name: string;
-  stems: Record<string, string>;
-  duration: number;
-  manifest: {
-    slots: RemixSlotSpec[];
-    target_bpm: number;
-    beats_per_bar: number;
-  };
+  directory: string;
+  stems: Record<StemName, string>;
+  duration_sec: number;
+  manifest: Record<string, unknown>;
   warnings: string[];
 }
 
 export interface RemixSummary {
   name: string;
-  created_at: string;
-  target_bpm: number;
-  slots: RemixSlotSpec[];
-  duration: number;
+  duration_sec: number | null;
+  target_bpm: number | null;
+  source_tracks: string[];
   stems: string[];
+  has_enhanced: boolean;
 }
 
-export interface RemixLineageEntry {
-  remix_name: string;
-  created_at: string;
-  source_tracks: string[];
+export interface RemixLineageEntry extends RemixSummary {
+  role: "primary" | "contributor";
+  /** null when the manifest cannot round-trip; see the backend note. */
+  recipe: RemixRecipeRoundTrip | null;
 }
 
 export interface RemixTrackLineage {
@@ -602,88 +639,121 @@ export interface RemixTrackLineage {
 }
 
 export interface RemixEnhanceResult {
-  success: boolean;
-  remix_name: string;
-  mastered_path: string | null;
+  name: string;
+  output_dir: string;
+  wav_path: string | null;
+  mp3_path: string | null;
+  duration_sec: number;
+  steps: { step: number; name: string }[];
   error: string | null;
-  loudnorm: {
-    lufs_before: number | null;
-    gain_db: number;
-    peak_after: number;
-  } | null;
 }
 
 export interface RemixJobAccepted {
   job_id: string;
-  name: string;
-  status: "queued" | "running";
+  kind: string;
+  label: string;
+  state: string;
 }
 
 export interface RemixJobStatus {
   job_id: string;
-  status: "queued" | "running" | "done" | "failed";
-  result?: RemixBuildResult;
-  error?: string;
+  kind: "build" | "enhance";
+  label: string;
+  /**
+   * False for work with no safe point to stop at (an enhance runs
+   * inside one call), so the client can hide Cancel rather than
+   * offer a button that would only earn a 409.
+   */
+  cancellable?: boolean;
+  state: "queued" | "running" | "cancelling" | "done" | "failed" | "cancelled";
+  /** Set when the backend capped a wedged job and reported it failed. */
+  timed_out?: boolean;
+  progress?: string | null;
+  /** The build/enhance payload, present once `state` is `done`. */
+  result?: RemixBuildResult | RemixEnhanceResult;
+  error?: string | null;
+  elapsed_sec: number;
+  started_at: number;
+  finished_at: number | null;
 }
 
 export interface RemixVersion {
-  name: string;
-  created_at: string;
-  recipe: RemixRecipeSpec;
+  version: number;
+  /** True for the live render, false for an archived one. */
+  current: boolean;
+  duration_sec?: number | null;
+  target_bpm?: number | null;
+  total_bars?: number | null;
+  source_tracks?: string[];
+  stems: string[];
+  has_enhanced: boolean;
 }
 
 export type StemName = "vocals" | "drums" | "bass" | "other";
-
-export const STEM_NAMES: StemName[] = ["vocals", "drums", "bass", "other"];
 
 // ============================================================================
 // Log Types
 // ============================================================================
 
 export interface LogInfo {
-  name: string;
-  size: number;
-  modified: number;
+  log_directory: string;
+  files: Record<
+    string,
+    {
+      path: string;
+      size_bytes: number;
+      size_human: string;
+      modified?: number;
+    }
+  >;
 }
 
 export interface LogContent {
-  name: string;
-  content: string;
-  size: number;
+  log: string;
+  lines: number;
+  content: string[];
 }
 
 export interface LogAnalyticsSummary {
-  total_lines: number;
-  error_count: number;
-  warning_count: number;
-  time_range: { start: string; end: string } | null;
+  total_events: number;
+  last_event_at: string | null;
+  last_cleanup_at: string | null;
+  levels: { level: string; count: number }[];
+  top_loggers: { logger: string; count: number }[];
+  top_messages: { message: string; count: number; level: string }[];
+  sources: { source: string; count: number }[];
 }
 
 export interface LogAnalyticsTrendPoint {
-  timestamp: string;
-  count: number;
+  ts_iso: string;
+  ts_ms: number;
+  level: string;
+  logger: string;
+  message: string;
 }
 
 export interface LogAnalyticsPatterns {
-  top_errors: { pattern: string; count: number }[];
-  top_warnings: { pattern: string; count: number }[];
-  error_rate_over_time: LogAnalyticsTrendPoint[];
+  levels: { level: string; count: number }[];
+  loggers: { logger: string; count: number }[];
+  messages: { message: string; count: number; level: string }[];
 }
 
 export interface LogAnalyticsErrorPattern {
-  pattern: string;
+  message: string;
   count: number;
-  examples: string[];
+  first_seen: string;
+  last_seen: string;
 }
 
 export interface LogAnalyticsErrors {
-  patterns: LogAnalyticsErrorPattern[];
-  total: number;
+  errors: LogAnalyticsErrorPattern[];
 }
 
 export interface LogAnalyticsEvent {
-  timestamp: string;
+  ts_iso: string;
+  ts_ms: number;
   level: string;
+  logger: string;
   message: string;
   source: string;
 }
@@ -694,53 +764,88 @@ export interface LogAnalyticsEvent {
 
 export interface StoredPrompt {
   id: string;
-  prompt: string;
-  negative_prompt?: string;
-  parameters: Record<string, unknown>;
+  name: string;
+  prompt_type: string;
+  text: string;
   tags: string[];
-  favorite: boolean;
+  category: string;
+  description: string;
+  is_favorite: boolean;
   use_count: number;
+  last_used_at?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface AIVisualRecord {
   id: string;
-  prompt: string;
-  image_url: string;
-  thumbnail_url?: string;
-  model: string;
-  parameters: Record<string, unknown>;
+  prompt_id?: string;
+  style_id: string;
+  checkpoint: string;
+  width: number;
+  height: number;
+  steps: number;
+  cfg: number;
+  seed: number;
+  filename: string;
+  stored_path: string;
+  comfyui_prompt_id: string;
+  is_selected: boolean;
+  is_favorite: boolean;
+  rating: number;
   tags: string[];
+  generation_time_seconds: number;
   created_at: string;
 }
 
 export interface GenerationSession {
   id: string;
-  name: string;
-  description?: string;
-  track_filename?: string;
-  prompt?: string;
-  status: "active" | "completed" | "archived";
+  audio_id?: string;
+  music_prompt_id?: string;
+  status: string;
+  config: Record<string, unknown>;
+  selected_visuals: string[];
+  output_path?: string;
+  total_frames: number;
+  generated_frames: number;
+  estimated_time_seconds: number;
+  actual_time_seconds: number;
   created_at: string;
-  updated_at: string;
+  completed_at?: string;
 }
 
 export interface APITrack {
   id: string;
-  title: string;
-  artist: string;
   filename: string;
-  duration_seconds: number;
-  has_lyrics: boolean;
+  artist: string;
+  title: string;
+  duration_seconds: number | null;
+  size_mb: number | null;
+  source_path: string;
+  music_prompt: string;
+  lyrics: string;
+  visual_style: string;
+  visual_prompt: string;
+  status: string;
+  tags: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PromptHistoryEntry {
-  prompt_id: string;
-  version: number;
+  id: string;
+  track_filename: string;
+  section: string;
+  section_index: number;
   prompt: string;
-  negative_prompt?: string;
-  parameters: Record<string, unknown>;
+  negative_prompt: string;
+  parent_id: string | null;
+  version: number;
+  action: "create" | "repair" | "restore" | "import";
+  repair_reason: string;
+  failure_notes: string;
+  generation_params: Record<string, unknown>;
+  outcome: "draft" | "generated" | "failed" | "approved";
   created_at: string;
 }
 
@@ -749,106 +854,134 @@ export interface PromptHistoryEntry {
 // ============================================================================
 
 export interface DatabaseOverview {
-  tables: Record<string, DatabaseTableSummary>;
-  total_rows: number;
-  size_bytes: number;
+  path: string;
+  exists: boolean;
+  schema_version: number;
+  target_schema_version: number;
+  journal_mode: string;
+  page_size: number;
+  page_count: number;
+  freelist_count: number;
+  /** Free pages times page size — what VACUUM would return to the filesystem. */
+  reclaimable_bytes: number;
+  file_bytes: number;
+  wal_bytes: number;
+  shm_bytes: number;
+  table_count: number;
+  view_count: number;
+  index_count: number;
+  tables: DatabaseTableSummary[];
+  last_activity: Record<string, string | null>;
 }
 
 export interface DatabaseTableSummary {
   name: string;
-  row_count: number;
-  size_bytes: number;
-  columns: string[];
+  type: string;
+  /** Exact COUNT(*). -1 means the table could not be read. */
+  rows: number;
 }
 
 export interface DatabaseTableDetail {
   name: string;
-  row_count: number;
-  size_bytes: number;
+  type: string;
+  rows: number;
   columns: DatabaseColumnInfo[];
   indexes: DatabaseIndexInfo[];
-  foreign_keys: { column: string; references_table: string; references_column: string }[];
-  sample_rows: Record<string, unknown>[];
+  /** dbstat page bytes for the table + its indexes; null when dbstat is unavailable. */
+  indexes_bytes: number | null;
 }
 
 export interface DatabaseColumnInfo {
   name: string;
   type: string;
-  nullable: boolean;
-  default?: string;
+  notnull: boolean;
+  default: string | null;
   primary_key: boolean;
 }
 
 export interface DatabaseIndexInfo {
   name: string;
-  columns: string[];
   unique: boolean;
+  columns: string[];
 }
 
 export interface DatabaseSchema {
-  tables: Record<string, {
-    columns: DatabaseColumnInfo[];
-    indexes: DatabaseIndexInfo[];
-    row_count: number;
-  }>;
+  schema_version: number;
+  target_schema_version: number;
+  up_to_date: boolean;
+  migrations: DatabaseMigrationInfo[];
 }
 
 export interface DatabaseMigrationInfo {
-  version: string;
-  description: string;
-  applied_at: string;
+  version: number;
+  applied: boolean;
 }
 
 export interface DatabaseIntegrityResult {
   ok: boolean;
-  errors: string[];
-  warnings: string[];
-  table_counts: Record<string, number>;
+  /** "quick_check" or "integrity_check". */
+  mode: string;
+  duration_ms: number;
+  messages: string[];
 }
 
 export interface DatabaseMaintenanceResult {
-  action: DatabaseMaintenanceAction;
-  success: boolean;
-  message: string;
-  details?: Record<string, unknown>;
+  action: string;
+  ok: boolean;
+  duration_ms: number;
+  before_bytes: number;
+  after_bytes: number;
+  freed_bytes: number;
+  detail: Record<string, unknown>;
 }
 
 export type DatabaseMaintenanceAction =
-  | "vacuum"
-  | "analyze"
-  | "reindex"
-  | "checkpoint"
-  | "cleanup_old_jobs"
-  | "cleanup_old_logs";
+  "vacuum" | "wal-checkpoint" | "analyze" | "prune-logs" | "prune-telemetry" | "prune-resources";
 
 // ============================================================================
 // GPU / 3D Types
 // ============================================================================
 
 export interface GPUSnapshot {
-  timestamp: string;
-  gpu_name: string;
-  driver_version: string;
-  memory_total_mb: number;
+  available: boolean;
+  name?: string;
   memory_used_mb: number;
   memory_free_mb: number;
-  temperature_c?: number;
-  utilization_percent: number;
-  power_draw_w?: number;
-  power_limit_w?: number;
+  memory_total_mb: number;
+  memory_percent: number;
+  gpu_utilization: number;
+  memory_controller_utilization?: number;
+  temperature_c: number;
+  processes?: {
+    pid: number;
+    name: string;
+    used_mb: number | null;
+    kind: string;
+  }[];
+  memory_available?: boolean;
+  vram_total_mb?: number;
+  vram_used_mb?: number;
+  vram_free_mb?: number;
+  temperature?: number;
+  gpu_utilization_pct?: number;
 }
 
 export interface GPUProcessInfo {
   pid: number;
   name: string;
-  memory_mb: number;
-  gpu_utilization_percent: number;
+  mem_mb: number;
 }
 
 export interface GPUHistoryPoint {
-  timestamp: string;
-  memory_used_mb: number;
-  utilization_percent: number;
+  ts_ms: number;
+  ts_iso: string;
+  gpu_name?: string;
+  memory_total?: number;
+  memory_used?: number;
+  memory_free?: number;
+  memory_percent?: number;
+  gpu_util?: number;
+  mem_controller_util?: number;
   temperature_c?: number;
 }
 
@@ -864,6 +997,7 @@ export interface Generate3DRequest {
   seed?: number;
   steps?: number;
   guidance_scale?: number;
+  cfg?: number;
 }
 
 export interface Generate3DResponse {
@@ -887,10 +1021,10 @@ export interface VisionOCRResponse {
 }
 
 export interface AnalyzeVisualizerResponse {
+  text: string;
+  model: string;
   mode: string;
-  quality_score: number;
-  issues: string[];
-  suggestions: string[];
+  error?: string;
 }
 
 // ============================================================================
@@ -899,10 +1033,8 @@ export interface AnalyzeVisualizerResponse {
 
 export interface FFmpegProcessInfo {
   pid: number;
-  command: string;
-  started_at: string;
-  status: "running" | "completed" | "failed";
-  progress?: number;
+  cpu?: number;
+  working_set_mb?: number;
 }
 
 export interface NativeOpenStatus {
@@ -919,66 +1051,48 @@ export interface NativeOpenStatus {
 // ============================================================================
 
 export interface MediaProbeResponse {
-  format: {
-    filename: string;
-    format_name: string;
-    format_long_name: string;
-    duration: number;
-    size: number;
-    bit_rate: number;
-    probe_score: number;
-  };
-  streams: {
-    index: number;
-    codec_name: string;
-    codec_type: "video" | "audio" | "subtitle" | "data";
-    width?: number;
-    height?: number;
-    sample_rate?: number;
-    channels?: number;
-    channel_layout?: string;
-    bit_rate?: number;
-    duration?: number;
-    tags?: Record<string, string>;
-  }[];
+  path: string;
+  relative_path?: string;
+  probe?: Record<string, unknown>;
+  error?: string;
 }
 
 export interface LoudnessResponse {
-  input_i: number;
-  input_tp: number;
-  input_lra: number;
-  input_thresh: number;
-  output_i: number;
-  output_tp: number;
-  output_lra: number;
-  output_thresh: number;
-  normalization_type: string;
-  target_offset: number;
+  path: string;
+  relative_path?: string;
+  integrated_lufs?: number | null;
+  loudness_range?: number | null;
+  true_peak?: number | null;
+  error?: string | null;
 }
 
 export interface WaveformResponse {
+  path: string;
+  relative_path?: string;
   peaks: number[];
-  duration: number;
-  sample_rate: number;
-  channels: number;
+  count: number;
+  duration?: number | null;
+  error?: string | null;
 }
 
 export interface ThumbnailAtTimeRequest {
   path: string;
-  time: number;
+  time_sec: number;
   width?: number;
-  height?: number;
 }
 
 export interface ThumbnailAtTimeResponse {
-  image_base64: string;
-  mime_type: string;
+  path: string;
+  relative_path?: string;
+  thumbnail_path?: string | null;
+  error?: string | null;
 }
 
 export interface RegenerateCoverResponse {
-  success: boolean;
-  cover_path: string | null;
-  error: string | null;
+  path: string;
+  relative_path?: string;
+  cover_image?: string | null;
+  error?: string | null;
 }
 
 // ============================================================================
@@ -988,8 +1102,7 @@ export interface RegenerateCoverResponse {
 export interface Collection {
   id: string;
   name: string;
-  description?: string;
-  item_count: number;
+  cover_path: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1011,29 +1124,25 @@ export interface CollectionItem {
 export interface Tag {
   id: string;
   name: string;
-  color?: string;
-  item_count: number;
+  color: string;
+  created_at: string;
 }
 
 export interface TrashItem {
-  id: string;
-  filename: string;
-  file_type: "image" | "video" | "audio" | "other" | "3d";
   relative_path: string;
-  original_path: string;
+  file_type: string;
   deleted_at: string;
-  size_bytes: number;
-  metadata: Record<string, unknown> | null;
+  expires_at: string;
 }
 
 export interface FavoriteToggleResponse {
-  favorite: boolean;
-  item_id: string;
+  relative_path: string;
+  favorited: boolean;
 }
 
 export interface CreateCollectionRequest {
   name: string;
-  description?: string;
+  cover_path?: string | null;
 }
 
 export interface CreateTagRequest {
@@ -1042,19 +1151,17 @@ export interface CreateTagRequest {
 }
 
 export interface SetItemTagsRequest {
-  item_id: string;
+  relative_paths: string[];
   tag_ids: string[];
 }
 
 export interface MoveToTrashRequest {
-  item_id: string;
+  relative_path: string;
 }
 
 export interface ItemOrganization {
-  collections: Collection[];
-  tags: Tag[];
-  favorite: boolean;
-  in_trash: boolean;
+  tags: Record<string, Tag[]>;
+  collections: Record<string, Collection[]>;
 }
 
 // ============================================================================
@@ -1070,34 +1177,24 @@ export interface DiagnosticsResponse {
 }
 
 export interface MemoryDiagnostics {
-  python: {
-    rss_mb: number;
-    vms_mb: number;
+  memory: {
+    total_mb: number;
+    used_mb: number;
+    available_mb: number;
     percent: number;
   };
-  system: {
-    total_gb: number;
-    available_gb: number;
-    percent: number;
-  };
-  processes: {
-    pid: number;
-    name: string;
-    memory_mb: number;
-  }[];
+  top_processes: { pid: number; name: string; mem_mb: number; mem_percent: number }[];
+  process_count: number;
 }
 
 export interface DiagnosticsModelsResponse {
-  ollama: {
-    name: string;
-    size: string;
-    modified: string;
-    digest: string;
-  }[];
-  huggingface: {
-    name: string;
-    size: string;
-  }[];
+  loaded: boolean;
+  models: DiagnosticsModel[];
+  activity?: Record<
+    string,
+    { task: string; description: string; started_at: number; elapsed_seconds?: number }
+  >;
+  error?: string;
 }
 
 // ============================================================================
@@ -1115,12 +1212,12 @@ export interface OllamaModel {
   vram_estimate_mb?: number;
   benchmark?: { score: number; latency_ms: number; success: boolean; timestamp: string };
   codingBenchmark?: { score: number; latency_ms: number; success: boolean; timestamp: string };
+  // Verification fields
   verified?: boolean;
   verified_features?: string[];
   performance?: { tokens_per_sec?: number; vision_latency_sec?: number };
   verification_notes?: string;
   broken_reason?: string;
-  [key: string]: unknown;
 }
 
 export interface UnifiedModel {
@@ -1137,7 +1234,7 @@ export interface UnifiedModel {
   supports_rerank: boolean;
   vram_required: number;
   is_available: boolean;
-  verified: boolean | undefined;
+  verified: boolean;
   verified_features: string[];
   performance: { tokens_per_sec?: number; vision_latency_sec?: number };
   verification_notes: string;
@@ -1145,7 +1242,6 @@ export interface UnifiedModel {
   chat_eligible: boolean;
   task_routes: string[];
   benchmark?: { score: number; latency_ms: number; success: boolean; timestamp: string };
-  [key: string]: unknown;
 }
 
 export interface TaskModelRoute {
@@ -1336,30 +1432,54 @@ export interface AIGeneratedPreset {
 
 export interface SubAgentTask {
   task_id: string;
-  prompt: string;
-  status: "pending" | "running" | "completed" | "failed" | "cancelled";
-  created_at: string;
-  started_at?: string;
-  completed_at?: string;
+  status: "running" | "completed" | "failed" | "cancelled";
   result?: string;
   error?: string;
+  error_detail?: string;
+  created_at: string;
+  model?: string;
+  has_result?: boolean;
+  has_error?: boolean;
+  metrics?: {
+    tool_calls: number;
+    iterations: number;
+    tool_usage: Record<string, number>;
+    context_truncations: number;
+    simulated_context_window?: number;
+    dry_run: boolean;
+  };
 }
 
 export interface SubAgentRunRequest {
-  prompt: string;
+  task: string;
   model?: string;
-  max_turns?: number;
 }
 
 export interface SubAgentRunResponse {
   task_id: string;
   status: string;
+  model?: string;
 }
 
 export interface SubAgentEvent {
-  type: "content" | "tool_call" | "tool_result" | "done" | "error";
-  data: unknown;
-  timestamp: string;
+  type: "agent_output" | "agent_done" | "agent_error" | "agent_cancelled";
+  data: {
+    task_id: string;
+    text?: string;
+    result?: string;
+    error?: string;
+    error_detail?: string;
+    metrics?: {
+      tool_calls: number;
+      iterations: number;
+      tool_usage: Record<string, number>;
+      context_truncations: number;
+      simulated_context_window?: number;
+      dry_run: boolean;
+    };
+    timestamp: string;
+  };
+  timestamp?: string;
 }
 
 // ============================================================================
@@ -1367,55 +1487,74 @@ export interface SubAgentEvent {
 // ============================================================================
 
 export interface ComfyUIStatus {
+  installed: boolean;
   running: boolean;
+  port: number;
+  url: string;
   pid?: number;
-  port?: number;
-  url?: string;
-  version?: string;
-  models_loaded?: number;
-  queue_depth?: number;
+  uptime_seconds?: number;
+  version: {
+    installed: boolean;
+    path?: string;
+    version?: string;
+    commit?: string;
+    branch?: string;
+    behind_remote?: number;
+    up_to_date?: boolean;
+    error?: string;
+  };
 }
 
 export interface ComfyUIStartResponse {
   success: boolean;
-  pid?: number;
-  port?: number;
-  url?: string;
-  error?: string;
+  message: string;
+  suggestion?: string;
 }
 
 export interface ComfyUIStopResponse {
   success: boolean;
-  message?: string;
-  error?: string;
+  message: string;
+  suggestion?: string;
 }
 
 export interface ComfyUIUpdateResponse {
   success: boolean;
-  message?: string;
-  error?: string;
+  message: string;
+  output?: string;
+  was_running?: boolean;
+  restarted?: { success: boolean; message?: string };
+  errors?: string[];
+  hint?: string;
 }
 
 export interface IntegrationStatus {
-  comfyui: ComfyUIStatus;
-  ollama: { online: boolean; engine: string };
-  atomic_chat: { online: boolean; version?: string };
-  go_services: Record<string, { online: boolean; url?: string }>;
+  name: string;
+  status: string;
+  url: string;
+  mock_mode: boolean;
 }
 
 export interface AtomicChatStatus {
-  online: boolean;
-  version?: string;
+  reachable: boolean;
   model?: string;
-  models_available?: string[];
+  model_count?: number;
+  reason?: string;
 }
 
 export interface VRAMStatus {
-  total_mb: number;
-  used_mb: number;
-  free_mb: number;
-  percent: number;
-  processes: GPUProcessInfo[];
+  vram?: {
+    available: boolean;
+    total_mb: number;
+    used_mb: number;
+    free_mb: number;
+    percent: number;
+    gpu_utilization: number;
+    temperature: number;
+    state: string;
+    fallback: string;
+    name: string;
+  };
+  manager: Record<string, unknown>;
 }
 
 export interface MusicVideoStyle {
@@ -1435,8 +1574,15 @@ export interface WorkflowTemplate {
 
 export interface UpscaleResponse {
   success: boolean;
-  output_path?: string;
-  error?: string;
+  engine: "comfyui" | "ffmpeg";
+  model: string;
+  scale: number;
+  source: string;
+  output_path: string;
+  relative_path: string | null;
+  elapsed_s: number;
+  warnings: string[];
+  error: string | null;
 }
 
 // ============================================================================
@@ -1444,34 +1590,87 @@ export interface UpscaleResponse {
 // ============================================================================
 
 export interface MCPContext {
-  character?: Record<string, unknown>;
-  scene?: Record<string, unknown>;
-  audio?: Record<string, unknown>;
-  visualization?: Record<string, unknown>;
+  updatedAt?: number;
+  character?: {
+    name?: string;
+    notes?: string;
+    seed?: number;
+    prompt?: string;
+    visible?: boolean;
+    animation?: string;
+  };
+  scene?: {
+    name?: string;
+    objects?: string[];
+    camera?: string;
+  };
+  audio?: {
+    filename?: string;
+    bpm?: number;
+    energy?: number;
+    beat?: boolean;
+  };
+  visualization?: {
+    style?: string;
+    mode?: "3d" | "shader" | "2d";
+    preset?: string;
+  };
 }
 
 export interface CompileStoryboardRequest {
-  storyboard: Record<string, unknown>;
-  track?: { bpm?: number; duration?: number };
+  storyboard: {
+    track?: string;
+    title?: string;
+    duration?: number;
+    scenes: {
+      id?: string;
+      title?: string;
+      description?: string;
+      start?: number;
+      end?: number;
+      duration_seconds?: number;
+      palette?: Record<string, string>;
+    }[];
+  };
+  name?: string;
+  title?: string;
+  audio_path?: string;
+  audio_data?: HyperFramesAudioPayload;
 }
 
 export interface CompileStoryboardResponse {
   success: boolean;
-  composition?: string;
-  error?: string;
+  composition: string;
+  manifest: string;
+  scene_count: number;
+  duration_seconds: number;
+  message: string;
 }
 
 export interface HyperFramesAudioPayload {
-  track_url: string;
-  analysis_url: string;
-  stems_urls: Record<string, string>;
-  timing_metadata: TimingMetadata;
+  fps: number;
+  duration: number;
+  bands: number;
+  totalFrames: number;
+  beat_times: number[];
+  downbeat_times: number[];
+  frames: {
+    time: number;
+    rms: number;
+    energy: number;
+    bands: number[];
+    isBeat: boolean;
+    isDownbeat: boolean;
+  }[];
+  lyrics: unknown[];
 }
 
 export interface HyperFramesStatus {
-  available: boolean;
-  version?: string;
-  compositions: string[];
+  test_project: string;
+  exists: boolean;
+  hyperframes_cli: string;
+  cli_available: boolean;
+  version: string;
 }
 
 export interface HyperFramesExample {
@@ -1494,36 +1693,49 @@ export interface RenderHyperFramesResponse {
 export interface SkillInfo {
   name: string;
   description: string;
-  version: string;
-  author?: string;
+  version: string | null;
+  server: string | null;
+  tools: string[];
   tags: string[];
+  uri: string;
+  resources: {
+    uri: string;
+    name: string;
+    mimeType: string;
+    size: number;
+  }[];
 }
 
 export interface SkillContent {
   name: string;
-  description: string;
-  version: string;
-  code: string;
-  dependencies?: string[];
+  version: string | null;
+  server: string | null;
+  tools: string[];
+  tags: string[];
+  frontmatter: Record<string, unknown>;
+  body: string;
+  resources: {
+    uri: string;
+    name: string;
+    mimeType: string;
+    size: number;
+  }[];
 }
 
 export interface ToolInfo {
   name: string;
   description: string;
-  parameters: Record<string, unknown>;
 }
 
 export interface ExecuteToolRequest {
   tool_name: string;
   arguments: Record<string, unknown>;
-  timeout_ms?: number;
 }
 
 export interface ExecuteToolResponse {
   success: boolean;
   result?: unknown;
   error?: string;
-  duration_ms: number;
 }
 
 // ============================================================================
@@ -1531,25 +1743,26 @@ export interface ExecuteToolResponse {
 // ============================================================================
 
 export interface AgentTurn {
-  role: "user" | "assistant" | "tool";
+  type: "thought" | "tool_call" | "tool_result" | "final" | "error";
   content: string;
-  tool_calls?: { name: string; arguments: Record<string, unknown> }[];
-  tool_result?: unknown;
+  toolName?: string;
+  toolArgs?: Record<string, unknown>;
+  toolResult?: ExecuteToolResponse;
 }
 
 export interface AgentLoopOptions {
-  max_turns?: number;
   model?: string;
-  temperature?: number;
-  tools?: ToolDefinition[];
-  system_prompt?: string;
+  taskType?: "coding" | "vision" | "chat" | "default";
+  maxIterations?: number;
+  onTurn?: (turn: AgentTurn) => void;
+  systemPrompt?: string;
 }
 
 export interface AgentLoopResult {
   success: boolean;
+  finalResponse: string;
   turns: AgentTurn[];
-  final_response: string;
-  error?: string;
+  iterations: number;
 }
 
 // ============================================================================
@@ -1557,35 +1770,42 @@ export interface AgentLoopResult {
 // ============================================================================
 
 export interface RenderEngineInfo {
-  name: string;
+  id: string;
+  label: string;
+  notes: string;
   available: boolean;
-  version?: string;
-  formats: string[];
-  max_resolution?: string;
+  detail: string;
 }
 
 export interface RenderResponse {
   success: boolean;
-  job_id?: string;
-  output_path?: string;
-  error?: string;
-  duration_ms?: number;
+  engine: string;
+  output_path: string;
+  relative_path: string | null;
+  render_s: number;
+  size_bytes: number;
+  error: string | null;
+  notes: string;
 }
 
 export interface MatrixArtifact {
-  engine: string;
-  format: string;
-  resolution: string;
+  kind: "vertical" | "loop" | "thumbnail";
   path: string;
-  size_bytes: number;
-  duration_ms: number;
+  relative_path: string;
+  width: number;
+  height: number;
+  duration: number;
+  notes: string;
 }
 
 export interface ExportMatrixResponse {
   success: boolean;
+  source: string;
   artifacts: MatrixArtifact[];
-  errors: { engine: string; format: string; error: string }[];
-  total_duration_ms: number;
+  errors: { kind: string; error: string }[];
+  render_s: number;
+  manifest_path: string | null;
+  message: string;
 }
 
 // ============================================================================
@@ -1600,13 +1820,21 @@ export interface DocSearchResult {
 }
 
 export interface DocsBootstrap {
-  structure: { name: string; path: string; children?: { name: string; path: string }[] }[];
-  index: Record<string, { title: string; path: string }>;
+  version?: string;
+  project?: string;
+  description?: string;
+  ports?: Record<string, number>;
+  vault_docs?: { path: string; title: string; tags: string[] }[];
+  quick_start?: Record<string, string>;
+  [key: string]: unknown;
 }
 
 export interface ProjectStructure {
-  directories: { name: string; path: string; children?: ProjectStructure["directories"] }[];
-  files: { name: string; path: string; size: number }[];
+  root?: string;
+  structure?: Record<string, unknown>;
+  depth?: number;
+  directories?: { name: string; path: string; children?: ProjectStructure["directories"] }[];
+  files?: { name: string; path: string; size: number }[];
 }
 
 // ============================================================================
@@ -1614,21 +1842,251 @@ export interface ProjectStructure {
 // ============================================================================
 
 export interface UnityStatus {
-  running: boolean;
-  version?: string;
-  project_path?: string;
-  scene_loaded?: string;
+  online: boolean;
+  error?: string;
+  status?: unknown;
 }
 
 export interface UnityCommandResult {
-  success: boolean;
-  result?: unknown;
+  ok: boolean;
+  data?: unknown;
   error?: string;
-  command: string;
 }
 
 export interface UnityCommandInfo {
   name: string;
-  description: string;
-  parameters: Record<string, unknown>;
+  description?: string;
+  tags?: string[];
+  package?: string;
+}
+// ============================================================================
+// Types recovered from the pre-typed-fetch module files (db2110ca~1)
+// that the rewrite moved to types.ts incompletely.
+// recovered from pre-typed-fetch rewrite
+export interface VideoGenerationResponse {
+  success: boolean;
+  output_path?: string;
+  seed?: number;
+  prompt_id?: string;
+  message?: string;
+}
+
+// recovered from pre-typed-fetch rewrite
+export interface GenerationResultResponse {
+  status: string;
+  success?: boolean;
+  output_path?: string;
+  prompt_id: string;
+  error?: string;
+  kind?: string;
+}
+
+// recovered from pre-typed-fetch rewrite
+export interface GenerationProgressResponse {
+  status: string;
+  prompt_id: string;
+  step?: number;
+  total_steps?: number;
+  queue_position?: number;
+  error?: string;
+}
+
+// recovered from pre-typed-fetch rewrite
+export interface GenerationPreviewResponse {
+  filename?: string;
+  subfolder?: string;
+  node_id?: string;
+  error?: string;
+}
+
+// recovered from pre-typed-fetch rewrite
+export interface CanvasLoopResponse {
+  success: boolean;
+  output_path: string | null;
+  duration: number | null;
+  width: number | null;
+  height: number | null;
+  error: string | null;
+  message: string | null;
+}
+
+// recovered from pre-typed-fetch rewrite
+export interface RouteSceneResponse {
+  model: string;
+  tier: string;
+  reason: string;
+  vram_required_mb: number | null;
+  cloud_fallback: string | null;
+  routing_note: string | null;
+}
+
+// recovered from pre-typed-fetch rewrite
+export interface AssembleResponse {
+  success: boolean;
+  output_path: string | null;
+  duration: number | null;
+  shots_used: number | null;
+  render_s: number | null;
+  error: string | null;
+  message: string | null;
+  engine: string | null;
+}
+
+// recovered from pre-typed-fetch rewrite
+export interface StemVisualizationResponse {
+  stems: Record<string, unknown>;
+  separated: boolean;
+  uniforms: Record<string, StemVisualizationUniform>;
+  curve_points: number;
+}
+
+// recovered from pre-typed-fetch rewrite
+export interface StemVisualizationUniform {
+  stem: string;
+  energy_curve: number[];
+  curve_points: number;
+  rms_mean: number;
+  rms_std: number;
+  centroid_mean: number;
+  zcr_mean: number;
+  duration: number;
+  file: string;
+  url: string;
+}
+
+// recovered from pre-typed-fetch rewrite
+export interface HealthStatus {
+  status: string;
+  services: Record<string, string>;
+}
+
+// ============================================================================
+// Restored pre-rewrite definitions (were module-local before db2110ca)
+// ============================================================================
+
+export interface DiagnosticsModel {
+  name: string;
+  size_mb: number;
+  vram_mb: number;
+  expires_at: string;
+}
+
+export interface ImageProcessRequest {
+  style: string;
+  style_image?: string;
+  output_name?: string;
+}
+
+export interface ImageProcessResponse {
+  output_path: string;
+  relative_path: string;
+  size: [number, number];
+  mode: string;
+  format: string;
+  applied_effects: string[];
+}
+
+export interface ImageRemixRequest {
+  images: string[];
+  preset?: "drums_a_vocals_b" | "blend" | "intro_swap";
+  gain?: number;
+  key_shift?: number;
+  start_bar?: number;
+}
+
+export interface ImageRemixResponse {
+  output_path: string;
+  relative_path: string;
+  layers: number;
+  mastered: boolean;
+  master_path?: string;
+}
+
+export interface ImagePreviewRequest {
+  layers: ImageRemixRequest["images"];
+  preset?: ImageRemixRequest["preset"];
+}
+
+export interface ImagePreviewResponse {
+  output_path: string;
+  relative_path: string;
+  preview_url: string;
+}
+
+export interface ImageCapabilities {
+  service: string;
+  pillow_version: string;
+  features: Record<string, boolean>;
+  operations: Record<string, unknown>;
+  max_image_size: { width: number; height: number };
+  max_file_size_mb: number;
+}
+
+export interface ImageHealth {
+  status: string;
+  service: string;
+  bridge_version: string;
+  provider_update_detected: boolean;
+  compatibility: {
+    parameter_map: Record<string, string>;
+    response_map: Record<string, string>;
+    unsupported_features: string[];
+  };
+}
+
+export interface SkillResourceContent {
+  contents: {
+    uri: string;
+    mimeType: string;
+    text?: string;
+    blob?: string;
+  }[];
+}
+
+export interface NotificationItem {
+  id: string;
+  type: string | null;
+  data: Record<string, unknown> | null;
+  timestamp: string | null;
+  priority: "urgent" | "high" | "medium" | "low";
+}
+
+export interface NotificationPreferences {
+  progress: boolean;
+  completed: boolean;
+  failed: boolean;
+  cancelled: boolean;
+  system: boolean;
+  quietHours: { enabled: boolean; start: string; end: string };
+  push: { enabled: boolean; subscribed: boolean };
+}
+
+export interface PushSubscriptionJSON {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
+
+export interface AppSettings {
+  comfyui_url: string;
+  ollama_url: string;
+  atomic_chat_url: string;
+  atomic_chat_enabled: boolean;
+  log_level: string;
+  max_queue_workers: number;
+  backend_port: number;
+  frontend_port: number;
+  default_model?: string;
+}
+
+export interface UnityAudioSyncFrame {
+  audioData: Pick<
+    AudioData,
+    "bass" | "mid" | "treble" | "beat" | "energy" | "peak" | "beatPhase" | "analyzedEnergy"
+  >;
+  audioTime: number;
+  progress?: number;
+  intensity?: number;
 }

@@ -57,6 +57,8 @@ export async function regenerateAudioCover(path: string): Promise<RegenerateCove
   return postJson<RegenerateCoverResponse>(
     `${BASE}/cover?path=${encodeURIComponent(path)}`,
     {},
-    { method: "POST", timeout: 30000 },
+    { timeout: 30000 },
   );
 }
+
+export type * from "./types";

@@ -153,3 +153,5 @@ export async function queueImageJob(
     { timeout: 30000 },
   );
 }
+
+export type * from "./types";

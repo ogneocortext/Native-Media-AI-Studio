@@ -2,7 +2,7 @@
  * Frontend client for /api/data — prompts, visuals, sessions, preferences, tracks.
  */
 
-import { getJson, postJson, fetchJson } from "./typed-fetch";
+import { getJson, postJson, deleteJson, fetchJson } from "./typed-fetch";
 import type {
   StoredPrompt,
   AIVisualRecord,
@@ -234,8 +234,9 @@ export async function getPromptChain(entryId: string): Promise<PromptHistoryEntr
  * Delete a prompt version.
  */
 export async function deletePromptVersion(entryId: string): Promise<{ success: boolean }> {
-  return getJson<{ success: boolean }>(`${BASE}/prompt-history/${entryId}`, {
-    method: "DELETE",
+  return deleteJson<{ success: boolean }>(`${BASE}/prompt-history/${entryId}`, {
     timeout: 30000,
   });
 }
+
+export type * from "./types";

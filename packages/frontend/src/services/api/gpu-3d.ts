@@ -101,3 +101,5 @@ export async function generate3DFromImage(
     timeout: 600000,
   });
 }
+
+export type * from "./types";

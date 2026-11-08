@@ -20,6 +20,7 @@ export {
 export {
   type AdapterHealth,
   type AggregateHealth,
+  type HealthStatus,
   type AdapterDetail,
   type ServiceStatus,
   type SystemHealth,
@@ -183,6 +184,7 @@ export {
 
 // Re-export shared types
 export type { Job, JobType, JobStatus, QueueStats, QueueMetrics, PortConfig } from "@shared/types";
+export { fetchWithTimeout } from "../fetchWithTimeout";
 
 /**
  * Get the API base URL (empty string for same-origin proxy).

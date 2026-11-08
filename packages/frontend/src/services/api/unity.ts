@@ -93,7 +93,7 @@ export function buildUnityAudioFrameProperties(frame: {
     energy: number;
     peak: number;
     beatPhase: number;
-    analyzedEnergy: number;
+    analyzedEnergy?: number;
   };
   audioTime: number;
   progress?: number;
@@ -127,7 +127,7 @@ export async function syncUnityAudioFrame(params: {
       energy: number;
       peak: number;
       beatPhase: number;
-      analyzedEnergy: number;
+      analyzedEnergy?: number;
     };
     audioTime: number;
     progress?: number;
@@ -181,3 +181,5 @@ export async function setUnityMaterialProperties(params: {
 }): Promise<UnityCommandResult> {
   return sendUnityCommand("set_material_properties", params);
 }
+
+export type * from "./types";

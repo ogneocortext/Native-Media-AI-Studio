@@ -98,3 +98,5 @@ export async function clearFailedJobs(): Promise<void> {
     timeout: 30000,
   });
 }
+
+export type { Job, QueueStats, QueueMetrics, JobType } from "@shared/types";

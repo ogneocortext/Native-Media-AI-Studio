@@ -211,3 +211,34 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** satisfied — /library loads data end-to-end.
 - **Last session:** Devin, 2026-11-08 — diagnosed via Playwright +
   Vite error overlay, fixed both import/URL bugs, re-verified live.
+
+### T-LIB-10 — Repair db2110ca API-layer type surface (type+lint gates)
+- **Status:** done
+- **Goal:** The db2110ca typed-fetch rewrite left ~309 TS errors and 2
+  ESLint errors across services/api + consumers, keeping origin/main
+  red for every agent's pre-push gates.
+- **Changes:** restored the public type surface the rewrite dropped —
+  re-exported shared/job/port types from types.ts, added missing type
+  exports across ~20 api modules (ollama, data, database, generation,
+  video-render, mcp-*, media, docs, remix), fixed semantic mismatches
+  (method leaking into Omit<RequestInit>, base vs BASE, SSE event
+  unions, DocsBootstrap vs real /api/docs/bootstrap shape, remix
+  lineage vs /api/audio/remix/by-track, Generate3DRequest guidance_scale,
+  jobStore shared Job/QueueStats). Test-side: made analyzedEnergy
+  optional in unity.ts inline frame types (matches ?? energy fallback),
+  added missing mockApiResponse helper to tests/helpers.ts (vst-host.spec
+  imported it since 48c3903a). Lint: replaced types.ts STEM_NAMES const
+  with a literal StemName union, fixed no-useless-assignment in
+  typed-fetch label derivation.
+- **Files:** packages/frontend/src/services/api/* (27 modules),
+  packages/frontend/src/state/jobStore.ts,
+  packages/frontend/src/features/generate3d/useGeneration3D.ts,
+  packages/frontend/src/features/hyperframes/HyperFramesPage.tsx,
+  packages/frontend/tests/helpers.ts,
+  docs/plans/tasks/library-and-organization.md.
+- **Verification:** pnpm type-check = 0 errors (was ~309);
+  eslint src = 0 errors (was 2; 2559 pre-existing warnings unchanged).
+- **Acceptance:** satisfied — type and lint gates green; commit+push
+  unblocked for the whole tree.
+- **Last session:** Devin, 2026-11-08 — finished the repair under
+  board claim devin-api-repair, gates verified locally before push.

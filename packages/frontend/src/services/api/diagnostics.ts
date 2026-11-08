@@ -78,3 +78,5 @@ export async function getJobTypes(): Promise<Record<string, unknown>> {
   const base = getApiBase();
   return getJson<Record<string, unknown>>(`${base}/api/jobs/types`, { timeout: 30000 });
 }
+
+export type * from "./types";

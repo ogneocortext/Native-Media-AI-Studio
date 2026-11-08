@@ -93,7 +93,7 @@ export function HyperFramesPage() {
         workers: "auto",
         output: "render.mp4",
       });
-      setRenderResult(res);
+      setRenderResult(res as unknown as Record<string, unknown>);
     } catch (e) {
       setError("Render failed: " + ((e as Error).message ?? String(e)));
     } finally {

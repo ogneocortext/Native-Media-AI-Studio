@@ -82,3 +82,5 @@ export function maintenanceDetailNumber(
   const value = detail[key];
   return typeof value === "number" ? value : null;
 }
+
+export type * from "./types";

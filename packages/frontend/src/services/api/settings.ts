@@ -23,3 +23,5 @@ export async function updateSettings(settings: Partial<AppSettings>): Promise<Ap
   const base = "/api/integrations/config";
   return postJson<AppSettings>(`${base}/settings`, settings, { timeout: 30000 });
 }
+
+export type * from "./types";

@@ -86,12 +86,13 @@ export async function fetchJson<T>(
   endpointName?: string
 ): Promise<T> {
   const response = await fetchWithTimeout(url, options);
-  let label = url;
-  try {
-    label = new URL(url, window.location.origin).pathname;
-  } catch {
-    label = url.split("?")[0];
-  }
+  const label = (() => {
+    try {
+      return new URL(url, window.location.origin).pathname;
+    } catch {
+      return url.split("?")[0];
+    }
+  })();
   return parseJson<T>(response, endpointName ?? label);
 }
 
@@ -101,14 +102,14 @@ export async function fetchJson<T>(
 export async function postJson<T, B = unknown>(
   url: string,
   body: B,
-  options?: Omit<RequestInit, "method" | "body" | "headers"> & { timeout?: number },
+  options?: Omit<RequestInit, "method" | "body"> & { timeout?: number },
   endpointName?: string
 ): Promise<T> {
   return fetchJson<T>(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
     body: JSON.stringify(body),
     ...options,
+    headers: { "Content-Type": "application/json", ...options?.headers },
   }, endpointName);
 }
 
@@ -118,7 +119,7 @@ export async function postJson<T, B = unknown>(
 export async function postForm<T>(
   url: string,
   formData: FormData,
-  options?: Omit<RequestInit, "method" | "body" | "headers"> & { timeout?: number },
+  options?: Omit<RequestInit, "method" | "body"> & { timeout?: number },
   endpointName?: string
 ): Promise<T> {
   return fetchJson<T>(url, {
@@ -156,13 +157,13 @@ export async function deleteJson<T>(
 export async function putJson<T, B = unknown>(
   url: string,
   body: B,
-  options?: Omit<RequestInit, "method" | "body" | "headers"> & { timeout?: number },
+  options?: Omit<RequestInit, "method" | "body"> & { timeout?: number },
   endpointName?: string
 ): Promise<T> {
   return fetchJson<T>(url, {
     method: "PUT",
-    headers: { "Content-Type": "application/json", ...options?.headers },
     body: JSON.stringify(body),
     ...options,
+    headers: { "Content-Type": "application/json", ...options?.headers },
   }, endpointName);
 }

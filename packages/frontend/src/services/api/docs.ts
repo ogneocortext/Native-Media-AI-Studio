@@ -36,3 +36,5 @@ export async function getProjectStructure(depth = 3): Promise<ProjectStructure> 
     { timeout: 30000 },
   );
 }
+
+export type * from "./types";
