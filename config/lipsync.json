@@ -6,8 +6,8 @@
     "normalization_timeout_seconds": 600
   },
   "inference": {
-    "_comment": "Command template with {video} {audio} {output} {weights_dir} {prep_dir} {avatar_key} {batch_size} {float16_flag} {scratch_dir} placeholders. CONFIRM against the installed MuseTalk version on the Windows GPU box before setting — CLI flags drift between releases (v1.5 uses --inference_config YAML + --result_dir, not positional args). Empty means fail-open with guidance.",
-    "command": "",
+    "_comment": "Command template with {video} {audio} {output} {weights_dir} {prep_dir} {avatar_key} {batch_size} {float16_flag} {scratch_dir} placeholders. tools/musetalk_run.py wraps MuseTalk v1.5's YAML-task CLI into this contract; cwd is weights_dir.parent = the MuseTalk checkout (D:/MuseTalk).",
+    "command": "\"D:\\venvs\\musetalk\\Scripts\\python.exe\" \"D:\\Backup of Important Data for Windows 11 Upgrade\\Native Media AI Studio\\tools\\musetalk_run.py\" --video \"{video}\" --audio \"{audio}\" --output \"{output}\" --result-dir \"{scratch_dir}\" --batch-size {batch_size} {float16_flag}",
     "timeout_seconds": 3600,
     "batch_size": 1,
     "scratch_dir": null
@@ -17,7 +17,7 @@
     "enabled": false
   },
   "vram_budget_mb": 4096,
-  "weights_dir": "models/musetalk",
+  "weights_dir": "D:/MuseTalk/models",
   "use_float16": true,
   "target_fps": 25,
   "preparation": {

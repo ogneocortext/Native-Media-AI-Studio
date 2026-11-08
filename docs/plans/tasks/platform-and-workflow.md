@@ -1654,9 +1654,22 @@ Rules: `docs/plans/tasks/README.md`
   2026-11-08: mock-mode live smoke PASS; stems_paths exposed on
   separate-file cache hits (vocals stem no longer falls back to full
   mix); post-stitch chunk-media cleanup; DELETE /lipsync-batch/{id}
-  with 409-on-active-jobs guard. Still open: real MuseTalk v1.5 YAML
-  command template unconfigured (command empty by design — needs the
-  actual install); latents.pt prep aspirational vs v1.5
-  --use_saved_coord pkl cache; no live non-mock inference has run.
-- **Last session:** Devin, 2026-11-08 — sweep complete, gates green,
-  commit+push; follow-up commits 1a24e148 + 8dfc897b.
+  with 409-on-active-jobs guard. Real install completed 2026-11-09:
+  TMElyralab/MuseTalk @ 0a89dec at D:\MuseTalk, weights ~7.2 GB under
+  models/, dedicated venv D:\venvs\musetalk (torch 2.0.1+cu118,
+  mmcv 2.0.1, mmdet 3.1.0, mmpose 1.1.0, numpy 1.26.4 — numpy 2.x and
+  pandas 3.x are incompatible, pinned down). tools/musetalk_run.py
+  wraps scripts.inference's YAML-task CLI; config/lipsync.json now
+  carries the real command + weights_dir. LIVE REAL INFERENCE PASS:
+  direct scripts.inference run AND full adapter path (check_installation
+  ready -> staged scratch -> streaming progress -> output/video/
+  lipsync_real_smoke.mp4, 8 s, ~220 s wall, VRAM released, no orphans).
+  Fixed en route: charset-normalizer reinstall, chumpy build-isolation
+  (needed wheel+setuptools), PYTHONUTF8=1 for child (MuseTalk prints
+  CJK 「」 that crashes cp1252 consoles mid-run). Still open:
+  latents.pt prep aspirational vs v1.5 --use_saved_coord pkl cache
+  (per-video coord reuse would need stable staged names + persistent
+  prep dir — landmark pass is only ~40 s of ~220 s, deferred);
+  batch_size>1 untested on 8 GB VRAM.
+- **Last session:** Devin, 2026-11-09 — real MuseTalk v1.5 install +
+  first live inference PASS end-to-end; ledger + config + wrapper.
