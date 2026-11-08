@@ -1560,3 +1560,29 @@ Rules: `docs/plans/tasks/README.md`
   type-check clean; unit tests pass.
 - **Last session:** Devin, 2026-11-08 — sweep complete, all six
   scopes verified, commit+push.
+
+### T-HOOK-01 — Exec-command guard: adversarial test + line-by-line hardening
+- **Status:** done
+- **Goal:** The PreToolUse exec guard (tools/hooks/check-exec-command.py)
+  shipped pattern-by-pattern; prove it holds up under a real test matrix
+  and fix the kinks a line-by-line review surfaces.
+- **Changes:** quote-aware heredoc detection (kills `echo "a << b"` and
+  `a<<b` bit-shift false positives; still catches `"$(cat <<EOF ...)"`
+  subexpressions and `cat<<EOF` glued forms, plus bash `<<<` herestrings);
+  unix-utility command-position block (find/grep/xargs/env/export/chmod/
+  wget/…); PS51 check reordered before foreign-shell for the specific
+  reason; expandable here-string now requires opener AND `"@` closer;
+  `git restore --staged .` added to destructive set; new
+  tools/hooks/test-check-exec-command.py — 75-case matrix.
+- **Files:** tools/hooks/check-exec-command.py,
+  tools/hooks/test-check-exec-command.py (new),
+  docs/powershell-command-sheet.md, AGENTS.md,
+  packages/backend/app/api/vst.py (user WIP — ruff-mechanical only:
+  unused VSTPreset import, whitespace, .values() for unused loop var,
+  trailing newline; logic untouched, left uncommitted)
+- **Verification:** 75/75 matrix cases pass (38 block, 37 pass incl.
+  near-miss FP probes); malformed/empty/non-string stdin fails open;
+  ruff clean on all touched files; py_compile clean on vst.py.
+- **Acceptance:** satisfied — hook blocks every banned class, passes
+  every legit near-miss, fails open on bad input.
+- **Last session:** Devin, 2026-11-08 — test+review+fix cycle complete.

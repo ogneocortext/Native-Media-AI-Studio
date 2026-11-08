@@ -24,8 +24,11 @@
 > `docs/powershell-command-sheet.md` in full — **§0 "Escaping Rules"
 > first**: any command containing a newline, backtick, `$`, or both
 > quote types must be written to a file and executed, never inlined.
-> Heredocs, `bash`/`sh`/`cmd`/`wsl`, and `powershell.exe` are **blocked
-> by a PreToolUse hook** (`tools/hooks/check-exec-command.py`) before
+> Heredocs, `bash`/`sh`/`cmd`/`wsl`, `powershell.exe`, unix utilities
+> (`find`/`grep`/`env`/`export`/…), multi-line `-m`/`-c`/`-e` payloads,
+> expandable here-strings, and destructive git ops are **blocked
+> by a PreToolUse hook** (`tools/hooks/check-exec-command.py`, tests in
+> `tools/hooks/test-check-exec-command.py`) before
 > they run — do not attempt them even once.
 > It is the authoritative
 > PowerShell 7 command reference for this Windows machine. **Do NOT use

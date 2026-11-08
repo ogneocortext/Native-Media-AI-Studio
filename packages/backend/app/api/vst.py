@@ -14,7 +14,6 @@ from pydantic import BaseModel
 from ..core.config import OUTPUT_DIR, PROJECT_ROOT
 from ..services.vst_host import (
     VSTChain,
-    VSTPreset,
     get_vst_host,
     reset_vst_host,
 )
@@ -62,10 +61,10 @@ def convert_plugin_info(p: Any) -> PluginInfo:
     """Convert VSTPluginInfo to API PluginInfo with proper parameter conversion."""
     # Convert parameters to PluginParameter format
     api_params = []
-    
+
     # Handle both list (from scan) and dict (from cached plugin) formats
     params_source = p.parameters.values() if isinstance(p.parameters, dict) else p.parameters
-    
+
     for param in params_source:
         # Handle both dict and PluginParameter formats
         if isinstance(param, dict):
@@ -90,7 +89,7 @@ def convert_plugin_info(p: Any) -> PluginInfo:
                 unit=getattr(param, "unit", ""),
                 value=val,
             ))
-    
+
     return PluginInfo(
         name=p.name,
         path=p.path,
@@ -191,7 +190,7 @@ async def get_plugin_parameters(plugin_name: str) -> dict[str, Any]:
     try:
         plugin = host.load_plugin(plugin_name)
         parameters = []
-        for param_name, param in plugin.parameters.items():
+        for param in plugin.parameters.values():
             parameters.append({
                 "name": param.name,
                 "min": param.min_value,
@@ -373,7 +372,7 @@ async def get_all_parameters() -> dict[str, list[PluginParameter]]:
         try:
             plugin = host.load_plugin(name)
             params = []
-            for param_name, param in plugin.parameters.items():
+            for param in plugin.parameters.values():
                 params.append(PluginParameter(
                     name=param.name,
                     value=param.value,

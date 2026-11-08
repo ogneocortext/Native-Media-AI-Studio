@@ -8,22 +8,27 @@ non-zero, which the CLI logs but does NOT block on, so a broken hook can
 never wedge the session.
 
 Blocked patterns (all verified recurring failures on this machine):
-  - Bash heredocs: <<EOF, <<'PY', python - <<'PY', cat <<EOF, etc. pwsh has
-    no heredoc syntax; the command fails with a parser error every time.
+  - Bash heredocs/herestrings: <<EOF, <<'PY', python - <<'PY', cat <<EOF,
+    cat <<< "text", etc. pwsh has no such syntax; the command fails with a
+    parser error every time. Detected quote-aware so `echo "a << b"` and
+    bit-shifts don't trip it.
   - Non-pwsh shells in command position: bash, sh, zsh, cmd, wsl — all
     resolve to WSL/cmd on this box and produce confusing errors.
+  - Unix-only utilities in command position: find, grep, xargs, env,
+    export, chmod, wget, etc. — they resolve to WSL launchers or fail;
+    use pwsh cmdlets or the dedicated file/search tools.
   - powershell.exe / bare `powershell` — Windows PowerShell 5.1, retired.
     The project shell is pwsh 7+.
-  - Multi-line `git commit -m` — embedded newlines in -m arguments are the
-    classic mangled-commit-message failure; use `git commit -F <file>`.
+  - Multi-line `git commit -m` — an -m quote left open across a newline is
+    the classic mangled-commit-message failure; use `git commit -F <file>`.
   - Multi-line `python -c` / `node -e` — inline scripts with newlines get
     parsed as multiple pwsh statements; write a scratch file instead.
-  - Expandable here-strings (@"..."@) piped to file-writing cmdlets —
-    backtick expansion corrupts markdown/code content; use the write/edit
-    tools or the literal @'...'@ form.
+  - Expandable here-strings (@"..."@ ... "@) — backtick expansion corrupts
+    markdown/code content; use the write/edit tools or literal @'...'@.
+    Requires both opener and closer so `echo "foo @"` doesn't trip it.
   - Destructive git ops (push --force, reset --hard, clean -fd, checkout --,
-    restore .) — repo rules require explicit user approval. Override: the
-    user creates .devin/.allow-destructive to permit them once.
+    restore ., restore --staged .) — repo rules require explicit user
+    approval. Override: the user creates .devin/.allow-destructive.
 
 See docs/powershell-command-sheet.md §0 for the patterns agents should use
 instead (write a file, run the file).
@@ -37,15 +42,17 @@ import sys
 PROJECT_DIR = os.environ.get("DEVIN_PROJECT_DIR") or os.getcwd()
 DESTRUCTIVE_FLAG = os.path.join(PROJECT_DIR, ".devin", ".allow-destructive")
 
-# Heredoc operator: << or <<- followed by an optional quote and a word.
-# Bit-shift false positives inside `python -c "a << b"` are accepted —
-# inline -c scripts are discouraged anyway (write a file instead).
-HEREDOC_RE = re.compile(r"<<-?\s*['\"]?[A-Za-z_]")
+HEREDOC_TAIL_RE = re.compile(r"<<-?\s*['\"]?[A-Za-z_]")
 
-# Non-pwsh shells, only in command position (start of string or after a
-# command separator) so paths/arguments like "script.sh" don't trip it.
+# Non-pwsh shells and unix-only utilities, only in command position (start
+# of string or after a command separator) so paths/arguments don't trip it.
 FOREIGN_SHELL_RE = re.compile(
     r"(?:^|[;&|\n]\s*)(?:bash|sh|zsh|cmd|wsl|powershell)(?:\.exe)?(?:\s|$)",
+    re.IGNORECASE,
+)
+UNIX_UTIL_RE = re.compile(
+    r"(?:^|[;&|\n]\s*)(?:find|grep|xargs|which|env|export|chmod|chown|chgrp|"
+    r"ln|sudo|su|wget|dos2unix|file|make|diff|patch)(?:\s|$)",
     re.IGNORECASE,
 )
 
@@ -59,16 +66,19 @@ GIT_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
 # (separate statements) does not match.
 COMMIT_M_MULTILINE_RE = re.compile(r"""-m\s+["'][^"'\n]*\n""")
 INLINE_SCRIPT_RE = re.compile(r"\b(?:python3?|node)\s+(?:-c|-e)\b")
-# Expandable here-string opener: `@"` as a standalone token at end-of-line.
-# The leading whitespace/start anchor avoids matching `"foo@"` literals.
-EXPANDABLE_HERESTRING_RE = re.compile(r'(?:^|\s)@"[ \t]*(?:\r?\n|$)', re.MULTILINE)
+
+# Expandable here-string: `@"` as a standalone token at end-of-line AND a
+# `"@` closer at the start of a later line. Requiring both avoids matching
+# literals like `echo "foo @"`.
+HERESTRING_OPEN_RE = re.compile(r'(?:^|\s)@"[ \t]*\r?\n', re.MULTILINE)
+HERESTRING_CLOSE_RE = re.compile(r'(?:^|\n)[ \t]*"@')
 
 DESTRUCTIVE_RES = [
     re.compile(r"\bgit\s+push\b[^|;&\n]*?(?:--force\b|(?:\s|^)-f\b)", re.IGNORECASE),
     re.compile(r"\bgit\s+reset\s+--hard\b", re.IGNORECASE),
     re.compile(r"\bgit\s+clean\b[^|;&\n]*?-[a-zA-Z]*f", re.IGNORECASE),
     re.compile(r"\bgit\s+checkout\s+--", re.IGNORECASE),
-    re.compile(r"\bgit\s+restore\s+(?:--worktree\s+)?\.(?:\s|$)", re.IGNORECASE),
+    re.compile(r"\bgit\s+restore\s+(?:(?:--worktree|--staged)\s+)?\.(?:\s|$)", re.IGNORECASE),
 ]
 
 REASONS = {
@@ -84,6 +94,12 @@ REASONS = {
         "to WSL or cmd and produce confusing errors. Rewrite the command in "
         "PowerShell 7 or move the logic into a script file. "
         "See docs/powershell-command-sheet.md."
+    ),
+    "unix-util": (
+        "Unix utilities (find/grep/xargs/env/export/chmod/wget/…) are not "
+        "pwsh — they resolve to WSL launchers or fail. Use PowerShell 7 "
+        "cmdlets (Get-ChildItem, Select-String, Where-Object, $env:) or the "
+        "dedicated file/search tools. See docs/powershell-command-sheet.md."
     ),
     "ps51": (
         "`powershell` is Windows PowerShell 5.1 — retired for repo work. "
@@ -109,16 +125,90 @@ REASONS = {
     ),
     "destructive": (
         "Destructive git operations (force-push, reset --hard, clean -fd, "
-        "checkout --, restore .) require explicit user approval per repo "
-        "rules — they are blocked by tools/hooks/check-exec-command.py. "
-        "If the user has approved this specific operation, ask them to run "
-        "it themselves or create .devin/.allow-destructive to permit it once."
+        "checkout --, restore ., restore --staged .) require explicit user "
+        "approval per repo rules — they are blocked by "
+        "tools/hooks/check-exec-command.py. If the user has approved this "
+        "specific operation, ask them to run it themselves or create "
+        ".devin/.allow-destructive to permit it once."
     ),
 }
 
 
 def block(reason_key: str) -> None:
     print(json.dumps({"decision": "block", "reason": REASONS[reason_key]}))
+
+
+def _has_heredoc(command: str) -> bool:
+    """Find `<<` outside quotes, not part of a bit-shift like `a<<b`."""
+    i = 0
+    n = len(command)
+    quote = None
+    while i < n:
+        c = command[i]
+        if quote is None:
+            if c in "'\"":
+                quote = c
+                i += 1
+                continue
+            if command.startswith("<<<", i):
+                return True  # bash here-string — also invalid in pwsh
+            if command.startswith("<<", i):
+                m = HEREDOC_TAIL_RE.match(command, i)
+                if m:
+                    prev = command[i - 1] if i > 0 else " "
+                    if prev.isalnum() or prev in "_$":
+                        # Glued to a word (a<<b bit-shift vs cat<<EOF): only
+                        # treat it as a heredoc for UPPERCASE delimiters.
+                        word = re.match(
+                            r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)", command[i:]
+                        )
+                        delimiter = word.group(1) if word else ""
+                        if not re.fullmatch(r"[A-Z_][A-Z0-9_]+", delimiter):
+                            i += 1
+                            continue
+                    return True
+            i += 1
+        elif quote == "'":
+            if c == "'":
+                if i + 1 < n and command[i + 1] == "'":
+                    i += 2
+                    continue
+                quote = None
+            i += 1
+        else:  # double quote — $(...) subexpressions are live code in pwsh
+            if c == "`":
+                i += 2
+                continue
+            if c == "$" and i + 1 < n and command[i + 1] == "(":
+                # Extract the subexpression and scan it as code: a heredoc
+                # inside "$(cat <<'EOF' ...)" is still a heredoc attempt.
+                depth = 1
+                j = i + 2
+                while j < n and depth > 0:
+                    cj = command[j]
+                    if cj == "(":
+                        depth += 1
+                    elif cj == ")":
+                        depth -= 1
+                    elif cj in "'\"":
+                        q = cj
+                        j += 1
+                        while j < n and command[j] != q:
+                            if q == '"' and command[j] == "`":
+                                j += 1
+                            j += 1
+                    j += 1
+                if _has_heredoc(command[i + 2 : j - 1]):
+                    return True
+                i = j
+                continue
+            if c == '"':
+                if i + 1 < n and command[i + 1] == '"':
+                    i += 2
+                    continue
+                quote = None
+            i += 1
+    return False
 
 
 def main() -> int:
@@ -132,17 +222,19 @@ def main() -> int:
 
     has_newline = "\n" in command or "\r" in command
 
-    if HEREDOC_RE.search(command):
+    if _has_heredoc(command):
         block("heredoc")
-    elif FOREIGN_SHELL_RE.search(command):
-        block("foreign-shell")
     elif PS51_RE.search(command):
         block("ps51")
+    elif FOREIGN_SHELL_RE.search(command):
+        block("foreign-shell")
+    elif UNIX_UTIL_RE.search(command):
+        block("unix-util")
     elif GIT_COMMIT_RE.search(command) and COMMIT_M_MULTILINE_RE.search(command):
         block("commit-msg")
     elif has_newline and INLINE_SCRIPT_RE.search(command):
         block("inline-script")
-    elif EXPANDABLE_HERESTRING_RE.search(command):
+    elif HERESTRING_OPEN_RE.search(command) and HERESTRING_CLOSE_RE.search(command):
         block("expandable-herestring")
     elif not os.path.exists(DESTRUCTIVE_FLAG) and any(r.search(command) for r in DESTRUCTIVE_RES):
         block("destructive")
