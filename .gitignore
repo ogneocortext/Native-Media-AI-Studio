@@ -169,6 +169,10 @@ diffusion_models/
 *.jpeg
 !packages/frontend/public/**/*
 !packages/frontend/public/preview/index.html
+# Voice-cloning reference clips are source assets, not generated output
+!voices/**/*.wav
+!voices/**/*.mp3
+!voices/**/*.flac
 
 # Unity (Library is regenerable cache — never commit)
 unity-project-mcp/Library/

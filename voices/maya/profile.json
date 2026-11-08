@@ -1,0 +1,5 @@
+{
+  "name": "Maya",
+  "language": "en",
+  "ref_text_source": "bundled F5-TTS example (basic_ref_en.wav) -- replace ref.wav + ref.txt with a real Maya voice sample for production use"
+}

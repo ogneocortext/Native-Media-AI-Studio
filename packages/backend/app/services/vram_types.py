@@ -19,6 +19,7 @@ class GPUWorkload(StrEnum):
     MUSIC_GENERATION = "music_generation"
     AUDIO_ANALYSIS = "audio_analysis"
     LIPSYNC = "lipsync"
+    VOICE_SYNTHESIS = "voice_synthesis"
 
 
 class GPUState(StrEnum):

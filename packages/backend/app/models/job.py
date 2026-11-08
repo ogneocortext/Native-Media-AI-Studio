@@ -37,6 +37,7 @@ class JobType(StrEnum):
     COMFYUI_WORKFLOW = "comfyui_workflow"
     AUDIO_FEATURE_EXTRACTION = "audio_feature_extraction"
     LIPSYNC = "lipsync"
+    VOICE_SYNTHESIS = "voice_synthesis"
     REMIX_BUILD = "remix_build"
     REMIX_ENHANCE = "remix_enhance"
     REMOTION_RENDER = "remotion_render"

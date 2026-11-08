@@ -1,0 +1,23 @@
+{
+  "_comment": "Local F5-TTS voice synthesis (zero-shot cloning). No network calls to third-party TTS -- reference clip + transcript only. Output WAVs land in output/audio/ and are served by GET /api/audio/file/<name>.",
+  "voices_dir": "voices",
+  "chunking": {
+    "_comment": "F5-TTS generates ~30s max per pass (reference + generated share the window). Chunks are packed at sentence boundaries; callers should send Shorts-length scripts (~30s).",
+    "max_chunk_chars": 380,
+    "max_total_chars": 4000
+  },
+  "inference": {
+    "_comment": "Pinned venv on D: (torch 2.5.0+cu124 -- last wheel with sm_61). The wrapper loads the model once per job and exits, so VRAM is released between jobs; synthesis does not assume MuseTalk is resident. HF weights cache lives on D:.",
+    "python": "D:\\venvs\\f5tts\\Scripts\\python.exe",
+    "wrapper": "tools/f5tts_run.py",
+    "model": "F5TTS_v1_Base",
+    "hf_cache_dir": "D:/F5TTS/hf-cache",
+    "timeout_seconds": 1800,
+    "extra_args": []
+  },
+  "mock": {
+    "_comment": "DEV-ONLY. When true, synthesize() copies the reference clip to the output instead of running the model, so the queue/poll/download path can be exercised with no GPU. NEVER true for real output.",
+    "enabled": false
+  },
+  "vram_budget_mb": 2560
+}

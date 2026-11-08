@@ -33,6 +33,7 @@ from ..services.image_generator import ImageGenerationHandler
 from ..services.lipsync_handler import LipSyncHandler
 from ..services.music_video_handler import MusicVideoHandler, MusicVideoPreviewHandler
 from ..services.storyboard_generator import StoryboardGeneratorHandler
+from ..services.voice_handler import VoiceSynthesisHandler
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,9 @@ HANDLER_TIMEOUT_SECONDS = 300
 #: dies as handler_timeout before the model finishes.
 HANDLER_TIMEOUT_BY_TYPE: dict[JobType, int] = {
     JobType.LIPSYNC: 4500,
+    # Voice synthesis budgets inference_timeout_s (config default 1800) + 300 s
+    # of model-load/chunk/write headroom inside the handler.
+    JobType.VOICE_SYNTHESIS: 2100,
 }
 
 # How long a RUNNING job may sit before it is presumed ownerless, and how often
@@ -288,6 +292,9 @@ class JobProcessor:
 
         # Register lip-sync handler (local MuseTalk, D42)
         self.register_handler(JobType.LIPSYNC, LipSyncHandler().process_job)
+
+        # Register voice-synthesis handler (local F5-TTS, zero-shot cloning)
+        self.register_handler(JobType.VOICE_SYNTHESIS, VoiceSynthesisHandler().process_job)
 
     def register_handler(self, job_type: JobType, handler: Callable[[Job], Any]):
         """Register a handler for a specific job type"""

@@ -38,6 +38,7 @@ from .vram_config import (
     MIN_VRAM_FOR_AUDIO,
     MIN_VRAM_FOR_LIPSYNC,
     MIN_VRAM_FOR_MUSIC,
+    MIN_VRAM_FOR_VOICE,
     VRAM_AVAILABLE,
     VRAM_CRITICAL,
     VRAM_POLL_INTERVAL,
@@ -110,6 +111,7 @@ class VRAMManager:
         self._music_gen_running: bool = False
         self._audio_analysis_running: bool = False
         self._lipsync_running: bool = False
+        self._voice_synthesis_running: bool = False
         self._lock = asyncio.Lock()
         self._nvml_available = False
         self._gpustat_available = False
@@ -179,6 +181,7 @@ class VRAMManager:
         self.MIN_VRAM_FOR_MUSIC = MIN_VRAM_FOR_MUSIC  # ACE-Step needs 6 GB
         self.MIN_VRAM_FOR_AUDIO = MIN_VRAM_FOR_AUDIO  # CUDA audio spectral pass
         self.MIN_VRAM_FOR_LIPSYNC = MIN_VRAM_FOR_LIPSYNC  # MuseTalk v1.5 D42
+        self.MIN_VRAM_FOR_VOICE = MIN_VRAM_FOR_VOICE  # F5-TTS v1 Base fp32
 
         # Safety margins for system stability
         self.MIN_SYSTEM_RAM_FOR_OFFLOAD = MIN_SYSTEM_RAM_FOR_OFFLOAD
@@ -921,6 +924,140 @@ class VRAMManager:
                 if last_ac_model:
                     free_mb = vram.get("free_mb", 0)
                     if free_mb > self.MIN_VRAM_FOR_LIPSYNC:
+                        logger.info(
+                            "VRAM Manager: Reloading Atomic Chat model %s (free=%dMB)",
+                            last_ac_model,
+                            free_mb,
+                        )
+                        reload_ok = await _load_model_for_backend("atomic_chat", last_ac_model)
+                        self._atomic_chat_loaded = reload_ok
+                        actions.append(
+                            {
+                                "action": "reload_atomic_chat",
+                                "success": reload_ok,
+                                "model": last_ac_model,
+                            }
+                        )
+
+            return {
+                "success": True,
+                "vram_after": vram,
+                "actions": actions,
+                "ollama_loaded": self._ollama_loaded,
+                "atomic_chat_loaded": self._atomic_chat_loaded,
+            }
+
+    async def begin_voice_synthesis(self, vram_budget_mb: int = 2560) -> dict[str, Any]:
+        """
+        Signal that local voice synthesis (F5-TTS) is starting.
+        Mirrors begin_lipsync_generation: offloads Ollama/Atomic Chat when
+        VRAM is tight, restores them in end_voice_synthesis.
+
+        Args:
+            vram_budget_mb: Required VRAM in MB (default 2560, F5-TTS fp32)
+
+        Returns:
+            Dict with status and actions taken
+        """
+        async with self._lock:
+            logger.info("VRAM Manager: Voice synthesis starting (need=%dMB)", vram_budget_mb)
+            self._current_workload = GPUWorkload.VOICE_SYNTHESIS
+            self._voice_synthesis_running = True
+
+            await self.sync_resident_state()
+
+            vram = await self.get_vram_status()
+            actions = []
+
+            free_mb = vram.get("free_mb", 0)
+            if free_mb >= vram_budget_mb:
+                logger.info("VRAM Manager: Sufficient VRAM for voice (%dMB free)", free_mb)
+                return {
+                    "success": True,
+                    "vram_before": vram,
+                    "actions": actions,
+                    "ollama_loaded": self._ollama_loaded,
+                    "atomic_chat_loaded": self._atomic_chat_loaded,
+                }
+
+            if (
+                self._ollama_loaded or getattr(self, "_atomic_chat_loaded", False)
+            ) and self._can_safely_offload():
+                logger.info("VRAM Manager: Offloading backend models for voice synthesis")
+                ollama_unloaded = await _unload_ollama_models()
+                ac_unloaded = await _unload_atomic_chat_models()
+                self._ollama_loaded = False
+                self._atomic_chat_loaded = False
+                actions.append(
+                    {
+                        "action": "offload_backend_models",
+                        "success": True,
+                        "models": {
+                            "ollama": ollama_unloaded,
+                            "atomic_chat": ac_unloaded,
+                        },
+                    }
+                )
+                vram = await self.get_vram_status()
+                free_mb = vram.get("free_mb", 0)
+                if free_mb >= vram_budget_mb:
+                    return {
+                        "success": True,
+                        "vram_before": vram,
+                        "actions": actions,
+                        "ollama_loaded": False,
+                        "atomic_chat_loaded": False,
+                    }
+
+            self._current_workload = GPUWorkload.IDLE
+            self._voice_synthesis_running = False
+            return {
+                "success": False,
+                "error": f"Insufficient VRAM for voice synthesis ({free_mb}MB free, {vram_budget_mb}MB required)",
+                "vram": vram,
+                "actions": actions,
+                "guidance": "Close other GPU applications or reduce VRAM budget",
+                "ollama_loaded": self._ollama_loaded,
+                "atomic_chat_loaded": self._atomic_chat_loaded,
+            }
+
+    async def end_voice_synthesis(self) -> dict[str, Any]:
+        """
+        Signal that voice synthesis is complete. Reloads Ollama if it was offloaded.
+
+        Returns:
+            Dict with status and actions taken
+        """
+        async with self._lock:
+            logger.info("VRAM Manager: Voice synthesis complete")
+            self._current_workload = GPUWorkload.IDLE
+            self._voice_synthesis_running = False
+
+            vram = await self.get_vram_status()
+            actions = []
+
+            if not self._ollama_loaded:
+                free_mb = vram.get("free_mb", 0)
+                if free_mb > self.MIN_VRAM_FOR_VOICE:
+                    logger.info(
+                        "VRAM Manager: Reloading Ollama after voice synthesis (free=%dMB)", free_mb
+                    )
+                    from ..core.config import config as _cfg2
+
+                    last_model = _sanitize_model_name(
+                        _resolve_last_model(_cfg2.default_model), _cfg2.default_model
+                    )
+                    reload_ok = await _reload_ollama_models(last_model)
+                    self._ollama_loaded = reload_ok
+                    actions.append(
+                        {"action": "reload_ollama", "success": reload_ok, "model": last_model}
+                    )
+
+            if not self._atomic_chat_loaded:
+                last_ac_model = _resolve_atomic_chat_model(None)
+                if last_ac_model:
+                    free_mb = vram.get("free_mb", 0)
+                    if free_mb > self.MIN_VRAM_FOR_VOICE:
                         logger.info(
                             "VRAM Manager: Reloading Atomic Chat model %s (free=%dMB)",
                             last_ac_model,

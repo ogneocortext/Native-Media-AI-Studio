@@ -1685,3 +1685,33 @@ Rules: `docs/plans/tasks/README.md`
   first live inference PASS end-to-end; tailnet HTTP route live +
   remote smoke PASS; lipsync-upload endpoint + remote multipart proof;
   ledger + config + wrapper + LIPSYNC_API.md.
+
+### T-VOICE-01 — Local F5-TTS voice synthesis service (follows T-LIPSYNC-01)
+- **Status:** done
+- **Goal:** Give external callers (Maya over the tailnet) local voice
+  synthesis in a cloned voice, feeding MuseTalk lip-sync downstream.
+- **Changes:** D:\venvs\f5tts venv (Python 3.11, torch 2.5.0+cu124 — last
+  wheel with sm_61; pip initially resolved torch 2.15 CPU-incompatible and
+  numpy 2.4.6/pyarrow conflict — repinned); tools/f5tts_run.py wrapper
+  (model loads once per job, sentence-chunked infer, numpy concat, soundfile
+  out, F5TTS_PROGRESS stdout protocol); app/services/voice/{__init__,
+  text_chunking,f5tts_adapter}.py + voice_handler.py; JobType.
+  VOICE_SYNTHESIS + processor timeout 2100s + handler registration;
+  GPUWorkload.VOICE_SYNTHESIS + MIN_VRAM_FOR_VOICE 2560 + begin/end_
+  voice_synthesis mirroring lipsync; POST /api/voice/synthesize + GET
+  /api/voice/{voices,status}; voices/maya profile (bundled F5-TTS ref);
+  config/voice.json; docs/guides/VOICE_API.md.
+- **Files:** packages/backend/app/api/voice.py,
+  packages/backend/app/models/job.py, packages/backend/app/queue/processor.py,
+  packages/backend/app/services/{voice/*,voice_handler.py,vram_manager.py,
+  vram_config.py,vram_types.py}, packages/backend/app/main.py,
+  packages/backend/tests/test_voice.py, tools/f5tts_run.py,
+  config/voice.json, voices/maya/*, docs/guides/VOICE_API.md
+- **Verification:** pytest test_voice.py 19/19 + lipsync suites 55/55;
+  ruff clean; live tailnet run POST /api/voice/synthesize (maya, 126 chars)
+  -> completed ~35s -> GET /api/audio/file/voice_maya_56d9655f.wav 200
+  (576KB, pcm_s16le 24kHz mono 12.0s, astats clean); wav fed to
+  POST /api/video/lipsync -> job c97d1406 completed.
+- **Acceptance:** satisfied — synth wav -> lipsync job c97d1406 completed (300 frames, 12s, h264 704x1216, HTTP 200).
+- **Last session:** Devin, 2026-11-09 — install + service + API + remote
+  proof PASS; ledger + VOICE_API.md + commit.
