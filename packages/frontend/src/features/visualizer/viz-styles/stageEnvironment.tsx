@@ -153,24 +153,70 @@ function BeamCone({
   );
 }
 
+function makeCrowdTexture(): THREE.CanvasTexture {
+  // Head-and-shoulders silhouette with raised arms — a plain quad reads as
+  // a crate, this reads as a person. One shared texture for all instances;
+  // per-instance scale + instanceColor carry the variety.
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 256;
+  const g = c.getContext("2d");
+  if (!g) return new THREE.CanvasTexture(c);
+  g.fillStyle = "#10141d";
+  g.beginPath();
+  // head
+  g.ellipse(64, 42, 24, 28, 0, 0, Math.PI * 2);
+  g.fill();
+  // neck + shoulders: wide rounded mass to the bottom edge
+  g.beginPath();
+  g.moveTo(64, 52);
+  g.bezierCurveTo(30, 56, 18, 78, 16, 110);
+  g.lineTo(8, 256);
+  g.lineTo(120, 256);
+  g.lineTo(112, 110);
+  g.bezierCurveTo(110, 78, 98, 56, 64, 52);
+  g.fill();
+  // raised arms — two short angled slabs up from the shoulders
+  g.save();
+  g.translate(64, 150);
+  g.rotate(-0.55);
+  g.beginPath();
+  g.roundRect(-70, -9, 44, 18, 9);
+  g.fill();
+  g.rotate(1.1);
+  g.beginPath();
+  g.roundRect(26, -9, 44, 18, 9);
+  g.fill();
+  g.restore();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function CrowdField({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
   // Foreground silhouette cards in an arc — instanced via drei so they
   // render reliably; the whole field bounces on downbeat (group-level,
   // no per-instance matrix bookkeeping).
   const groupRef = useRef<THREE.Group>(null);
+  const crowdTex = useMemo(makeCrowdTexture, []);
   const seeds = useMemo(
     () =>
-      Array.from({ length: 28 }, (_, i) => ({
-        x: -4.2 + (i / 27) * 8.4 + (Math.sin(i * 12.9898) * 0.4),
-        // Closer to the stage + taller cards so heads clear the camera's
-        // bottom frame edge (cam at y=0, z=7, fov 55 — bottom ray hits
-        // y≈-2.1 at z≈3).
-        // Fully in front of the platform's front face (z=2.0) so bodies
-        // aren't occluded by the stage box.
-        z: 2.3 + Math.abs(Math.sin(i * 78.233)) * 1.3,
-        h: 1.8 + Math.abs(Math.sin(i * 4.1414)) * 1.1,
-        w: 0.45 + Math.abs(Math.sin(i * 9.7)) * 0.3,
-      })),
+      // Fewer, spaced figures — 30 overlapping cards merged into a blob.
+      // Width tracks height (~0.32 ratio) so bodies keep human proportion.
+      Array.from({ length: 20 }, (_, i) => {
+        const h = 1.5 + Math.abs(Math.sin(i * 4.1414)) * 0.9;
+        return {
+          x: -5.2 + (i / 19) * 10.4 + (Math.sin(i * 12.9898) * 0.45),
+          // Closer to the stage + taller cards so heads clear the camera's
+          // bottom frame edge (cam at y=0, z=7, fov 55 — bottom ray hits
+          // y≈-2.1 at z≈3). Two depth bands for parallax; far band is
+          // smaller on screen and darker via instanceColor.
+          z: i % 3 === 0 ? 3.4 + Math.abs(Math.sin(i * 78.233)) * 0.9 : 2.4 + Math.abs(Math.sin(i * 78.233)) * 1.0,
+          h,
+          w: h * (0.26 + Math.abs(Math.sin(i * 9.7)) * 0.1),
+          shade: 0.7 + Math.abs(Math.sin(i * 3.3)) * 0.5,
+        };
+      }),
     [],
   );
   useFrame(({ clock }) => {
@@ -194,8 +240,11 @@ function CrowdField({ audioData }: { audioData: React.MutableRefObject<AudioData
       d.scale.set(s.w, s.h, 1);
       d.updateMatrix();
       m.setMatrixAt(i, d.matrix);
+      // Farther/deeper cards read darker — cheap aerial perspective.
+      m.setColorAt(i, new THREE.Color(s.shade, s.shade, s.shade * 1.15));
     });
     m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
     m.count = seeds.length;
   }, [seeds]);
   return (
@@ -206,9 +255,16 @@ function CrowdField({ audioData }: { audioData: React.MutableRefObject<AudioData
         frustumCulled={false}
       >
         <planeGeometry args={[1, 1]} />
-        {/* Near-black but a step above the fog/background so the cards
-            read as silhouettes against beam glow and the LED screen. */}
-        <meshBasicMaterial color="#1a2030" side={THREE.DoubleSide} />
+        {/* Silhouette texture does the "person" read; instanceColor gives
+            per-card shade. Kept dark — they are silhouettes against the
+            beam glow and LED screen, not lit objects. */}
+        <meshBasicMaterial
+          map={crowdTex}
+          transparent
+          color="#dfe8f8"
+          side={THREE.DoubleSide}
+          toneMapped={false}
+        />
       </instancedMesh>
     </group>
   );

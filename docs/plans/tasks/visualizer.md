@@ -1330,7 +1330,7 @@ evidence above.
 
 ### T-VIZ-54 — StageEnvironment: basement-club concert stage kit (v1)
 
-- **Status:** doing (v1 renders verified; polish/re-score pending)
+- **Status:** doing (v2 crowd fix verified; mode re-score pending)
 - **Goal:** Give the 3D visualizer a designed space per
   `stylized-3d-environment-design-for-browser-music-visualizers-2026.md`
   — platform, truss, props, beams, crowd, reactive rig — ahead of the
@@ -1352,9 +1352,18 @@ evidence above.
   visualization style. Platform + edge strip, two truss towers +
   overhead bar (drei Instances for rungs), LED screen (hue/energy
   reactive), 5 additive beam cones (3 front-wash on stage, 2 backlight
-  onto crowd), 2 reactive spotlights, 28-card crowd field (imperative
+  onto crowd), 2 reactive spotlights, crowd field (imperative
   InstancedMesh, group-level downbeat bounce), 4 GLB props under
   per-prop Suspense (useLoader + KTX2-aware getGLTFLoader).
+- **Crowd v2 (this session):** plain quads scored crowd 0/5 across all
+  captures — cards rendered (magenta-pixel proof) but read as crates.
+  Replaced with a canvas-drawn head+shoulders+raised-arms silhouette
+  texture, 30→20 spaced instances, width tied to height (~0.3 human
+  proportion), two depth bands, per-instance shade via setColorAt.
+  Verified on verified-audio captures (`viz-stage-env/` frames, track
+  "Take the Crown"): quiet section 13 distinct figures, loud section 7;
+  full-frame vision scores stage 4/5, crowd 5/5, beams 5/5, designed
+  5/5, hero negative space 4/5.
 - **Verified:** playwright capture `output/tests/stage-env-v2.png` —
   truss/beams/screen/props render; crowd confirmed via pixel analysis
   (VLM can't distinguish near-black silhouettes — expected).
@@ -1372,4 +1381,6 @@ evidence above.
   packages/backend/app/services/gen3d/gen3d_service.py (.gltf ingest fix)
 - **Acceptance:** stage-env mode renders a coherent reactive stage in
   the live visualizer (met for v1); pending re-score vs baseline.
-- **Last session:** Devin, 2026-11-07 — in progress.
+- **Last session:** Devin, 2026-11-08 — crowd silhouette rework verified
+  (13/7 distinct figures quiet/loud, full-frame 4-5/5); awaiting
+  viz-capture re-score and prop texture audit.
