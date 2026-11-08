@@ -38,6 +38,9 @@ def load_vst_config() -> dict:
 # Load configuration
 VST_CONFIG = load_vst_config()
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
+CHAINS_DIR = PROJECT_ROOT / "storage" / "vst-chains"
+
 
 # Build VST search paths from config
 def get_vst_paths() -> list[Path]:
@@ -124,6 +127,10 @@ class VSTHost:
         self.chains: dict[str, VSTChain] = {}
         self.presets: dict[str, list[VSTPreset]] = {}
         self._pedalboard_cache: dict[str, Pedalboard] = {}
+        self.chains_dir = CHAINS_DIR
+        self.chains_dir.mkdir(parents=True, exist_ok=True)
+        self._loading_chains = False
+        self._load_chains()
 
     def scan_vst_plugins(self) -> list[VSTPluginInfo]:
         """Scan all VST paths for plugins."""
@@ -210,8 +217,15 @@ class VSTHost:
             return "midi"
         return "effect"
 
+    def ensure_plugins(self) -> None:
+        """Populate the plugin registry on first use (survives restarts now
+        that chains persist — a restored chain must not 404 its plugins)."""
+        if not self.plugins:
+            self.scan_vst_plugins()
+
     def load_plugin(self, plugin_name: str) -> Any:
         """Load a VST plugin by name."""
+        self.ensure_plugins()
         if plugin_name not in self.plugins:
             raise ValueError(f"Plugin not found: {plugin_name}")
 
@@ -286,6 +300,44 @@ class VSTHost:
             "channels": output.shape[0],
         }
 
+    def _chain_filename(self, name: str) -> Path:
+        safe = "".join(c if c.isalnum() or c in " -_." else "_" for c in name)
+        return self.chains_dir / f"{safe}.json"
+
+    def _persist_chain(self, chain: VSTChain) -> None:
+        try:
+            self._chain_filename(chain.name).write_text(
+                json.dumps(
+                    {
+                        "name": chain.name,
+                        "plugins": chain.plugins,
+                        "sample_rate": chain.sample_rate,
+                        "block_size": chain.block_size,
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+        except OSError as e:
+            logger.warning(f"Failed to persist VST chain '{chain.name}': {e}")
+
+    def _load_chains(self) -> None:
+        self._loading_chains = True
+        try:
+            for f in sorted(self.chains_dir.glob("*.json")):
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    self.chains[data["name"]] = VSTChain(
+                        name=data["name"],
+                        plugins=data.get("plugins", []),
+                        sample_rate=data.get("sample_rate", 44100),
+                        block_size=data.get("block_size", 512),
+                    )
+                except (OSError, json.JSONDecodeError, KeyError, TypeError) as e:
+                    logger.warning(f"Skipping unreadable VST chain file {f}: {e}")
+        finally:
+            self._loading_chains = False
+
     def save_chain(self, chain: VSTChain):
         """Save a VST chain."""
         self.chains[chain.name] = chain
@@ -293,6 +345,8 @@ class VSTHost:
         cache_keys = [k for k in self._pedalboard_cache if k.startswith(chain.name)]
         for k in cache_keys:
             del self._pedalboard_cache[k]
+        if not self._loading_chains:
+            self._persist_chain(chain)
 
     def load_chain(self, chain_name: str) -> VSTChain | None:
         """Load a VST chain."""
@@ -306,6 +360,7 @@ class VSTHost:
         """Delete a VST chain."""
         if chain_name in self.chains:
             del self.chains[chain_name]
+            self._chain_filename(chain_name).unlink(missing_ok=True)
             return True
         return False
 

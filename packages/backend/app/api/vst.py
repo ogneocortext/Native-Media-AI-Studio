@@ -25,6 +25,7 @@ from ..services.vst_host import (
     get_vst_host,
     reset_vst_host,
 )
+from .audio_common import AUDIO_DIR
 
 router = APIRouter(prefix="/api/vst", tags=["VST"])
 
@@ -179,6 +180,7 @@ async def list_plugins() -> dict[str, Any]:
 async def get_plugin(plugin_name: str) -> PluginInfo:
     """Get detailed info about a specific plugin."""
     host = get_vst_host()
+    host.ensure_plugins()
     if plugin_name not in host.plugins:
         raise HTTPException(status_code=404, detail=f"Plugin not found: {plugin_name}") from None
     return convert_plugin_info(host.plugins[plugin_name])
@@ -188,6 +190,7 @@ async def get_plugin(plugin_name: str) -> PluginInfo:
 async def get_plugin_parameters(plugin_name: str) -> dict[str, Any]:
     """Get parameter info for a plugin."""
     host = get_vst_host()
+    host.ensure_plugins()
     if plugin_name not in host.plugins:
         raise HTTPException(status_code=404, detail=f"Plugin not found: {plugin_name}") from None
 
@@ -219,6 +222,7 @@ async def get_plugin_parameters(plugin_name: str) -> dict[str, Any]:
 async def create_chain(chain: ChainCreate, response: Response) -> ChainResponse:
     """Create a new VST chain."""
     host = get_vst_host()
+    host.ensure_plugins()
 
     # Validate all plugins exist
     for plugin_data in chain.plugins:
@@ -277,11 +281,17 @@ async def update_chain(chain_name: str, chain: ChainCreate) -> ChainResponse:
     host = get_vst_host()
     if chain_name not in host.chains:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_name}") from None
+    host.ensure_plugins()
 
     # Validate all plugins exist
     for plugin_data in chain.plugins:
         if plugin_data.name not in host.plugins:
             raise HTTPException(status_code=400, detail=f"Plugin not found: {plugin_data.name}") from None
+
+    # A rename leaves the old dict key and its persisted file behind unless
+    # the old chain is removed first.
+    if chain.name != chain_name:
+        host.delete_chain(chain_name)
 
     vst_chain = VSTChain(
         name=chain.name,
@@ -347,7 +357,12 @@ async def process_audio(request: ProcessRequest) -> ProcessResponse:
     if not input_path.exists():
         raise HTTPException(status_code=404, detail=f"Input file not found: {input_path}") from None
 
-    output_path = OUTPUT_DIR / f"{request.output_name}.wav"
+    if Path(request.output_name).name != request.output_name:
+        raise HTTPException(status_code=400, detail="output_name must be a plain filename") from None
+
+    # Write under output/audio/ so results are servable via /api/audio/file/*
+    # and appear in the audio library.
+    output_path = AUDIO_DIR / f"{request.output_name}.wav"
 
     try:
         result = host.process_file(request.chain_name, input_path, output_path)
@@ -373,8 +388,11 @@ async def process_upload(
         shutil.copyfileobj(file.file, tmp)
         input_path = Path(tmp.name)
 
+    if Path(output_name).name != output_name:
+        raise HTTPException(status_code=400, detail="output_name must be a plain filename") from None
+
     try:
-        output_path = OUTPUT_DIR / f"{output_name}.wav"
+        output_path = AUDIO_DIR / f"{output_name}.wav"
         result = host.process_file(chain_name, input_path, output_path)
         return ProcessResponse(**result)
     finally:

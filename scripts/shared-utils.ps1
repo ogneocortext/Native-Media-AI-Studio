@@ -300,7 +300,9 @@ function Test-PythonEnv {
     if ($Python -match '[\\/]' -and -not (Test-Path -LiteralPath $Python)) {
         return $false
     }
-    $null = & $Python -c "import fastapi, uvicorn, watchfiles" 2>$null
+    # Version floor: the backend uses typing.override (3.12+). A 3.11 env
+    # passes the import probe but dies at app import — check both.
+    $null = & $Python -c "import sys, typing, fastapi, uvicorn, watchfiles; assert sys.version_info >= (3, 12) and hasattr(typing, 'override')" 2>$null
     return $LASTEXITCODE -eq 0
 }
 
@@ -324,8 +326,13 @@ function Resolve-BackendPython {
     }
 
     $envs = Get-PythonEnvs
-    $chain = @($envs.StudioPython, $envs.ComfyPython, $envs.VenvPython) |
-             Select-Object -Unique
+    $chain = @($envs.StudioPython, $envs.ComfyPython, $envs.VenvPython)
+    # Last resort: the PATH 'python' (e.g. C:\Python314) — the studio envs are
+    # all 3.11 while the backend needs 3.12+, so without this the chain can
+    # only ever return a broken interpreter.
+    $pathPython = (Get-Command python -ErrorAction SilentlyContinue).Source
+    if ($pathPython) { $chain += $pathPython }
+    $chain = $chain | Select-Object -Unique
     $existing = @()
     foreach ($candidate in $chain) {
         if (-not (Test-Path -LiteralPath $candidate)) { continue }

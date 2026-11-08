@@ -122,9 +122,11 @@ export function VSTPage() {
 
   const refreshInputs = async () => {
     try {
-      const res = await fetch(`${api}/api/audio/library`);
-      const data = await res.json() as { files: { path: string }[] };
-      setAvailableInputs(data.files.map(f => f.path));
+      const res = await fetch(`${api}/api/audio/files`);
+      const data = await res.json() as { files: { relative_path: string; filename: string }[] };
+      // /api/vst/process resolves input_path under output/, so prefix the
+      // audio-dir-relative path with "audio/".
+      setAvailableInputs(data.files.map(f => `audio/${f.relative_path}`));
     } catch (e) {
       console.error("Failed to refresh inputs:", e);
     }
@@ -235,7 +237,7 @@ export function VSTPage() {
             <div className={styles.resultItem}>
               <span className={styles.resultLabel}>Output</span>
               <a
-                href={`/api/audio/file/${processingResult.output_path.replace(/^.*output\//, '')}`}
+                href={`/api/audio/file/${processingResult.output_path.replace(/^.*output[\\/]audio[\\/]/, '')}`}
                 target="_blank"
                 rel="noopener"
                 className={styles.resultValueCyan}
@@ -262,7 +264,7 @@ export function VSTPage() {
               </span>
             </div>
           </div>
-          <audio controls src={`/api/audio/file/${processingResult.output_path.replace(/^.*output\//, '')}`} className={styles.audioPlayer} />
+          <audio controls src={`/api/audio/file/${processingResult.output_path.replace(/^.*output[\\/]audio[\\/]/, '')}`} className={styles.audioPlayer} />
         </Card>
       )}
     </div>
