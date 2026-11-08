@@ -1348,3 +1348,52 @@ async def lipsync_batch_stitch(batch_id: str) -> dict:
     except Exception as exc:
         logger.exception("Lip-sync batch stitch error")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.delete("/lipsync-batch/{batch_id}")
+async def lipsync_batch_delete(batch_id: str) -> dict:
+    """Delete a lip-sync batch's working directory and manifest.
+
+    Refuses with 409 while any chunk job is still active (pending, queued,
+    running, retrying) — deleting underneath a live job would orphan its
+    output writes. Cancel the jobs first via the queue API.
+    """
+    try:
+        from ..core.config import PROJECT_ROOT as _PR
+        from ..queue.manager import queue_manager
+        from ..services.lipsync import batch as lipbatch
+
+        bdir, mpath = _lipsync_batch_state(_PR, batch_id)
+        if not mpath.is_file():
+            raise FileNotFoundError(f"Batch not found: {batch_id}")
+        manifest = lipbatch.read_manifest(mpath)
+
+        active_states = {"pending", "queued", "running", "retrying"}
+        active: list[dict[str, Any]] = []
+        for chunk in manifest.get("chunks", []):
+            job = await queue_manager.get_job(chunk["job_id"])
+            st = getattr(job.status if job is not None else "unknown", "value", "unknown")
+            if st in active_states:
+                active.append(
+                    {"index": chunk["index"], "job_id": chunk["job_id"], "status": st}
+                )
+        if active:
+            raise RuntimeError(
+                f"Batch has {len(active)} active chunk job(s): "
+                + ", ".join(f"#{c['index']} ({c['status']})" for c in active)
+            )
+
+        shutil.rmtree(bdir, ignore_errors=True)
+        return {
+            "success": True,
+            "batch_id": batch_id,
+            "deleted": str(bdir),
+            "message": f"Deleted lip-sync batch {batch_id}",
+        }
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Lip-sync batch delete error")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
