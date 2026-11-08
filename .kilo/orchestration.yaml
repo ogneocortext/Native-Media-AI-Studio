@@ -1,0 +1,165 @@
+# Sub-Agent Orchestration Configuration
+# Project: native-media-ai-studio
+
+# Resource limits
+max_concurrent_agents: 3
+session_token_budget: 500000
+default_timebox_seconds: 480  # 8 minutes
+max_agents_per_task: 8
+max_retries: 1
+
+# Model assignments by agent type
+models:
+  explore: "bolt-local"           # Fast read-only lookups
+  general: "gpt-6"                # Balanced reasoning
+  "backend-architect": "gpt-6"    # Deep architecture
+  "frontend-architect": "gpt-6"   # Deep frontend
+  "android-engineer": "gpt-6"     # Mobile specialist
+  "go-engineer": "gpt-6"          # Go specialist
+
+# Reasoning effort by complexity
+reasoning_effort:
+  quick: "low"        # <2 min
+  standard: "medium"  # 5-10 min
+  deep: "high"        # 15+ min
+
+# Auto-trigger patterns (no manual intervention needed)
+auto_triggers:
+  # Code review / analysis
+  - pattern: ["review", "audit", "analyze.*code", "line.by.line", "deep.dive"]
+    agent: "explore"
+    config:
+      thoroughness: "very thorough"
+      timebox: "600"  # 10 minutes
+  
+  # Research / best practices
+  - pattern: ["best.practice", "current.trend", "modern.approach", "research", "latest", "2026"]
+    agent: "general"
+    config:
+      use_skill: "current-best-practices"
+      timebox: "480"  # 8 minutes
+  
+  # Visual / UI verification
+  - pattern: ["verify ui", "visual regression", "screenshot", "looks correct", "visual qa", "visual.qa", "ui verification", "visual verification"]
+    agent: "general"
+    config:
+      use_skill: "visual-qa-loop"
+      timebox: "300"  # 5 minutes
+  
+  # Backend architecture / API design
+  - pattern: ["api.design", "backend.arch", "service.layer", "database.schema", "fastapi"]
+    agent: "backend-architect"
+    config:
+      timebox: "480"  # 8 minutes
+  
+# Frontend component / page creation
+  - pattern: ["create component", "build page", "implement ui", "frontend", "react component", "create react", "build react"]
+    agent: "frontend-architect"
+    config:
+      timebox: "600"  # 10 minutes
+
+  # Complex refactoring / multi-file changes
+  - pattern: ["refactor.*multiple", "rename across", "migrate", "modernize codebase"]
+    agent: "general"
+    config:
+      use_skill: "line-by-line-review"
+      timebox: "900"  # 15 minutes
+  
+  # Testing / E2E verification
+  - pattern: ["test.*e2e", "playwright", "integration test", "test measure improve", "fix failing test"]
+    agent: "general"
+    config:
+      use_skill: "test-measure-improve"
+      timebox: "600"  # 10 minutes
+  
+  # Dependency / security audit
+  - pattern: ["dependency audit", "security scan", "supply chain", "vulnerability", "dependency check"]
+    agent: "general"
+    config:
+      use_skill: "dependency-management"
+      timebox: "300"  # 5 minutes
+  
+# Vendor drift / upgrade verification
+  - pattern: ["upgrade vendor", "drift check", "fresh pull", "vendor update", "vendor upgrade"]
+    agent: "general"
+    config:
+      use_skill: "vendor-drift"
+      timebox: "480"  # 8 minutes
+
+  # VST Host system specific
+  - pattern: ["vst", "vst3", "plugin", "chain", "audio.plugin"]
+    agent: "general"
+    config:
+      use_skill: "line-by-line-review"
+      context: "VST Host system in packages/frontend/src/features/vst/"
+      timebox: "600"  # 10 minutes
+
+  # Visualizer / shader / Three.js specific
+  - pattern: ["visualizer", "shader", "three.js", "webgl", "unity", "blender"]
+    agent: "frontend-architect"
+    config:
+      use_skill: "visual-qa-loop"
+      context: "Unity/Three.js visualizer in unity-visualizer/ and packages/frontend/src/features/visualizer/"
+      timebox: "600"  # 10 minutes
+
+# Composite triggers for multi-agent workflows
+# Composite triggers for multi-agent workflows
+composite_triggers:
+  - name: "vst_feature"
+    when: "VST Host feature work"
+    pattern: ["vst.*feature", "vst.*plugin", "vst.*chain", "vst.*host.*feature"]
+    sequence:
+      - "explore"  # analyze VST codebase
+      - "frontend-architect"  # implement UI
+      - "general"  # tests and integration
+    timebox: "1800"  # 30 minutes
+    
+  - name: "visualizer_feature"
+    when: "Visualizer/Three.js feature work"
+    pattern: ["visualizer.*feature", "shader.*feature", "three.*feature", "unity.*feature"]
+    sequence:
+      - "explore"  # analyze visualizer code
+      - "frontend-architect"  # implement
+      - "general"  # visual-qa-loop verification
+    timebox: "1800"  # 30 minutes
+    
+  - name: "legacy_refactor"
+    when: "refactor touches >5 files across layers"
+    pattern: ["refactor.*legacy", "modernize.*codebase", "refactor.*across"]
+    sequence:
+      - "explore"  # analyze current state
+      - ["backend-architect", "frontend-architect"]  # parallel redesign
+      - "general"  # implementation with line-by-line-review
+    timebox: "2700"  # 45 minutes
+    
+  - name: "full_feature_implementation"
+    when: "new feature spanning backend + frontend + tests"
+    pattern: ["implement.*feature", "add.*feature", "build.*system", "new.*feature"]
+    sequence:
+      - ["backend-architect", "frontend-architect"]  # parallel
+      - "general"  # integration verification
+    timebox: "1800"  # 30 minutes
+
+# Domain mappings for this repo
+domain_agents:
+  "backend/fastapi": "backend-architect"
+  "backend/python": "backend-architect"
+  "frontend/react": "frontend-architect"
+  "frontend/typescript": "frontend-architect"
+  "unity/csharp": "general"
+  "blender/python": "general"
+  "go/sidecars": "go-engineer"
+  "python/ml": "general"
+  "python/audio": "general"
+
+# Project-specific context
+project:
+  name: "native-media-ai-studio"
+  root: "."
+  key_directories:
+    - "packages/frontend/src/features/vst/"
+    - "packages/frontend/src/features/visualizer/"
+    - "packages/backend/app/api/vst.py"
+    - "packages/backend/app/services/vst_host.py"
+    - "unity-visualizer/"
+    - "unity-project-mcp/"
