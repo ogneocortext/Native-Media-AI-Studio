@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "exec|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python tools/hooks/check-exec-command.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
