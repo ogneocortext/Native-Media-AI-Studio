@@ -182,6 +182,8 @@ for AI agents.
 
 - Added `docs/knowledge-library/stylized-3d-environment-design-for-browser-music-visualizers-2026.md` → `#technical`
 
+- Added `docs/knowledge-library/texture-generation-stage-for-ai-generated-3d-assets-2026.md` → `#technical`
+
 
 ## How to use this log
 

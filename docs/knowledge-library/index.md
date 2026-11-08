@@ -53,6 +53,7 @@ date: 2026-09-30
 - [[organizational-consistency-2026|🧭 Organizational Consistency]] — One source per organizational fact: the 2026-11-06 drift census, canonical task-block/index/frontmatter rules (R1–R6), the area↔category crosswalk, and the checker that enforces them (NEW 2026-11-06)
 
 ### 🛠️ Technical Implementation (Code & Systems)
+- [[texture-generation-stage-for-ai-generated-3d-assets-2026|Texture generation stage for AI-generated 3D assets]] — Texture generation stage for AI-generated 3D assets
 - [[stylized-3d-environment-design-for-browser-music-visualizers-2026|3D environment]] — Stylized 3D Environment Design for Browser Music Visualizers
 - [[facial-expression-systems-for-stylized-real-time-characters-2026|facial animation]] — Facial Expression Systems for Stylized Real-Time Characters
 - [[stylized-3d-character-design-for-audio-reactive-visualization-2026|3D character design]] — Stylized 3D Character Design for Audio-Reactive Visualization
@@ -200,7 +201,7 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 23 documents |
-|| `#technical/*` | System implementation & code | 30 documents |
+|| `#technical/*` | System implementation & code | 31 documents |
 || `#platform/*` | Platform-specific integrations | 12 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |

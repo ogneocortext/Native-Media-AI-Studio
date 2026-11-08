@@ -355,7 +355,16 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   `src/utils/gltfLoader.ts` attaches `KTX2Loader` (transcoder in
   `public/basis/`, ~585 KB) per-renderer; `ModelPreview` and the
   three-js-studio loaders now use it. ruff clean on both backend
-  files; `tsc -b` shows no new errors.
+  files; `tsc -b` shows no new errors. Same session: texture-stage spec
+  written to [[texture-generation-stage-for-ai-generated-3d-assets-2026]]
+  (T0 vertex-color bake → T1 concept-image projection → T2 opt-in
+  inpainting; slots between decimate and KTX2 ingest). Asset audit via
+  tri-ladder renders + vision: character_rigged.glb is an 80-tri flat
+  slab, Y_Bot.glb is a dead 404 file, character_3d.glb ingested to
+  248K tris/19.9 MB (hero cap PASS-WARN, still untextured — motivates
+  the texture stage). NOTE: output/generated_3d files vanished mid-
+  ingest once (dst deleted during Blender run, .decimated.glb
+  survived) — recovered manually; cause unknown, watch for recurrence.
 
 ### T-VID-13 — Design the frame-package contract: control-pass rendering from owned scenes
 - **Status:** done
