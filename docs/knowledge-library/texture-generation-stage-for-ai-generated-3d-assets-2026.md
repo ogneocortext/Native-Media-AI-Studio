@@ -91,6 +91,39 @@ Stage tiers, gated by role:
 - Visual verification via the visualizer-mode-qa / ModelPreview screenshot
   loop, not assertion.
 
+## Implementation status (2026-11-07)
+
+Implemented as spec'd, with these verified deviations/notes:
+
+- **T0/T1 live in `packages/backend/app/services/gen3d/texture_glb.py`**
+  (Blender headless, `decimate_glb.py` pattern) driven by
+  `tools/gen3d-texture.py` (`glb` mode, `--role`, `--concept`, `--force`,
+  `--out`, `--preview`) and wired into `_postprocess_glb` between decimate
+  and `ingest-texture.py`, reported under `texture_stage`.
+- **T1 is direct-assign, not baked** — the concept image is projected from
+  a canonical 3/4 view via deterministic manual UV projection
+  (`world_to_camera_view`), then wired straight to Base Color. No bake
+  pass; cheaper and more reliable headless.
+- **Concept plumbing done properly:** `SaveImage` nodes tap the stage-1
+  VAEDecode output in the Hunyuan/TripoSR/SF3D text-to-3D workflows; the
+  filename is recovered from `/history` outputs (`_concept_from_outputs`)
+  and passed through `_submit_workflow → _finish_with_timing → _upload_image
+  → _postprocess_glb`. Image-to-3D passes the user's reference image.
+- **No repo GLB actually carried COLOR_0** (verified by parsing the GLB
+  JSON chunk: `triposr_api_e2e_00001_.original.glb` has only
+  NORMAL/POSITION — the e2e export path drops vertex colors). T0 was
+  verified on synthetic COLOR_0 GLBs instead; if TripoSR/SF3D exports
+  start carrying COLOR_0 the stage picks it up automatically.
+- **Blender's glTF importer cannot read `KHR_texture_basisu`** — already
+  KTX2'd GLBs (e.g. re-ingesting an `ingest_*` asset) are skipped with
+  `method: "none"`, `reason: "basisu_textures_unsupported_by_blender"`.
+  Pipeline order (texture stage before ingest) means this never triggers
+  on fresh generations.
+- **Timing:** the ≤30 s budget holds for decimated (~30k-face) meshes;
+  a 248k-face ingest took minutes mostly in import/export, so the tool
+  timeout is 360 s. UV unwrap adds no geometry — `check-asset-budget`
+  triangle counts are unaffected.
+
 ## Related
 
 - [[texture-pipeline-ktx2-authoring-and-ingest-2026]]:see-also — downstream

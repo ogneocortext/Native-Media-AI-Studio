@@ -365,6 +365,21 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   the texture stage). NOTE: output/generated_3d files vanished mid-
   ingest once (dst deleted during Blender run, .decimated.glb
   survived) — recovered manually; cause unknown, watch for recurrence.
+  2026-11-07 addendum (owner: handle the texture stage): T0+T1 landed
+  per [[texture-generation-stage-for-ai-generated-3d-assets-2026]].
+  `services/gen3d/texture_glb.py` (Blender headless, decimate_glb.py
+  pattern) + `tools/gen3d-texture.py` wrapper; `_postprocess_glb` runs
+  it between chrome and KTX2 ingest, non-fatal, reported as
+  `texture_stage`. T0 bakes COLOR_0 vertex colors to a 1024px texture;
+  T1 (hero/mid only) projects the concept/reference image via
+  deterministic 3/4-view UV projection. Concept plumbing: SaveImage
+  nodes added to all three text-to-3D workflows, recovered from ComfyUI
+  history; image-to-3D passes the reference image. Verified on synthetic
+  COLOR_0 GLBs + char_proj_preview.png (concept colors on mesh).
+  Caveats: no real export carries COLOR_0 yet (e2e path drops vertex
+  colors — T0 engages if they ever do); T1 is direct-assign not bake;
+  ComfyUI SaveImage path untested live (degrades to T0-only);
+  248K-face ingest took minutes (timeout 360s).
 
 ### T-VID-13 — Design the frame-package contract: control-pass rendering from owned scenes
 - **Status:** done

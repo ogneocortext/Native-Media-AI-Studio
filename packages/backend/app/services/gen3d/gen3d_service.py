@@ -206,6 +206,19 @@ def _role_budget(role: str | None) -> dict[str, Any] | None:
     return entry
 
 
+def _extract_marker_json(stdout: str, marker: str) -> dict[str, Any] | None:
+    """Pull a ``<marker> {json}`` line out of a tool's noisy stdout."""
+    for line in reversed((stdout or "").splitlines()):
+        idx = line.find(marker + " ")
+        if idx < 0:
+            continue
+        try:
+            return json.loads(line[idx + len(marker) + 1 :])
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
 def _run_tool(script: str, argv: list[str], timeout: int) -> dict[str, Any]:
     """Run a repo tool script; never raises — returns {ok, stdout, stderr}."""
     import subprocess
@@ -478,7 +491,14 @@ class Gen3DService:
 
             try:
                 workflow = self._build_image23d_workflow(image_path, output_name, steps)
-                result = await self._submit_workflow(workflow, output_path, role=role)
+                # The reference image doubles as the T1 concept image for the
+                # texture stage (docs/knowledge-library/texture-generation-stage-...).
+                result = await self._submit_workflow(
+                    workflow,
+                    output_path,
+                    role=role,
+                    concept_path=str(Path(image_path).resolve()),
+                )
                 return result
             finally:
                 # VRAM Management: Reload Ollama after 3D generation
@@ -667,6 +687,15 @@ class Gen3DService:
                     "file_format": "glb",
                 },
             },
+            # Save the stage-1 concept image so the texture stage (T1) can
+            # project it onto the mesh. Captured from history outputs.
+            "14": {
+                "class_type": "SaveImage",
+                "inputs": {
+                    "images": ["7", 0],
+                    "filename_prefix": f"concept/{output_name}",
+                },
+            },
         }
 
     def _build_triposr_text23d_workflow(
@@ -741,6 +770,14 @@ class Gen3DService:
                 "inputs": {
                     "mesh": ["8", 0],
                     "filename_prefix": f"3d/{output_name}",
+                },
+            },
+            # Save the stage-1 concept image for the T1 texture stage.
+            "10": {
+                "class_type": "SaveImage",
+                "inputs": {
+                    "images": ["6", 0],
+                    "filename_prefix": f"concept/{output_name}",
                 },
             },
         }
@@ -818,6 +855,14 @@ class Gen3DService:
                     "mesh": ["8", 0],
                     "filename_prefix": f"3d/{output_name}",
                     "format": "glb",
+                },
+            },
+            # Save the stage-1 concept image for the T1 texture stage.
+            "10": {
+                "class_type": "SaveImage",
+                "inputs": {
+                    "images": ["6", 0],
+                    "filename_prefix": f"concept/{output_name}",
                 },
             },
         }
@@ -1079,7 +1124,13 @@ class Gen3DService:
         shutil.copy2(src, dst)
         return src.name
 
-    def _upload_image(self, image_path: str, prompt_id: str, role: str | None = None) -> dict[str, Any]:
+    def _upload_image(
+        self,
+        image_path: str,
+        prompt_id: str,
+        role: str | None = None,
+        concept_path: str | None = None,
+    ) -> dict[str, Any]:
         """Copy the ComfyUI-exported .glb into the backend output dir, decimate if needed, and return its path."""
         logger.info("Finalizing output: %s", image_path)
         cand = Path(image_path)
@@ -1104,7 +1155,11 @@ class Gen3DService:
                 }
 
             return self._postprocess_glb(
-                dst, role=role, prompt_id=prompt_id, apply_chrome=True
+                dst,
+                role=role,
+                prompt_id=prompt_id,
+                apply_chrome=True,
+                concept_path=concept_path,
             )
         # Source file not found -- surface what ComfyUI reported.
         logger.warning("Exported .glb not found at %s (source %s)", image_path, src)
@@ -1122,6 +1177,7 @@ class Gen3DService:
         prompt_id: str,
         *,
         apply_chrome: bool,
+        concept_path: str | None = None,
     ) -> dict[str, Any]:
         """Decimate + texture-ingest + budget-check a finished GLB in place.
 
@@ -1152,10 +1208,27 @@ class Gen3DService:
             except Exception as e:
                 logger.debug("Chrome apply skipped: %s", e)
 
+        # T0/T1 texture stage (spec: docs/knowledge-library/
+        # texture-generation-stage-for-ai-generated-3d-assets-2026.md).
+        # Runs AFTER decimate (UV/bake work on final polycount) and BEFORE
+        # KTX2 ingest (which compresses whatever textures this stage emits).
+        # Non-fatal by contract — failures are reported, never raised.
+        ingest_role = role if role in _VALID_ROLES else "mid"
+        texture_argv = ["glb", str(dst), "--role", ingest_role]
+        if concept_path:
+            texture_argv += ["--concept", str(concept_path)]
+        tex = _run_tool("gen3d-texture.py", texture_argv, timeout=360)
+        texture_stage: dict[str, Any] = {"ran": True, "ok": tex["ok"]}
+        tex_payload = _extract_marker_json(tex["stdout"], "TEXTURE_RESULT")
+        if tex_payload:
+            texture_stage.update(tex_payload)
+        if not tex["ok"] and "error" not in texture_stage:
+            texture_stage["error"] = (tex["stderr"] or tex["stdout"])[-400:]
+            logger.warning("Texture stage failed for %s: %s", dst.name, texture_stage["error"])
+
         # T-VID-12 ingest post-step: downscale textures to the role cap
         # and convert to KTX2 in place. Failures are reported, never fatal
         # — the mesh is still usable uncompressed.
-        ingest_role = role if role in _VALID_ROLES else "mid"
         ingest = _run_tool(
             "ingest-texture.py",
             ["glb", str(dst), "--role", ingest_role, "--codec", "etc1s", "--out", str(dst)],
@@ -1188,6 +1261,7 @@ class Gen3DService:
             "prompt_id": prompt_id,
             "decimate": decimate_result,
             "budget": budget_report,
+            "texture_stage": texture_stage,
             "texture_ingest": ingest_result,
             "role": role,
         }
@@ -1357,6 +1431,7 @@ class Gen3DService:
         workflow: dict[str, Any],
         output_path: Path,
         role: str | None = None,
+        concept_path: str | None = None,
     ) -> dict[str, Any]:
         """Submit a workflow to ComfyUI and wait for completion.
 
@@ -1397,6 +1472,10 @@ class Gen3DService:
         # node (Hy3DExportMesh, ExportMeshGLB, ...) carries it as an input.
         expected_prefix = None
         for node in workflow.values():
+            # SaveImage nodes also carry filename_prefix (concept/...) —
+            # only mesh-export nodes count for GLB polling.
+            if node.get("class_type") == "SaveImage":
+                continue
             prefix = node.get("inputs", {}).get("filename_prefix")
             if isinstance(prefix, str) and prefix:
                 expected_prefix = prefix
@@ -1433,6 +1512,13 @@ class Gen3DService:
                     node_history = history[prompt_id]
                     outputs = node_history.get("outputs", {})
 
+                    # Concept image for the T1 texture stage: an explicit
+                    # path (image-to-3D reference) wins; otherwise take the
+                    # first SaveImage output the workflow wrote (text-to-3D
+                    # stage-1 SD1.5 concept render).
+                    if concept_path is None:
+                        concept_path = self._concept_from_outputs(outputs)
+
                     glb_rel: str | None = None
                     for node_output in outputs.values():
                         if not isinstance(node_output, dict):
@@ -1447,7 +1533,14 @@ class Gen3DService:
                     if glb_rel:
                         logger.info("3D generation complete: %s", glb_rel)
                         return self._finish_with_timing(
-                            glb_rel, prompt_id, t_submit, submit_done, exec_start, exec_end, role
+                            glb_rel,
+                            prompt_id,
+                            t_submit,
+                            submit_done,
+                            exec_start,
+                            exec_end,
+                            role,
+                            concept_path=concept_path,
                         )
 
                     # Check for errors
@@ -1473,6 +1566,7 @@ class Gen3DService:
                                     exec_start,
                                     exec_end,
                                     role,
+                                    concept_path=concept_path,
                                 )
 
                         # Fallback: search for any new GLB in the output directory
@@ -1492,6 +1586,7 @@ class Gen3DService:
                                     exec_start,
                                     exec_end,
                                     role,
+                                    concept_path=concept_path,
                                 )
 
             except Exception as e:
@@ -1506,6 +1601,36 @@ class Gen3DService:
 
         return {"success": False, "error": "Timeout waiting for 3D generation"}
 
+    @staticmethod
+    def _concept_from_outputs(outputs: dict[str, Any]) -> str | None:
+        """Find the concept image a SaveImage node wrote, from history outputs.
+
+        SaveImage reports ``images: [{filename, subfolder, type}]``; resolve
+        to an absolute path under ComfyUI's output dir. Returns None when no
+        image output exists (e.g. Point-E/Shap-E have no image stage).
+        """
+        for node_output in outputs.values():
+            if not isinstance(node_output, dict):
+                continue
+            images = node_output.get("images")
+            if not isinstance(images, list):
+                continue
+            for entry in images:
+                if not isinstance(entry, dict):
+                    continue
+                filename = entry.get("filename")
+                if not filename or not str(filename).lower().endswith(
+                    (".png", ".jpg", ".jpeg", ".webp")
+                ):
+                    continue
+                sub = entry.get("subfolder") or ""
+                cand = Path(filename)
+                if not cand.is_absolute():
+                    cand = COMFYUI_OUTPUT_DIR / sub / cand if sub else COMFYUI_OUTPUT_DIR / cand
+                if cand.is_file():
+                    return str(cand)
+        return None
+
     def _finish_with_timing(
         self,
         glb_ref: str,
@@ -1515,6 +1640,7 @@ class Gen3DService:
         exec_start: float | None,
         exec_end: float | None,
         role: str | None = None,
+        concept_path: str | None = None,
     ) -> dict[str, Any]:
         """Run the output finalize step and attach real phase timings.
 
@@ -1527,7 +1653,9 @@ class Gen3DService:
         import time
 
         post_t0 = time.time()
-        res = self._upload_image(glb_ref, prompt_id, role=role)
+        res = self._upload_image(
+            glb_ref, prompt_id, role=role, concept_path=concept_path
+        )
         post_ms = (time.time() - post_t0) * 1000
         exec_done = exec_end or time.time()
         res["timing"] = {
