@@ -139,6 +139,16 @@
       "lyricsStatus": "complete",
       "source": "Suno v6-mini",
       "title": "Performance Review"
+    },
+    {
+      "bpm": 140,
+      "durationSec": 230,
+      "file": "long-game.json",
+      "hasLrc": false,
+      "id": "long-game",
+      "lyricsStatus": "complete",
+      "source": "Suno v6-mini",
+      "title": "Long Game"
     }
   ]
 }

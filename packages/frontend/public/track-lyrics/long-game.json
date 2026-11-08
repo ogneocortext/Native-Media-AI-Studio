@@ -1,0 +1,147 @@
+{
+  "bpm": 140,
+  "bpmNote": "Style prompts state 140 BPM. The uploaded V2 audio's measured beat grid is ~0.86 s (~70 BPM), i.e. the track is felt at half-time against the stated 140.",
+  "durationSec": 230,
+  "hasLrc": false,
+  "id": "long-game",
+  "lyricsStatus": "complete",
+  "notes": "Long Game V2 is the owner's keeper render for the video work (uploaded audio measured locally at 230.9 s; Suno lists 3:50, playbar showed 3:49). All four renders were created 2026-09-12 and display identical lyric text with different style prompts; the two 1:00 renders are V6 PREVIEW model, not v6-mini. The V2 render alternates registers (female 0:00-0:27, male 0:27-1:05, female 1:05-end of the test segment) with octave-glide transitions; measured map in the video working files.",
+  "provenance": "Lyrics and style prompts transcribed verbatim from the Suno song pages on 2026-11-07 (read-only capture at the owner's direction; nothing downloaded, played or changed). This master text supersedes the earlier faster-whisper transcription recovered for the Long Game video work, which had wording errors the master corrects (e.g. 'gave the doubt less space', 'stay with the graft', 'rattled in me', 'a life they could never just see') and could not recover the Intro or Chorus wording at all.",
+  "renders": [
+    {
+      "createdAt": "2026-09-12",
+      "durationSec": 230,
+      "stylePrompt": "UK grime x future garage at 140 BPM, low-register female British vocal with calm spoken precision and restrained melodic lift, swung sparse 2-step drums, weighty sub filtered Reese, rain-dark pads, distant chopped harmonies opening into a determined cinematic chorus, crisp intimate modern mix",
+      "sunoTitle": "Long Game V2",
+      "url": "https://suno.com/song/7806749a-2b63-4836-af7c-68dbf19f411b"
+    },
+    {
+      "createdAt": "2026-09-12",
+      "durationSec": 229,
+      "stylePrompt": "UK grime x future garage: sparse 2-step drums with swung hi-hats, weighty sub bass, warm filtered Reese bass, rain-soaked pads and distant vocal chops; focused British male MC with calm low-register confidence, precise conversational quick internal-rhyme flows, restrained melodic hook; crisp modern mix; 140 BPM nocturnal 2-step pulse, minimal reflective opening building toward a determined anthemic final chorus",
+      "sunoTitle": "Long Game",
+      "url": "https://suno.com/song/991e69a2-4e76-4282-9f83-45bbcd69ec46"
+    },
+    {
+      "createdAt": "2026-09-12",
+      "durationSec": 60,
+      "stylePrompt": "UK grime x future garage; low-register female lead with calm, focused British male MC feature, precise conversational delivery, quick internal-rhyme flows and restrained melodic hook; crisp modern mix with intimate dry verses, widening chorus layers and subtle vocal-chop echoes; sparse swung 2-step drums, weighty sub bass, warm filtered Reese bass, rain-soaked pads and distant vocal chops; 140 BPM nocturnal groove building from reflective minimalism into a determined anthemic chorus",
+      "sunoTitle": "Long Game",
+      "url": "https://suno.com/song/9b25c9a2-29b1-4d8f-905f-336462bee9c3"
+    },
+    {
+      "createdAt": "2026-09-12",
+      "durationSec": 60,
+      "stylePrompt": "UK grime x future garage; low-register female lead with calm, focused British MC delivery, precise conversational verses and quick internal-rhyme flows, restrained melodic hook; crisp modern mix with intimate vocal presence, tight transient control and rain-dark stereo space; sparse swung 2-step drums, weighty sub bass, warm filtered Reese bass, rain-soaked pads and distant vocal chops; 140 BPM nocturnal pulse, minimal reflective opening rising into a determined anthemic chorus and earned victorious final section",
+      "sunoTitle": "Long Game",
+      "url": "https://suno.com/song/63d2e806-978e-43b3-8673-98e27639d254"
+    }
+  ],
+  "sections": [
+    {
+      "lines": [
+        "Late shift, blue light, city gone still",
+        "No shortcut round it, just skill on skill",
+        "Days turn weeks, then the weeks turn years",
+        "I learned how to move through the doubt and the fears"
+      ],
+      "name": "Intro"
+    },
+    {
+      "lines": [
+        "I was down where the progress don't show on the face",
+        "Just a list full of plans and a room full of faith",
+        "Had the world moving quick, had to set my own pace",
+        "Put the pressure in purpose, gave the doubt less space",
+        "No handouts, no hype, no crowd at the start",
+        "Just a note on the wall and a fire in the heart",
+        "Had to make peace with slow, had to stay with the graft",
+        "When the road got steep, I got sharp with the craft",
+        "Every loss was a lesson I carried with me",
+        "Every \"not yet\" turned fuel when it rattled in me",
+        "I was building a life they could never just see",
+        "Brick by brick, deep breath, no retreat in me"
+      ],
+      "name": "Verse 1"
+    },
+    {
+      "lines": [
+        "When the noise gets loud, I go quiet inside",
+        "Keep the vision in front, let the discipline drive",
+        "I don't need the applause, I just need that sign",
+        "That I'm closer than I was at the start of the climb"
+      ],
+      "name": "Pre-Chorus"
+    },
+    {
+      "lines": [
+        "This the long game, long nights, same flame",
+        "Kept my head in the storm, never changed my aim",
+        "Now the weight in my chest got a new kind of name",
+        "Not pain, not shame — it's the proof that I came",
+        "This the long game, no rush, no pose",
+        "From the dust of the doubt to the calm I know",
+        "Every mile that I made put strength in my soul",
+        "I completed the goal, now I'm whole, I'm whole"
+      ],
+      "name": "Chorus"
+    },
+    {
+      "lines": [
+        "There were days I was tired but I still took a step",
+        "Couldn't see the whole road, but I honoured the rep",
+        "Made a promise to self, put the ego to rest",
+        "Stayed humble with the work, let the work do the flex",
+        "Specialised focus, got deep in the lane",
+        "Turned a scattered old dream to a measurable change",
+        "Not chasing a moment, I was shaping my frame",
+        "Till the person in the mirror knew my real name",
+        "I found worth in the follow-through, peace in the pace",
+        "In the hours nobody claps for, alone in the place",
+        "Now the finish line's here but it's more than a race",
+        "It's a life that I earned, it's a home in my space"
+      ],
+      "name": "Verse 2"
+    },
+    {
+      "lines": [
+        "No magic, no miracle, no borrowed glow",
+        "Just a reason to rise and a refusal to fold",
+        "If you're carrying a mountain, take it stone by stone",
+        "One day you look back and you're standing on your own"
+      ],
+      "name": "Bridge"
+    },
+    {
+      "lines": [
+        "This the long game, long nights, same flame",
+        "Kept my head in the storm, never changed my aim",
+        "Now the weight in my chest got a new kind of name",
+        "Not pain, not shame — it's the proof that I came",
+        "This the long game, no rush, no pose",
+        "From the dust of the doubt to the calm I know",
+        "Every mile that I made put strength in my soul",
+        "I completed the goal, now I'm whole, I'm whole"
+      ],
+      "name": "Final Chorus"
+    },
+    {
+      "lines": [
+        "Still moving, but I move with grace",
+        "No need to run when you've found your pace",
+        "Long road, one soul, one goal embraced",
+        "I became who I needed to be on the way"
+      ],
+      "name": "Outro"
+    }
+  ],
+  "source": "Suno v6-mini",
+  "title": "Long Game",
+  "urls": [
+    "https://suno.com/song/7806749a-2b63-4836-af7c-68dbf19f411b",
+    "https://suno.com/song/991e69a2-4e76-4282-9f83-45bbcd69ec46",
+    "https://suno.com/song/9b25c9a2-29b1-4d8f-905f-336462bee9c3",
+    "https://suno.com/song/63d2e806-978e-43b3-8673-98e27639d254"
+  ],
+  "variant": "V1 / V2 (v6-mini) + two V6 Preview renders (lyrics identical on all four)"
+}
