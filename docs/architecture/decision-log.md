@@ -2151,3 +2151,30 @@
   updates all cores to pinned upstream versions; project code unchanged.
   Graceful degradation when optional cores fail to load. Clear separation
   between project logic and upstream emulator APIs.
+
+### D78 — Promote all type-aware ESLint rules from warn to error after T-LINT-01 zero-warning sweep (2026-11-08)
+
+- **Status:** Decided
+- **Context:** The db2110ca API-layer rewrite era left ~2,559 ESLint
+  warnings across packages/frontend/src. The rules that caught them
+  (no-unsafe-*, no-unnecessary-condition, no-misused-promises, …) were
+  configured as `warn` "while the codebase is gradually brought into
+  compliance" — so regressions could reaccumulate silently forever.
+- **Decision:** Six parallel subagents eliminated every warning by root
+  cause (typed fetch/JSON/SSE boundaries, honest optionals, dead-check
+  removal, promise hygiene; zero new eslint-disable). With src at
+  0 errors / 0 warnings, all 41 type-aware/stylistic rules in
+  eslint.config.js were promoted `warn` → `error`, so any regression
+  now fails the lint gate instead of re-growing the debt. The scoped
+  `no-explicit-any: off` carve-out for three-js-studio/visualizer
+  remains (legitimate untyped shader/WebGL data).
+- **Files:** packages/frontend/eslint.config.js,
+  packages/frontend/src/** (sweep), docs/plans/tasks/
+  platform-and-workflow.md (T-LINT-01)
+- **Consequences:** Lint gate now enforces the clean baseline — new
+  unsafe-any/misused-promise/unnecessary-condition code cannot land.
+  Cost: stylistic rules (array-type, consistent-type-definitions,
+  prefer-includes, unified-signatures, …) are also errors; agents
+  touching frontend must run `eslint --fix` habits or fix by hand.
+  Verified: eslint src = 0 problems, type-check = 0 errors,
+  vitest = 979/979.
