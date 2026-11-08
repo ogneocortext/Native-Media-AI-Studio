@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { AudioTransport } from "../../../components/audio";
-import { Play, Download, CheckCircle2 } from "lucide-react";
+import { Play, Download, CheckCircle2, AlertCircle } from "lucide-react";
 import type { AudioAnalysis } from "../types";
 
 export function ReviewStep({
   generatedSections,
   audioUrl,
   analysis,
+  notes,
 }: {
   generatedSections: string[];
   audioUrl: string | null;
   analysis: AudioAnalysis | null;
+  /** Non-fatal pipeline notes (e.g. lip-sync fell back to the full mix). */
+  notes?: string[];
 }) {
   const [showExport, setShowExport] = useState(false);
   return (
@@ -55,6 +58,19 @@ export function ReviewStep({
       </div>
       {audioUrl && (
         <AudioTransport src={audioUrl} className="w-full mt-4" ariaLabel="Track preview" />
+      )}
+      {notes && notes.length > 0 && (
+        <div className="mt-4 space-y-1.5">
+          {notes.map((note, i) => (
+            <p
+              key={i}
+              className="text-xs text-amber-200 bg-amber-900/20 border border-amber-700/40 rounded-lg px-3 py-2 flex items-start gap-2"
+            >
+              <AlertCircle size={13} className="mt-0.5 shrink-0 text-amber-300" />
+              <span>{note}</span>
+            </p>
+          ))}
+        </div>
       )}
       <button
         onClick={() => setShowExport(true)}

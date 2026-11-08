@@ -39,9 +39,9 @@ import asyncio
 import json
 import logging
 import re
-import shlex
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -90,6 +90,47 @@ def _read_bool(raw: dict[str, Any], key: str, *, default: bool) -> bool:
     return bool(val)
 
 
+def _split_command(cmd_str: str) -> list[str]:
+    """Split an inference command template into argv (Windows semantics).
+
+    ``shlex.split`` is wrong here in both modes: ``posix=True`` eats the
+    backslashes in Windows paths, and ``posix=False`` keeps the quote
+    characters inside the tokens, which ``subprocess`` then re-quotes into a
+    mangled command line (verified on Windows: a quoted path with spaces
+    reaches the child with literal ``"`` characters and fails to open).
+    This splitter treats ``"`` and ``'`` as grouping quotes that are removed,
+    keeps backslashes literal, and splits on whitespace outside quotes --
+    matching how the final argv is repacked for CreateProcess.
+    """
+    args: list[str] = []
+    cur: list[str] = []
+    quote: str | None = None
+    started = False
+    for ch in cmd_str:
+        if quote is not None:
+            if ch == quote:
+                quote = None
+            else:
+                cur.append(ch)
+            continue
+        if ch in "\"'":
+            quote = ch
+            started = True
+        elif ch in " \t\r\n":
+            if started:
+                args.append("".join(cur))
+                cur = []
+                started = False
+        else:
+            cur.append(ch)
+            started = True
+    if quote is not None:
+        raise LipSyncError(f"Unterminated quote in inference command: {cmd_str[:120]}")
+    if started:
+        args.append("".join(cur))
+    return args
+
+
 @dataclass
 class MuseTalkConfig:
     """Resolved configuration for the adapter."""
@@ -106,6 +147,11 @@ class MuseTalkConfig:
     #: Directory for prepared face latents (avatar cache). Defaults to
     #: weights_dir / "prepared".
     preparation_dir: Path | None = None
+    #: Space-free scratch dir for inference I/O. MuseTalk shells out to
+    #: ``os.system("ffmpeg ... {path}")`` internally, which breaks on paths
+    #: containing spaces — and this repo's root does. When None, resolved at
+    #: runtime to the first writable space-free candidate.
+    scratch_dir: Path | None = None
     # mock: dev-only pipeline test. Copies the input video to the output instead
     # of running the model, so the full batch workflow (chunk -> queue -> stitch)
     # can be exercised with no GPU and no weights. NEVER for real output.
@@ -130,6 +176,13 @@ class MuseTalkConfig:
             here = Path(__file__).resolve()
             weights_dir = here.parents[5] / weights
         inference = raw.get("inference", {})
+        scratch_raw = inference.get("scratch_dir") or raw.get("scratch_dir")
+        scratch_dir: Path | None = None
+        if scratch_raw:
+            scratch_dir = Path(scratch_raw)
+            if not scratch_dir.is_absolute():
+                here = Path(__file__).resolve()
+                scratch_dir = here.parents[5] / scratch_dir
         audio = raw.get("audio", {})
         prep_raw = raw.get("preparation", {})
         prep_dir = prep_raw.get("dir", None)
@@ -150,6 +203,7 @@ class MuseTalkConfig:
             target_fps=int(raw.get("target_fps", DEFAULT_FPS)),
             batch_size=int(inference.get("batch_size", 1)),
             preparation_dir=preparation_dir,
+            scratch_dir=scratch_dir,
             mock=_read_mock_flag(raw),
         )
 
@@ -192,6 +246,7 @@ class MuseTalkAdapter:
                 "vram_budget_mb": self.config.vram_budget_mb,
                 "use_float16": self.config.use_float16,
                 "missing": [],
+                "warnings": [],
                 "message": "mock mode (dev-only: copies input video, no GPU, no weights)",
             }
         weights = self.config.weights_dir
@@ -209,6 +264,26 @@ class MuseTalkAdapter:
                 "inference.command not set in config/lipsync.json "
                 "(confirm against the installed MuseTalk version)"
             )
+        # Component-level checks (non-fatal): a partial weights download
+        # passes "dir non-empty" but crashes inside inference. MuseTalk v1.5
+        # needs a UNet checkpoint/config, Whisper for audio features, and the
+        # SD-VAE decoder — look for them anywhere under weights_dir.
+        warnings: list[str] = []
+        if weights_found:
+            have_unet = any(weights.rglob("unet*.pth")) or any(
+                weights.rglob("unet*config*.yaml")
+            )
+            have_whisper = any(p.name.lower() == "whisper" for p in weights.rglob("*"))
+            have_vae = any(
+                "vae" in p.name.lower() for p in weights.rglob("*.pth")
+            ) or any(p.name.lower() == "sd-vae" for p in weights.rglob("*"))
+            for label, ok in (
+                ("MuseTalk UNet checkpoint/config (unet*.pth)", have_unet),
+                ("Whisper weights (whisper/)", have_whisper),
+                ("SD-VAE weights (sd-vae/ or *vae*.pth)", have_vae),
+            ):
+                if not ok:
+                    warnings.append(f"{label} not found under {weights}")
         return {
             "installed": installed,
             "weights_found": weights_found,
@@ -218,6 +293,7 @@ class MuseTalkAdapter:
             "vram_budget_mb": self.config.vram_budget_mb,
             "use_float16": self.config.use_float16,
             "missing": missing,
+            "warnings": warnings,
             "message": "ready" if installed else "missing: " + "; ".join(missing),
         }
 
@@ -243,6 +319,13 @@ class MuseTalkAdapter:
             except Exception:
                 logger.debug("Failed to terminate MuseTalk subprocess", exc_info=True)
 
+    @staticmethod
+    def _terminate_proc(proc: asyncio.subprocess.Process) -> None:
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+
     def _reset_cancel(self) -> None:
         self._cancelled = False
         self._current_proc = None
@@ -258,6 +341,32 @@ class MuseTalkAdapter:
         """Return the directory where prepared latents for *avatar_key* live."""
         base = self.config.preparation_dir or (self.config.weights_dir / "prepared")
         return base / avatar_key
+
+    def _resolve_scratch_dir(self) -> Path:
+        """Space-free directory for inference I/O.
+
+        MuseTalk shells ffmpeg through ``os.system`` with unquoted paths, so
+        any space in the video/audio/output path breaks inference — and this
+        repo's root contains spaces. Candidates are tried in order; the temp
+        dir is the last resort even though it usually contains spaces too.
+        """
+        if self.config.scratch_dir is not None:
+            self.config.scratch_dir.mkdir(parents=True, exist_ok=True)
+            return self.config.scratch_dir
+        for cand in (
+            Path(r"C:\Users\Public\lipsync-tmp"),
+            Path(r"C:\lipsync-tmp"),
+            Path(r"D:\lipsync-tmp"),
+            Path(tempfile.gettempdir()),
+        ):
+            if " " in str(cand):
+                continue
+            try:
+                cand.mkdir(parents=True, exist_ok=True)
+                return cand
+            except OSError:
+                continue
+        return Path(tempfile.gettempdir())
 
     def is_prepared(self, avatar_key: str) -> bool:
         """True if face latents have been prepared for *avatar_key*."""
@@ -302,7 +411,7 @@ class MuseTalkAdapter:
             prep_dir=str(prep_dir),
             avatar_key=avatar_key,
         )
-        cmd = shlex.split(cmd_str, posix=False)
+        cmd = _split_command(cmd_str)
 
         def _note(p: float, m: str) -> None:
             if progress_cb:
@@ -318,7 +427,13 @@ class MuseTalkAdapter:
                 stderr=asyncio.subprocess.PIPE,
             )
             self._current_proc = proc
-            stdout, stderr = await proc.communicate()
+            try:
+                stdout, stderr = await proc.communicate()
+            except asyncio.CancelledError:
+                # Outer timeout/cancellation: do not leave MuseTalk running
+                # and holding VRAM after the job is gone.
+                self._terminate_proc(proc)
+                raise
             self._current_proc = None
             self._check_cancelled()
             if proc.returncode != 0:
@@ -328,10 +443,7 @@ class MuseTalkAdapter:
                 )
             _note(1.0, "preparation complete")
         except LipSyncCancelledError:
-            try:
-                proc.terminate()
-            except Exception:
-                pass
+            self._terminate_proc(proc)
             raise
         finally:
             self._current_proc = None
@@ -400,21 +512,38 @@ class MuseTalkAdapter:
             if progress_cb:
                 progress_cb(p, m)
 
+        # Avatar preparation reports its own 0..1 fraction; map it into the
+        # 0.12-0.19 band so job progress stays monotonic.
+        def _prep_note(p: float, m: str) -> None:
+            _note(0.12 + min(max(p, 0.0), 1.0) * 0.07, m)
+
+        # Inference reports a 0..1 fraction (frames rendered / percent done);
+        # map it into the 0.30-0.95 band for the same reason.
+        def _infer_note(p: float, m: str) -> None:
+            _note(0.30 + min(max(p, 0.0), 1.0) * 0.65, m)
+
         _note(0.05, "preparing audio")
+        self._reset_cancel()
+        self._check_cancelled()
         workdir = out.parent / f".lipsync_{out.stem}"
         workdir.mkdir(parents=True, exist_ok=True)
         try:
             wav = await asyncio.to_thread(self._prepare_audio, audio, workdir)
+            self._check_cancelled()
             # Optional avatar preparation (latent caching) -- skipped when
             # cached latents exist and use_prepared is set.
             if avatar_key and use_prepared and self.is_prepared(avatar_key):
                 _note(0.12, f"using cached latents for avatar {avatar_key}")
             elif avatar_key:
                 _note(0.12, f"preparing avatar {avatar_key} latents")
-                await self.prepare_avatar(video, avatar_key, progress_cb=_note)
+                await self.prepare_avatar(video, avatar_key, progress_cb=_prep_note)
+                self._check_cancelled()
 
             # VRAM handshake (D7) -- preflighted through vram_manager.
-            # Skipped in mock mode: there is no GPU to manage.
+            # Skipped in mock mode: there is no GPU to manage, and calling
+            # end_lipsync_generation() without a matching begin would trigger
+            # spurious model reloads as a side effect.
+            vram_begun = False
             if not mock:
                 _note(0.20, "VRAM preflight")
                 begin = await vram_manager.begin_lipsync_generation(
@@ -424,25 +553,15 @@ class MuseTalkAdapter:
                     raise RuntimeError(
                         "Insufficient VRAM for lip-sync: " + str(begin.get("error", "unknown"))
                     )
+                vram_begun = True
             try:
                 _note(0.30, "running MuseTalk" if not mock else "mock inference")
-                # Stream inference output for real per-frame progress when a
-                # callback is provided; otherwise run synchronously in a thread.
-                if progress_cb is not None:
-                    await self._run_inference_streaming(
-                        video, wav, out, avatar_key=avatar_key, progress_cb=_note
-                    )
-                else:
-                    await asyncio.to_thread(
-                        self._run_inference,
-                        video,
-                        wav,
-                        out,
-                        avatar_key=avatar_key,
-                        progress_cb=_note,
-                    )
+                await self._infer_with_staging(
+                    video, wav, out,
+                    avatar_key=avatar_key, mock=mock, progress_cb=_infer_note,
+                )
             finally:
-                if vram_manager is not None:
+                if vram_begun:
                     await vram_manager.end_lipsync_generation()
             _note(0.95, "verifying output")
             if not out.is_file() or out.stat().st_size == 0:
@@ -464,6 +583,59 @@ class MuseTalkAdapter:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+    async def _infer_with_staging(
+        self,
+        video: Path,
+        wav: Path,
+        out: Path,
+        *,
+        avatar_key: str | None,
+        mock: bool,
+        progress_cb: Callable[[float, str], Any] | None,
+    ) -> None:
+        """Run inference, staging I/O in a space-free scratch dir when needed.
+
+        MuseTalk shells ffmpeg via ``os.system`` with unquoted paths, so any
+        space in video/audio/output breaks it — and this repo's root has
+        spaces. Real runs copy inputs into a scratch dir, render there, and
+        copy the result back to ``out``.
+        """
+        infer_video, infer_audio, infer_out = video, wav, out
+        staged_dir: Path | None = None
+        if not mock:
+            staged_dir = Path(
+                tempfile.mkdtemp(prefix="ls_", dir=str(self._resolve_scratch_dir()))
+            )
+            infer_video = staged_dir / f"video{video.suffix or '.mp4'}"
+            infer_audio = staged_dir / "audio.wav"
+            infer_out = staged_dir / "output.mp4"
+            shutil.copyfile(video, infer_video)
+            shutil.copyfile(wav, infer_audio)
+        try:
+            # Stream inference output for real per-frame progress when a
+            # callback is provided; otherwise run synchronously in a thread.
+            if progress_cb is not None:
+                await self._run_inference_streaming(
+                    infer_video, infer_audio, infer_out,
+                    avatar_key=avatar_key, progress_cb=progress_cb,
+                    scratch_dir=staged_dir,
+                )
+            else:
+                await asyncio.to_thread(
+                    self._run_inference,
+                    infer_video, infer_audio, infer_out,
+                    avatar_key=avatar_key, progress_cb=progress_cb,
+                    scratch_dir=staged_dir,
+                )
+            self._check_cancelled()
+            if staged_dir is not None:
+                if not infer_out.is_file() or infer_out.stat().st_size == 0:
+                    raise RuntimeError(f"MuseTalk produced no output at {infer_out}")
+                shutil.copyfile(infer_out, out)
+        finally:
+            if staged_dir is not None:
+                shutil.rmtree(staged_dir, ignore_errors=True)
+
     def _probe_fps(self, video_path: Path) -> float | None:
         """Probe the video frame rate via ffprobe. Returns None on failure."""
         ffprobe = shutil.which("ffprobe")
@@ -548,20 +720,17 @@ class MuseTalkAdapter:
         out: Path,
         avatar_key: str | None = None,
         progress_cb: Callable[[float, str], Any] | None = None,
+        scratch_dir: Path | None = None,
     ) -> None:
         """Invoke MuseTalk through the configured command template (blocking).
 
-        Runs the subprocess inside asyncio.to_thread but streams its output
-        line-by-line so per-frame progress reaches the callback in real time.
+        Runs via ``subprocess.run`` inside ``asyncio.to_thread``; used when no
+        progress callback is provided. Cancellation is not possible mid-run on
+        this path -- ``lipsync`` prefers ``_run_inference_streaming`` whenever
+        a callback exists, and ``_check_cancelled`` still observes the flag
+        after the subprocess exits.
         The template placeholders: {video} {audio} {output} {weights_dir}
         plus optional {prep_dir} {avatar_key} {batch_size} {float16_flag}.
-
-        Cancellation: this method runs in a worker thread and cannot be
-        interrupted from the event loop directly. Cancellation is instead
-        handled at the async layer (``lipsync`` uses
-        ``create_subprocess_exec`` when a progress callback is present, and
-        ``cancel()`` terminates the subprocess). When no progress callback is
-        provided the synchronous path below is used for simplicity.
         """
         if self.config.mock:
             logger.warning("MuseTalk mock mode: copying input video to output (no model run)")
@@ -584,10 +753,9 @@ class MuseTalkAdapter:
             avatar_key=avatar_key or "",
             batch_size=str(self.config.batch_size),
             float16_flag=float16_flag.strip(),
+            scratch_dir=str(scratch_dir) if scratch_dir else "",
         )
-        # shlex-free split that keeps quoted segments intact (posix=False for
-        # Windows-style paths with backslashes and spaces).
-        cmd = shlex.split(cmd_str, posix=False)
+        cmd = _split_command(cmd_str)
         logger.info("MuseTalk inference: %s", cmd_str[:200])
 
         try:
@@ -619,6 +787,7 @@ class MuseTalkAdapter:
         out: Path,
         avatar_key: str | None = None,
         progress_cb: Callable[[float, str], Any] | None = None,
+        scratch_dir: Path | None = None,
     ) -> None:
         """Async variant of _run_inference that streams subprocess output for
         real per-frame progress and supports cancellation.
@@ -648,8 +817,9 @@ class MuseTalkAdapter:
             avatar_key=avatar_key or "",
             batch_size=str(self.config.batch_size),
             float16_flag=float16_flag.strip(),
+            scratch_dir=str(scratch_dir) if scratch_dir else "",
         )
-        cmd = shlex.split(cmd_str, posix=False)
+        cmd = _split_command(cmd_str)
         logger.info("MuseTalk inference (streaming): %s", cmd_str[:200])
 
         frame_re = re.compile(r"frame\s*(\d+)\s*/\s*(\d+)", re.IGNORECASE)
@@ -678,7 +848,7 @@ class MuseTalkAdapter:
         self._current_proc = proc
         last_prog = [0.0]
 
-        async def _read_stream(stream: asyncio.StreamReader, *, is_stderr: bool = False) -> str:
+        async def _read_stream(stream: asyncio.StreamReader) -> str:
             chunks: list[bytes] = []
             while True:
                 line = await stream.readline()
@@ -714,17 +884,29 @@ class MuseTalkAdapter:
 
         try:
             stdout_task = asyncio.create_task(_read_stream(proc.stdout))
-            stderr_task = asyncio.create_task(_read_stream(proc.stderr, is_stderr=True))
-            await asyncio.gather(stdout_task, stderr_task)
+            stderr_task = asyncio.create_task(_read_stream(proc.stderr))
+            _stdout_log, stderr_log = await asyncio.gather(stdout_task, stderr_task)
             await proc.wait()
-        except LipSyncCancelledError:
+        except (LipSyncCancelledError, asyncio.CancelledError):
+            for t in (stdout_task, stderr_task):
+                t.cancel()
+            # Terminate first: on outer cancellation (e.g. the handler's
+            # asyncio.timeout) the model process would otherwise keep running
+            # and holding VRAM after the job is gone.
+            self._terminate_proc(proc)
             try:
-                proc.terminate()
+                await asyncio.wait_for(proc.wait(), timeout=10)
             except Exception:
                 pass
+            # Reap the reader tasks so a second LipSyncCancelledError is not
+            # reported as "exception was never retrieved".
+            await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
             raise
         finally:
             self._current_proc = None
         self._check_cancelled()
         if proc.returncode != 0:
-            raise RuntimeError(f"MuseTalk inference failed (rc={proc.returncode})")
+            raise RuntimeError(
+                f"MuseTalk inference failed (rc={proc.returncode}): "
+                f"{(stderr_log or '')[-800:]}"
+            )

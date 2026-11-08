@@ -39,6 +39,9 @@ export interface AudioAnalysis {
   confidence?: number;
   amplitude_envelope?: number[];
   stored_path?: string;
+  /** AUDIO_DIR-relative path (e.g. "track.mp3", "video-extracted/x.m4a") —
+   *  the filename form /api/audio/separate-file expects. */
+  relative_path?: string | null;
   job_id?: string;
 }
 

@@ -70,6 +70,27 @@ def test_plan_chunks_rejects_bad_input():
         plan_chunks(60.0, 0)
 
 
+def test_plan_chunks_sub_millisecond_remainder_folds():
+    """A remainder that rounds to 0.000 must not emit a zero-length chunk.
+
+    Regression: plan_chunks(40.0004, 20.0) used to produce a third chunk with
+    length 0.0, which ffmpeg cannot cut (-t 0.0) and which would wedge the
+    batch stitch forever.
+    """
+    chunks = plan_chunks(40.0004, 20.0)
+    assert len(chunks) == 2
+    assert all(c.length > 0 for c in chunks)
+    assert chunks[-1].start + chunks[-1].length == pytest.approx(40.0, abs=0.01)
+
+
+def test_plan_chunks_tiny_positive_remainder_kept():
+    """A remainder that survives rounding stays its own chunk."""
+    chunks = plan_chunks(40.0009, 20.0)
+    assert len(chunks) == 3
+    assert chunks[2].length == pytest.approx(0.001, abs=0.0005)
+    assert all(c.length > 0 for c in chunks)
+
+
 def test_new_batch_id_shape():
     bid = new_batch_id()
     assert len(bid) == 12

@@ -138,3 +138,47 @@ def test_video_router_has_lipsync_route():
 
     paths = [r.path for r in router.routes]
     assert "/api/video/lipsync" in paths
+
+
+def test_split_command_handles_quoted_windows_paths():
+    """Quoted args must lose their quotes but keep spaces/backslashes intact.
+
+    Regression: shlex.split(posix=False) retained literal quote characters in
+    the tokens, so subprocess re-quoting mangled any path containing spaces --
+    and this repo's own root path contains spaces.
+    """
+    from app.services.lipsync.musetalk_adapter import _split_command
+
+    cmd = _split_command(
+        'python "C:\\my dir\\run.py" --video "D:\\a b\\v.mp4" --batch_size=4'
+    )
+    assert cmd == [
+        "python",
+        "C:\\my dir\\run.py",
+        "--video",
+        "D:\\a b\\v.mp4",
+        "--batch_size=4",
+    ]
+
+
+def test_split_command_unquoted_and_single_quotes():
+    from app.services.lipsync.musetalk_adapter import _split_command
+
+    assert _split_command("ffmpeg -i in.wav -ar 16000 out.wav") == [
+        "ffmpeg",
+        "-i",
+        "in.wav",
+        "-ar",
+        "16000",
+        "out.wav",
+    ]
+    # Single quotes group too; a quote char inside the other quote style is literal.
+    assert _split_command("run 'D:\\a b\\x' \"it's\"") == ["run", "D:\\a b\\x", "it's"]
+
+
+def test_split_command_empty_quoted_arg_and_bad_quote():
+    from app.services.lipsync.musetalk_adapter import LipSyncError, _split_command
+
+    assert _split_command('cmd --flag "" tail') == ["cmd", "--flag", "", "tail"]
+    with pytest.raises(LipSyncError, match="Unterminated quote"):
+        _split_command('cmd "unterminated')

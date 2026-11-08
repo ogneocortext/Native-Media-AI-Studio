@@ -440,13 +440,20 @@ export {
   type AgentLoopOptions,
 } from "./agent-loop";
 
-// Video render + export matrix
-export { getRenderEngines, renderClip, buildExportMatrix } from "./video-render";
+// Video render + export matrix + lip-sync
+export {
+  getRenderEngines,
+  renderClip,
+  buildExportMatrix,
+  lipsyncClip,
+} from "./video-render";
 export type {
   RenderEngineInfo,
   RenderResponse,
   MatrixArtifact,
   ExportMatrixResponse,
+  LipSyncRequest,
+  LipSyncResponse,
 } from "./video-render";
 
 // Image processing (ACE-Step bridge)

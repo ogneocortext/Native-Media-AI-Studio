@@ -123,15 +123,27 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
 
             audio_dir = _PR / "output" / "audio"
             if request.audio_filename and audio_dir.exists():
-                candidate = audio_dir / request.audio_filename
-                if candidate.exists():
+                # Same traversal guard as _resolve_lipsync_audio: rglob treats
+                # ".." as a real component, so reject it up front.
+                name = Path(request.audio_filename)
+                if name.is_absolute() or ".." in name.parts:
+                    raise ValueError("audio_filename must name a file inside output/audio")
+                audio_root = audio_dir.resolve()
+                candidate = (audio_dir / request.audio_filename).resolve()
+                if candidate.is_relative_to(audio_root) and candidate.exists():
                     request.audio_path = str(candidate)
                 else:
                     # Search subdirectories for the audio file
-                    for match in audio_dir.rglob(request.audio_filename):
-                        if match.is_file():
-                            request.audio_path = str(match)
-                            break
+                    matches = sorted(
+                        (
+                            m.resolve()
+                            for m in audio_dir.rglob(request.audio_filename)
+                            if m.is_file() and m.resolve().is_relative_to(audio_root)
+                        ),
+                        key=lambda p: len(p.parts),
+                    )
+                    if matches:
+                        request.audio_path = str(matches[0])
             if not request.audio_path:
                 # Fallback: most recent uploaded audio
                 candidates = (
@@ -868,10 +880,23 @@ async def lipsync_clip(request: LipSyncRequest) -> LipSyncResponse:
         jcr = JobCreateRequest(job_type=JobType.LIPSYNC, params=params, max_retries=1)
         job = await queue_manager.enqueue(jcr)
 
+        # Mirror the handler's output-path resolution (services/lipsync_handler.py)
+        # so this field names a real file: request.output_path wins, otherwise
+        # the handler defaults to output/video/<source-stem>_lipsync_<job8>.mp4.
+        if request.output_path:
+            resolved_output = request.output_path
+        else:
+            from ..core.config import PROJECT_ROOT as _PR
+
+            stem = Path(source).stem.replace(" ", "_")
+            resolved_output = str(
+                _PR / "output" / "video" / f"{stem}_lipsync_{job.id[:8]}.mp4"
+            )
+
         return LipSyncResponse(
             success=True,
             job_id=job.id,
-            output_path=f"output/video/lipsync_{request.section}_{job.id[:8]}.mp4",
+            output_path=resolved_output,
             section=request.section,
             message=f"Queued lip-sync for section '{request.section}' as job {job.id[:8]}",
         )
@@ -902,13 +927,133 @@ def _resolve_lipsync_audio(audio_path: str | None, audio_filename: str | None) -
 
     audio_dir = _PR / "output" / "audio"
     if audio_filename and audio_dir.exists():
-        for match in audio_dir.rglob(audio_filename):
-            if match.is_file():
-                return str(match)
+        # rglob treats ".." as a real path component, so a crafted filename
+        # could resolve outside output/audio -- reject it up front, then keep
+        # only matches that still resolve inside the audio dir.
+        name = Path(audio_filename)
+        if name.is_absolute() or ".." in name.parts:
+            raise ValueError("audio_filename must name a file inside output/audio")
+        audio_root = audio_dir.resolve()
+        matches = [
+            m
+            for m in audio_dir.rglob(audio_filename)
+            if m.is_file() and m.resolve().is_relative_to(audio_root)
+        ]
+        if matches:
+            # Deterministic pick when several stems share a filename:
+            # shallowest match wins (top-level before nested stem dirs).
+            matches.sort(key=lambda m: len(m.resolve().relative_to(audio_root).parts))
+            return str(matches[0])
     raise ValueError(
         "audio_path is required -- pass the isolated vocals stem "
         "(POST /api/audio/separate) for best results"
     )
+
+
+async def _enqueue_lipsync_chunk_jobs(
+    *,
+    request: "LipSyncBatchRequest",
+    chunks: list[Any],
+    bdir: Path,
+    batch_id: str,
+    source: str,
+    source_kind: str,
+    audio_path: str,
+    ffmpeg: str | None,
+) -> list[str]:
+    """Split audio/video into per-chunk files and enqueue one LIPSYNC job each.
+
+    On any mid-loop failure the already-enqueued jobs are cancelled so they
+    cannot burn GPU with no manifest to stitch them.
+    """
+    from ..models.job import JobCreateRequest, JobType
+    from ..queue.manager import queue_manager
+    from ..services.lipsync import batch as lipbatch
+
+    job_ids: list[str] = []
+    try:
+        for chunk in chunks:
+            audio_chunk = lipbatch.chunk_audio_path(bdir, chunk.index)
+            await _run_cmd(
+                lipbatch.split_audio_cmd(
+                    ffmpeg, audio_path, chunk.start, chunk.length, str(audio_chunk)
+                ),
+                timeout=300,
+            )
+            video_chunk: str | None = None
+            if source_kind == "video":
+                video_chunk = str(lipbatch.chunk_video_path(bdir, chunk.index))
+                await _run_cmd(
+                    lipbatch.split_video_cmd(
+                        ffmpeg, source, chunk.start, chunk.length, video_chunk
+                    ),
+                    timeout=600,
+                )
+            params = {
+                "video_path": video_chunk,
+                "image_path": request.image_path,
+                "audio_path": str(audio_chunk),
+                "section": f"{request.section}-chunk-{chunk.index:03d}",
+                "output_path": str(lipbatch.chunk_output_path(bdir, chunk.index)),
+                "batch_id": batch_id,
+                "chunk_index": chunk.index,
+            }
+            jcr = JobCreateRequest(job_type=JobType.LIPSYNC, params=params, max_retries=1)
+            job = await queue_manager.enqueue(jcr)
+            job_ids.append(job.id)
+    except Exception:
+        await _cancel_orphaned_lipsync_jobs(job_ids, bdir)
+        raise
+    return job_ids
+
+
+async def _cancel_orphaned_lipsync_jobs(job_ids: list[str], bdir: Path) -> None:
+    """Cancel already-enqueued chunk jobs after a batch enqueue failure.
+
+    When nothing was enqueued the working dir is unreferenced and removed;
+    otherwise chunk files must stay for the surviving jobs' cleanup path.
+    """
+    from ..queue.manager import queue_manager
+
+    for jid in job_ids:
+        try:
+            await queue_manager.cancel_job(jid)
+        except Exception:
+            logger.debug("Failed to cancel orphaned lip-sync job %s", jid)
+    if not job_ids:
+        shutil.rmtree(bdir, ignore_errors=True)
+
+
+def _lipsync_batch_dir(project_root: Path, batch_id: str) -> Path:
+    """Working dir for a lip-sync batch, outside the scanned media tree.
+
+    ``services.lipsync.batch.batch_dir`` places chunk wavs/mp4s under
+    ``output/video/.lipsync_batches`` -- the outputs scanner recurses into
+    it, so every intermediate would surface in the media library. ``output/
+    runtime`` is on the scanner's exclude list, so chunks and manifests stay
+    invisible while the stitched master in ``output/video`` is discovered
+    normally.
+    """
+    return project_root / "output" / "runtime" / "lipsync_batches" / batch_id
+
+
+def _lipsync_batch_state(project_root: Path, batch_id: str) -> tuple[Path, Path]:
+    """Locate a batch's ``(batch_dir, manifest_path)`` for status/stitch.
+
+    Prefers the scanner-excluded runtime dir; falls back to the legacy
+    ``output/video/.lipsync_batches`` location so batches created before the
+    move remain readable.
+    """
+    from ..services.lipsync import batch as lipbatch
+
+    bdir = _lipsync_batch_dir(project_root, batch_id)
+    mpath = bdir / "manifest.json"
+    if not mpath.is_file():
+        legacy = lipbatch.batch_dir(project_root, batch_id)
+        legacy_mpath = legacy / "manifest.json"
+        if legacy_mpath.is_file():
+            return legacy, legacy_mpath
+    return bdir, mpath
 
 
 async def _run_cmd(cmd: list[str], timeout: int) -> None:
@@ -986,8 +1131,6 @@ async def lipsync_batch(request: LipSyncBatchRequest) -> LipSyncBatchResponse:
     """
     try:
         from ..core.config import PROJECT_ROOT as _PR
-        from ..models.job import JobCreateRequest, JobType
-        from ..queue.manager import queue_manager
         from ..services.lipsync import MuseTalkAdapter
         from ..services.lipsync import batch as lipbatch
 
@@ -1014,39 +1157,19 @@ async def lipsync_batch(request: LipSyncBatchRequest) -> LipSyncBatchResponse:
 
         chunks = lipbatch.plan_chunks(duration, request.chunk_seconds)
         batch_id = lipbatch.new_batch_id()
-        bdir = lipbatch.batch_dir(_PR, batch_id)
+        bdir = _lipsync_batch_dir(_PR, batch_id)
         bdir.mkdir(parents=True, exist_ok=True)
 
-        job_ids: list[str] = []
-        for chunk in chunks:
-            audio_chunk = lipbatch.chunk_audio_path(bdir, chunk.index)
-            await _run_cmd(
-                lipbatch.split_audio_cmd(
-                    ffmpeg, audio_path, chunk.start, chunk.length, str(audio_chunk)
-                ),
-                timeout=300,
-            )
-            video_chunk: str | None = None
-            if source_kind == "video":
-                video_chunk = str(lipbatch.chunk_video_path(bdir, chunk.index))
-                await _run_cmd(
-                    lipbatch.split_video_cmd(
-                        ffmpeg, source, chunk.start, chunk.length, video_chunk
-                    ),
-                    timeout=600,
-                )
-            params = {
-                "video_path": video_chunk,
-                "image_path": request.image_path,
-                "audio_path": str(audio_chunk),
-                "section": f"{request.section}-chunk-{chunk.index:03d}",
-                "output_path": str(lipbatch.chunk_output_path(bdir, chunk.index)),
-                "batch_id": batch_id,
-                "chunk_index": chunk.index,
-            }
-            jcr = JobCreateRequest(job_type=JobType.LIPSYNC, params=params, max_retries=1)
-            job = await queue_manager.enqueue(jcr)
-            job_ids.append(job.id)
+        job_ids = await _enqueue_lipsync_chunk_jobs(
+            request=request,
+            chunks=chunks,
+            bdir=bdir,
+            batch_id=batch_id,
+            source=source,
+            source_kind=source_kind,
+            audio_path=audio_path,
+            ffmpeg=ffmpeg,
+        )
 
         final_output = request.output_path or str(
             _PR / "output" / "video" / f"lipsync_batch_{batch_id}.mp4"
@@ -1063,7 +1186,7 @@ async def lipsync_batch(request: LipSyncBatchRequest) -> LipSyncBatchResponse:
             final_output=final_output,
         )
         manifest = lipbatch.resolve_manifest_paths(manifest, bdir)
-        lipbatch.write_manifest(lipbatch.manifest_path(_PR, batch_id), manifest)
+        lipbatch.write_manifest(bdir / "manifest.json", manifest)
 
         return LipSyncBatchResponse(
             success=True,
@@ -1092,11 +1215,11 @@ async def lipsync_batch_status(batch_id: str) -> LipSyncBatchStatusResponse:
         from ..queue.manager import queue_manager
         from ..services.lipsync import batch as lipbatch
 
-        mpath = lipbatch.manifest_path(_PR, batch_id)
+        bdir, mpath = _lipsync_batch_state(_PR, batch_id)
         if not mpath.is_file():
             raise FileNotFoundError(f"Batch not found: {batch_id}")
         manifest = lipbatch.resolve_manifest_paths(
-            lipbatch.read_manifest(mpath), lipbatch.batch_dir(_PR, batch_id)
+            lipbatch.read_manifest(mpath), bdir
         )
         chunks: list[dict[str, Any]] = []
         completed = 0
@@ -1146,10 +1269,9 @@ async def lipsync_batch_stitch(batch_id: str) -> dict:
         from ..queue.manager import queue_manager
         from ..services.lipsync import batch as lipbatch
 
-        mpath = lipbatch.manifest_path(_PR, batch_id)
+        bdir, mpath = _lipsync_batch_state(_PR, batch_id)
         if not mpath.is_file():
             raise FileNotFoundError(f"Batch not found: {batch_id}")
-        bdir = lipbatch.batch_dir(_PR, batch_id)
         manifest = lipbatch.resolve_manifest_paths(lipbatch.read_manifest(mpath), bdir)
 
         if manifest.get("stitched") and Path(str(manifest["final_output"])).is_file():

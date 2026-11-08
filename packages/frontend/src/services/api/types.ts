@@ -1954,6 +1954,32 @@ export interface StemVisualizationUniform {
   url: string;
 }
 
+/**
+ * POST /api/video/lipsync — local MuseTalk lip-sync (D42).
+ * Mirrors backend LipSyncRequest: exactly one of video_path / image_path is
+ * required; audio_path should be the isolated vocals stem (full mix syncs
+ * markedly worse). audio_filename is only a fallback lookup under
+ * output/audio/.
+ */
+export interface LipSyncRequest {
+  video_path?: string | null;
+  image_path?: string | null;
+  audio_path?: string | null;
+  audio_filename?: string | null;
+  section?: string;
+  output_path?: string | null;
+}
+
+/** POST /api/video/lipsync response — the job is polled via GET /api/jobs/{id}. */
+export interface LipSyncResponse {
+  success: boolean;
+  job_id?: string | null;
+  output_path?: string | null;
+  section?: string | null;
+  error?: string | null;
+  message?: string | null;
+}
+
 // recovered from pre-typed-fetch rewrite
 export interface HealthStatus {
   status: string;

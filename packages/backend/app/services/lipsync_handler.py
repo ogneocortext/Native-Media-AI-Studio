@@ -162,9 +162,17 @@ class LipSyncHandler:
                 logger.debug("lipsync progress update skipped (no event loop) for %s", job.id[:8])
 
         # Bound the adapter call so a hung MuseTalk process cannot block the
-        # job indefinitely. 10 minutes is generous for a lipsync render.
+        # job indefinitely. Budget = configured inference timeout + 10 min of
+        # headroom for audio normalization, avatar prep, and ffprobe. On the
+        # GTX 1070 Ti a 20 s chunk can take 5-15 min, so the old flat 600 s
+        # killed every real render.
+        # The watcher bridges queue cancellation into the adapter: without it
+        # a CANCELLED job keeps the MuseTalk subprocess (and its VRAM) alive
+        # until the timeout fires.
+        handler_timeout_s = adapter.config.inference_timeout_s + 600
+        cancel_watcher = _spawn(self._watch_job_cancel(job.id, adapter))
         try:
-            async with asyncio.timeout(600):
+            async with asyncio.timeout(handler_timeout_s):
                 result = await adapter.lipsync(
                     video_path=source,
                     audio_path=audio_path,
@@ -178,7 +186,11 @@ class LipSyncHandler:
                 source=source,
                 audio_path=audio_path,
             )
-            raise TimeoutError("MuseTalk lipsync timed out after 600 s") from exc
+            raise TimeoutError(
+                f"MuseTalk lipsync timed out after {handler_timeout_s} s"
+            ) from exc
+        finally:
+            cancel_watcher.cancel()
         result["section"] = section
         result["job_id"] = job.id
 
@@ -193,6 +205,25 @@ class LipSyncHandler:
             use_float16=result.get("use_float16"),
         )
         return result
+
+    async def _watch_job_cancel(self, job_id: str, adapter: Any) -> None:
+        """Poll queue cancellation and forward it to the adapter.
+
+        ``adapter.cancel()`` is thread-safe and terminates the MuseTalk
+        subprocess, so a cancelled job stops burning GPU/VRAM immediately
+        instead of running to the handler timeout.
+        """
+        try:
+            while True:
+                await asyncio.sleep(2)
+                if await queue_manager.is_cancelled(job_id):
+                    logger.info("lipsync %s: cancellation requested, stopping adapter", job_id[:8])
+                    adapter.cancel()
+                    return
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.debug("lipsync cancel watcher stopped for %s", job_id[:8], exc_info=True)
 
 
 # Handler instance (mirrors music_video_handler convention)

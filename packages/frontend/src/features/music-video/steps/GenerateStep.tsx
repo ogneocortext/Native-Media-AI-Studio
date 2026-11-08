@@ -17,6 +17,7 @@ export function GenerateStep({
   config,
   onStart,
   onConfigChange,
+  statusNote,
 }: {
   generating: boolean;
   progress: number;
@@ -24,6 +25,8 @@ export function GenerateStep({
   config: GenerationConfig;
   onStart: () => void;
   onConfigChange: (c: GenerationConfig) => void;
+  /** Live sub-status (e.g. lip-sync progress) shown under the main bar. */
+  statusNote?: string | null;
 }) {
   const [sectionRoutes, setSectionRoutes] = useState<
     Record<string, { model: string; tier: string; reason: string } | undefined>
@@ -335,6 +338,11 @@ export function GenerateStep({
           <p className="text-sm text-gray-400 mt-2 text-center">
             {progress.toFixed(0)}% • generating on CUDA (serial queue) — do not close
           </p>
+          {statusNote && (
+            <p className="text-xs text-violet-300 mt-1.5 text-center flex items-center justify-center gap-1.5">
+              <Loader2 size={12} className="animate-spin shrink-0" /> {statusNote}
+            </p>
+          )}
           <div className="mt-4 flex items-center justify-center gap-2 text-violet-400 text-sm">
             <Loader2 size={18} className="animate-spin" /> Beat-synced keyframes + EEVEE Next /
             Cycles

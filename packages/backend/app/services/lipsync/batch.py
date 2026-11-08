@@ -40,7 +40,18 @@ def plan_chunks(duration_s: float, chunk_seconds: float) -> list[Chunk]:
     # Round to 3 decimals to keep ffmpeg args clean; the last chunk absorbs drift.
     while start < duration_s:
         length = min(chunk_seconds, duration_s - start)
-        chunks.append(Chunk(index=index, start=round(start, 3), length=round(length, 3)))
+        rounded = round(length, 3)
+        if rounded <= 0:
+            if not chunks:
+                # Degenerate sub-millisecond duration: keep the raw value.
+                chunks.append(Chunk(index=0, start=0.0, length=length))
+            else:
+                # A sub-millisecond remainder would round to a zero-length
+                # chunk that ffmpeg cannot cut (-t 0.0). Fold it into the
+                # previous chunk instead.
+                chunks[-1].length = round(duration_s - chunks[-1].start, 3)
+            break
+        chunks.append(Chunk(index=index, start=round(start, 3), length=rounded))
         start += chunk_seconds
         index += 1
     return chunks

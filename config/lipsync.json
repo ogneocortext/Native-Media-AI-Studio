@@ -1,1 +1,27 @@
-{"_comment":"Local MuseTalk lip-sync configuration (D42). No network calls — the studio never integrates third-party lip-sync APIs.","audio":{"note":"Feed the isolated vocals stem (POST /api/audio/separate), not the full mix — speech-trained models sync markedly worse on full mixes.","sample_rate":16000,"normalization_timeout_seconds":600},"inference":{"_comment":"Command template with {video} {audio} {output} {weights_dir} {prep_dir} {avatar_key} {batch_size} {float16_flag} placeholders. CONFIRM against the installed MuseTalk version on the Windows GPU box before setting — CLI flags drift between releases. Empty means fail-open with guidance.","command":"","timeout_seconds":3600,"batch_size":1},"mock":{"_comment":"DEV-ONLY. When true, the adapter copies the input video to the output instead of running the model, so the full batch workflow (chunk -> queue -> stitch) can be exercised with no GPU and no weights. NEVER true for real output.","enabled":false},"vram_budget_mb":4096,"weights_dir":"models/musetalk","use_float16":true,"target_fps":25,"preparation":{"_comment":"Avatar latent cache dir. Set preparation=True once per avatar; later clips reuse cached latents (seconds instead of minutes).","dir":"models/musetalk/prepared"}}
+{
+  "_comment": "Local MuseTalk lip-sync configuration (D42). No network calls — the studio never integrates third-party lip-sync APIs.",
+  "audio": {
+    "note": "Feed the isolated vocals stem (POST /api/audio/separate), not the full mix — speech-trained models sync markedly worse on full mixes.",
+    "sample_rate": 16000,
+    "normalization_timeout_seconds": 600
+  },
+  "inference": {
+    "_comment": "Command template with {video} {audio} {output} {weights_dir} {prep_dir} {avatar_key} {batch_size} {float16_flag} {scratch_dir} placeholders. CONFIRM against the installed MuseTalk version on the Windows GPU box before setting — CLI flags drift between releases (v1.5 uses --inference_config YAML + --result_dir, not positional args). Empty means fail-open with guidance.",
+    "command": "",
+    "timeout_seconds": 3600,
+    "batch_size": 1,
+    "scratch_dir": null
+  },
+  "mock": {
+    "_comment": "DEV-ONLY. When true, the adapter copies the input video to the output instead of running the model, so the full batch workflow (chunk -> queue -> stitch) can be exercised with no GPU and no weights. NEVER true for real output.",
+    "enabled": false
+  },
+  "vram_budget_mb": 4096,
+  "weights_dir": "models/musetalk",
+  "use_float16": true,
+  "target_fps": 25,
+  "preparation": {
+    "_comment": "Avatar preparation cache dir. NOTE: MuseTalk v1.5 has no latent-prep CLI — its reusable artifact is the face-coordinate pickle via --use_saved_coord. The latents.pt cache here is aspirational until the v1.5 command template is configured; preparation is skipped when no template is set.",
+    "dir": "models/musetalk/prepared"
+  }
+}

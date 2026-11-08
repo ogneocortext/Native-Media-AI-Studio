@@ -11,6 +11,8 @@ import type {
   RouteSceneResponse,
   AssembleResponse,
   StemVisualizationResponse,
+  LipSyncRequest,
+  LipSyncResponse,
 } from "./types";
 
 const BASE = "/api/video";
@@ -113,6 +115,15 @@ export async function getStemVisualization(params: {
     params,
     { timeout: 120000 },
   );
+}
+
+/**
+ * Enqueue a local lip-sync job (MuseTalk, D42) for a rendered clip.
+ * Returns immediately with a job_id — poll via GET /api/jobs/{job_id}.
+ * The endpoint 503s with guidance when MuseTalk weights/config are missing.
+ */
+export async function lipsyncClip(request: LipSyncRequest): Promise<LipSyncResponse> {
+  return postJson<LipSyncResponse>(`${BASE}/lipsync`, request, { timeout: 30000 });
 }
 
 export type * from "./types";

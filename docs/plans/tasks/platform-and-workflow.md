@@ -1615,3 +1615,45 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** satisfied — clone->hooks->venv->uvicorn/vite->gates all
   work on Linux; Windows rig unchanged.
 - **Last session:** Devin, 2026-11-08 — committed+pushed.
+
+### T-LIPSYNC-01 — Coordinated lip-sync sweep: correctness, cancellation, UX
+- **Status:** done
+- **Goal:** Line-by-line + best-practices sweep of the whole lip-sync
+  surface (D42 local-only MuseTalk) — fix contract breaks, resource leaks,
+  and UX gaps; raise the baseline without changing the architecture.
+- **Changes:** queue timeout per-type (LIPSYNC 4500s, was killed at 300s);
+  handler timeout now config-driven (inference_timeout_s + 600s, was flat
+  600s); queue-cancel watcher bridges is_cancelled -> adapter.cancel()
+  (terminate subprocess, stop VRAM burn); inference I/O staged into a
+  space-free scratch dir (MuseTalk os.system ffmpeg breaks on the repo's
+  spaced path) with {scratch_dir} template placeholder; Windows-safe
+  command splitter replaces shlex posix=False; monotonic progress bands
+  (prep 12-19%, infer 30-95%); vram begin/end guarded by vram_begun;
+  plan_chunks tiny-remainder fold; batch state moved to
+  output/runtime/lipsync_batches (was hidden-dir leak into media library);
+  enqueue-failure cancels orphaned chunk jobs; audio_filename traversal
+  guards + is_relative_to containment in both resolve paths; generate-
+  section response uses real handler output naming; check_installation
+  gains non-fatal UNet/Whisper/VAE component warnings; frontend wizard
+  polls 660s (was 120s), shows live progress, prefers isolated vocals
+  stem with visible full-mix fallback warning, hash-prefixed filename
+  fix, chorus-absence warning, persistent warning cards; typed
+  LipSyncRequest/Response + lipsyncClip() helper.
+- **Files:** packages/backend/app/api/video.py,
+  packages/backend/app/queue/processor.py,
+  packages/backend/app/services/lipsync/{batch,musetalk_adapter}.py,
+  packages/backend/app/services/lipsync_handler.py,
+  packages/backend/tests/test_lipsync{,_batch}.py,
+  packages/frontend/src/features/music-video/**,
+  packages/frontend/src/services/api/{index,types,video-render}.ts,
+  config/lipsync.json, docs/plans/tasks/platform-and-workflow.md
+- **Verification:** pytest test_lipsync*.py 29/29; ruff clean; run-gates
+  --only docs ruff type lint unit all PASS; nesting regressions flattened
+  (helpers extracted, no baseline bump).
+- **Acceptance:** satisfied for the audit scope. Open follow-ups:
+  real MuseTalk v1.5 YAML command template still unconfigured (config
+  command empty by design); latents.pt prep is aspirational vs v1.5
+  --use_saved_coord pkl cache; batch runtime dirs have no retention
+  cleanup; no live non-mock inference has ever run.
+- **Last session:** Devin, 2026-11-08 — sweep complete, gates green,
+  commit+push.

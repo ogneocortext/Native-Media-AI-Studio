@@ -29,6 +29,7 @@ export function ConfigureStep({
   onSuggestionClick,
   onNext,
   onGenerateMusicPrompt,
+  lipSyncNote,
 }: {
   config: GenerationConfig;
   composedPrompt: string;
@@ -36,6 +37,8 @@ export function ConfigureStep({
   onSuggestionClick: (w: string) => void;
   onNext: () => void;
   onGenerateMusicPrompt?: () => void;
+  /** Contextual prerequisite/warning shown under the lip-sync checkbox. */
+  lipSyncNote?: { text: string; tone: "info" | "warn" };
 }) {
   const [activeCategory, setActiveCategory] = useState("happy");
   const applyStructured = () => onConfigChange({ ...config, prompt: composedPrompt });
@@ -152,8 +155,16 @@ export function ConfigureStep({
                   </span>
                   <span className="block text-[11px] text-gray-400 mt-0.5">
                     Runs local MuseTalk (no cloud) on rendered chorus sections after generation.
-                    Needs model weights + vocals stem; fails safe when unconfigured.
+                    Needs model weights + an isolated vocals stem — the full mix syncs
+                    markedly worse; fails safe when unconfigured.
                   </span>
+                  {lipSyncNote && (
+                    <span
+                      className={`block text-[11px] mt-1 ${lipSyncNote.tone === "warn" ? "text-amber-300" : "text-gray-500"}`}
+                    >
+                      {lipSyncNote.text}
+                    </span>
+                  )}
                 </span>
               </label>
             </div>

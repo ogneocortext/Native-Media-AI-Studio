@@ -41,6 +41,15 @@ logger = logging.getLogger(__name__)
 # 300s is ample for a GTX 1070 Ti render; anything longer means a hung job.
 HANDLER_TIMEOUT_SECONDS = 300
 
+#: Per-type overrides for HANDLER_TIMEOUT_SECONDS. Lip-sync legitimately runs
+#: far past the default: the handler budgets inference_timeout_s (config
+#: default 3600) + 600 s of prep/normalize headroom for the MuseTalk call, so
+#: the serial-queue ceiling must cover the whole job or every real lipsync
+#: dies as handler_timeout before the model finishes.
+HANDLER_TIMEOUT_BY_TYPE: dict[JobType, int] = {
+    JobType.LIPSYNC: 4500,
+}
+
 # How long a RUNNING job may sit before it is presumed ownerless, and how often
 # the loop checks. A job is RUNNING only while the process that claimed it lives;
 # past this age AND past its progress-lease silence window (see
@@ -496,13 +505,16 @@ class JobProcessor:
             # Run the handler with a hard timeout so a hung adapter cannot
             # stall the serial queue forever. Do NOT shield: cancellation must
             # be able to reach the handler so a cancelled job actually stops.
+            handler_timeout = HANDLER_TIMEOUT_BY_TYPE.get(
+                job.job_type, HANDLER_TIMEOUT_SECONDS
+            )
             if inspect.iscoroutinefunction(handler):
                 handler_task = asyncio.create_task(handler(job))
                 watcher_task = asyncio.create_task(self._cancellation_watcher(job))
                 try:
                     result = await asyncio.wait_for(
                         handler_task,
-                        timeout=HANDLER_TIMEOUT_SECONDS,
+                        timeout=handler_timeout,
                     )
                 except TimeoutError:
                     handler_task.cancel()
@@ -511,7 +523,7 @@ class JobProcessor:
                     except asyncio.CancelledError:
                         pass
                     raise HandlerTimeoutError(
-                        f"Job {job.id} exceeded handler timeout of {HANDLER_TIMEOUT_SECONDS}s"
+                        f"Job {job.id} exceeded handler timeout of {handler_timeout}s"
                     ) from None
                 finally:
                     watcher_task.cancel()

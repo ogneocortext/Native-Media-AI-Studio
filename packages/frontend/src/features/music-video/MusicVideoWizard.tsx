@@ -3,7 +3,7 @@ import { ChevronRight, ChevronLeft, AlertCircle, Check } from "lucide-react";
 import { STEPS } from "./types";
 import type { WizardStep, AudioAnalysis, GenerationConfig } from "./types";
 import { UploadStep, AnalyzeStep, ConfigureStep, GenerateStep, ReviewStep } from "./steps";
-import { savePromptVersion } from "../../services/api";
+import { savePromptVersion, lipsyncClip, separateAudioFile } from "../../services/api";
 import { PromptHistoryPanel } from "./PromptHistoryPanel";
 import { consumePendingAudioFile, peekPendingAudioName } from "../../utils/pendingAudio";
 import { peekPendingTrack, clearPendingTrack } from "../../utils/pendingTrack";
@@ -42,6 +42,10 @@ export function MusicVideoWizard() {
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generatedSections, setGeneratedSections] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Lip-sync (D42) UX state: live status while a MuseTalk job runs, and a
+  // persistent list of notes/warnings the user sees on Generate + Review.
+  const [lipSyncStatus, setLipSyncStatus] = useState<string | null>(null);
+  const [lipSyncNotes, setLipSyncNotes] = useState<string[]>([]);
   const [pendingHint, setPendingHint] = useState<string | null>(() => peekPendingAudioName());
   const [showMusicPrompt, setShowMusicPrompt] = useState(false);
   const objectUrlRef = useRef<string | null>(null);
@@ -154,25 +158,70 @@ export function MusicVideoWizard() {
     return `${s.shotSize} shot, ${s.cameraAngle.toLowerCase()} angle, ${s.subject} ${s.action}, ${s.setting}, ${s.lighting} lighting, ${s.mood}, cinematic 35mm film`;
   }, [config.structuredPrompt]);
 
+  // Contextual prerequisite note shown under the lip-sync checkbox: explains
+  // the isolated-vocals requirement and warns when no chorus exists to sync.
+  const lipSyncNote = useMemo<{ text: string; tone: "info" | "warn" } | undefined>(() => {
+    if (!config.lipSyncChorus) return undefined;
+    const hasChorus = (analysis?.sections ?? []).some((s) =>
+      s.type.toLowerCase().includes("chorus"),
+    );
+    if (analysis && !hasChorus) {
+      return {
+        text: "No chorus sections detected in this track's analysis — lip-sync will not run.",
+        tone: "warn",
+      };
+    }
+    return {
+      text: "Best results need the isolated vocals stem, not the full mix — the wizard separates it automatically on first use (one-time, can take minutes). Falls back to the full mix with a warning when separation is unavailable.",
+      tone: "info",
+    };
+  }, [config.lipSyncChorus, analysis]);
+
   const generateVideo = useCallback(async () => {
     setGenerating(true);
     setGenerationProgress(0);
     setError(null);
+    setLipSyncStatus(null);
+    setLipSyncNotes([]);
     const sections = analysis?.sections ?? [{ type: "full", start: 0, end: 10, energy: 0.5 }];
+    // Lip-sync only runs on chorus sections — warn up front when the option
+    // is on but the analysis has no chorus to sync.
+    if (
+      config.lipSyncChorus &&
+      !sections.some((s) => s.type.toLowerCase().includes("chorus"))
+    ) {
+      setLipSyncNotes([
+        "Lip-sync is enabled but the analysis found no chorus sections — nothing will be synced.",
+      ]);
+    }
     const results: string[] = [];
 
-    const pollJob = async (jobId: string, sectionLabel: string) => {
-      const maxWait = 120;
+    const pollJob = async (
+      jobId: string,
+      sectionLabel: string,
+      opts: {
+        maxWaitSeconds?: number;
+        onProgress?: (frac: number, message: string) => void;
+      } = {},
+    ) => {
+      const maxWait = opts.maxWaitSeconds ?? 120;
       const start = Date.now();
       while ((Date.now() - start) / 1000 < maxWait) {
         const r = await fetch(`/api/jobs/${jobId}`);
         if (!r.ok) throw new Error(`Job poll failed ${r.status}`);
         const job = (await r.json()) as {
           status?: string;
+          progress?: number;
+          message?: string;
           output_path?: string | null;
           result?: Record<string, unknown> | null;
           error?: string | null;
         };
+        // Jobs broadcast real progress (lipsync reports MuseTalk frame %);
+        // surface it instead of a flat spinner.
+        if (typeof job.progress === "number" && opts.onProgress) {
+          opts.onProgress(job.progress, job.message ?? "");
+        }
         if (job.status === "completed") {
           const resultPath = job.result?.output_path;
           const fromResult = typeof resultPath === "string" ? resultPath : "";
@@ -186,7 +235,55 @@ export function MusicVideoWizard() {
         if (job.status === "failed") throw new Error(job.error ?? `Section ${sectionLabel} failed`);
         await new Promise((res) => setTimeout(res, 1200));
       }
-      throw new Error(`Timeout waiting for section ${sectionLabel}`);
+      throw new Error(
+        `Timed out waiting for ${sectionLabel} (job ${jobId.slice(0, 8)} may still be running — check the Queue page)`,
+      );
+    };
+
+    // Lip-sync prerequisite (D42): MuseTalk syncs markedly better against the
+    // isolated vocals stem than the full mix. The only endpoint that hands the
+    // frontend a usable stem *path* is /api/audio/separate-file, and only when
+    // it actually runs separation — its cache-hit path returns /api/audio/
+    // stem-file URLs, which the lipsync endpoint cannot resolve to a file.
+    // Resolve lazily on the first chorus so a track with no chorus never pays
+    // for a separation it will not use.
+    let lipSyncAudioResolved = false;
+    let lipSyncAudioPath: string | null = null;
+    const addLipSyncNote = (note: string) =>
+      setLipSyncNotes((prev) => (prev.includes(note) ? prev : [...prev, note]));
+    const resolveLipSyncAudio = async (): Promise<string | null> => {
+      if (lipSyncAudioResolved) return lipSyncAudioPath;
+      lipSyncAudioResolved = true;
+      // relative_path is the AUDIO_DIR-relative name separate-file expects;
+      // stored_path's basename is the fallback for older cached analyses.
+      const libraryName =
+        analysis?.relative_path ??
+        (analysis?.stored_path ? analysis.stored_path.split(/[\\/]/).pop() : undefined);
+      if (!libraryName) {
+        addLipSyncNote("Lip-sync skipped: no stored audio file to derive a vocals stem from.");
+        return null;
+      }
+      setLipSyncStatus("Separating vocals stem for lip-sync (one-time, can take minutes)…");
+      try {
+        const sep = await separateAudioFile(libraryName);
+        const vocals = sep.stems.vocals;
+        // Cache-hit responses carry stem-file URLs ("/api/audio/stem-file/…"),
+        // not filesystem paths — only a real separation returns paths.
+        if (sep.success && vocals && !vocals.startsWith("/") && !/^https?:/i.test(vocals)) {
+          lipSyncAudioPath = vocals;
+        } else {
+          addLipSyncNote(
+            "Lip-sync will use the full mix — an isolated vocals stem path was not available (stems already separated return URLs, not paths). Sync quality is reduced; re-run separation from the Visualizer if needed.",
+          );
+        }
+      } catch (stemErr) {
+        addLipSyncNote(
+          `Lip-sync will use the full mix — vocals stem separation failed (${stemErr instanceof Error ? stemErr.message : "unknown error"}).`,
+        );
+      } finally {
+        setLipSyncStatus(null);
+      }
+      return lipSyncAudioPath;
     };
 
     for (let i = 0; i < sections.length; i++) {
@@ -222,7 +319,8 @@ export function MusicVideoWizard() {
         if (!jobId) throw new Error(`No job_id for ${section.type}`);
         const out = await pollJob(jobId, section.type);
         // Opt-in lip-sync pass on chorus sections (D42) — local MuseTalk only.
-        // Best-effort: if it fails, the rendered section is kept as-is.
+        // Best-effort: if it fails, the rendered section is kept as-is, but the
+        // failure is surfaced to the user via lipSyncNotes (not just console).
         let finalOut = out;
         if (
           config.lipSyncChorus &&
@@ -230,27 +328,37 @@ export function MusicVideoWizard() {
           !out.startsWith("FAILED")
         ) {
           try {
-            const lsRes = await fetch("/api/video/lipsync", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                video_path: out,
-                audio_path: analysis?.stored_path ?? undefined,
-                audio_filename: audioFile?.name,
-                section: section.type,
-              }),
+            const vocalsPath = await resolveLipSyncAudio();
+            const lsRes = await lipsyncClip({
+              video_path: out,
+              // Prefer the isolated vocals stem; fall back to the full mix.
+              audio_path: vocalsPath ?? analysis?.stored_path ?? undefined,
+              // audio_filename is only a fallback lookup under output/audio/ —
+              // it must be the stored (hash-prefixed) library name, not the
+              // original upload name, or the rglob misses.
+              audio_filename:
+                analysis?.stored_path?.split(/[\\/]/).pop() ?? audioFile?.name,
+              section: section.type,
             });
-            if (!lsRes.ok) {
-              const detail = (await lsRes.json().catch(() => ({ detail: lsRes.statusText }))) as {
-                detail?: string;
-              };
-              throw new Error(detail.detail ?? "Lip-sync queue failed");
+            if (!lsRes.success || !lsRes.job_id) {
+              throw new Error(lsRes.error ?? lsRes.message ?? "Lip-sync queue failed");
             }
-            const lsData = (await lsRes.json()) as { job_id?: string };
-            if (!lsData.job_id) throw new Error("No job_id for lip-sync");
-            finalOut = await pollJob(lsData.job_id, `${section.type}-lipsync`);
+            setLipSyncStatus(`Lip-syncing ${section.type} (MuseTalk)…`);
+            // The backend caps MuseTalk at 600 s; poll a little past that so a
+            // slow render is not reported as a client-side timeout.
+            finalOut = await pollJob(lsRes.job_id, `${section.type}-lipsync`, {
+              maxWaitSeconds: 660,
+              onProgress: (frac, message) =>
+                setLipSyncStatus(
+                  `Lip-syncing ${section.type}: ${Math.round(frac * 100)}%${message ? ` — ${message}` : ""}`,
+                ),
+            });
           } catch (lsErr) {
+            const msg = lsErr instanceof Error ? lsErr.message : String(lsErr);
             console.warn("Lip-sync pass failed, keeping original section:", lsErr);
+            addLipSyncNote(`Lip-sync failed for ${section.type} — kept the original render. ${msg}`);
+          } finally {
+            setLipSyncStatus(null);
           }
         }
         results.push(finalOut);
@@ -331,6 +439,7 @@ export function MusicVideoWizard() {
             onSuggestionClick={addPromptSuggestion}
             onNext={() => setCurrentStep("generate")}
             onGenerateMusicPrompt={() => setShowMusicPrompt(true)}
+            lipSyncNote={lipSyncNote}
           />
         );
       case "generate":
@@ -342,6 +451,7 @@ export function MusicVideoWizard() {
             config={config}
             onStart={() => void generateVideo()}
             onConfigChange={setConfig}
+            statusNote={lipSyncStatus}
           />
         );
       case "review":
@@ -351,6 +461,7 @@ export function MusicVideoWizard() {
               generatedSections={generatedSections}
               audioUrl={audioUrl}
               analysis={analysis}
+              notes={lipSyncNotes}
             />
             {audioFile?.name && (
               <PromptHistoryPanel
