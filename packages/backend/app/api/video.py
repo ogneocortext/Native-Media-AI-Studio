@@ -1007,6 +1007,21 @@ async def _enqueue_lipsync_chunk_jobs(
     return job_ids
 
 
+def _cleanup_stitched_batch(bdir: Path) -> None:
+    """Remove per-chunk media after a successful stitch.
+
+    Chunk wavs/mp4s are the bulk of a batch's disk usage and are dead weight
+    once concatenated into the final output. The manifest and concat list
+    stay so batch status remains queryable.
+    """
+    for pattern in ("audio_chunk_*.wav", "video_chunk_*.mp4", "chunk_*_lipsync.mp4"):
+        for f in bdir.glob(pattern):
+            try:
+                f.unlink()
+            except OSError:
+                logger.debug("Failed to remove stitched batch chunk %s", f)
+
+
 async def _cancel_orphaned_lipsync_jobs(job_ids: list[str], bdir: Path) -> None:
     """Cancel already-enqueued chunk jobs after a batch enqueue failure.
 
@@ -1318,6 +1333,7 @@ async def lipsync_batch_stitch(batch_id: str) -> dict:
 
         manifest["stitched"] = True
         lipbatch.write_manifest(mpath, manifest)
+        _cleanup_stitched_batch(bdir)
         return {
             "success": True,
             "batch_id": batch_id,

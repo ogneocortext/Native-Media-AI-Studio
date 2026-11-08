@@ -241,10 +241,9 @@ export function MusicVideoWizard() {
     };
 
     // Lip-sync prerequisite (D42): MuseTalk syncs markedly better against the
-    // isolated vocals stem than the full mix. The only endpoint that hands the
-    // frontend a usable stem *path* is /api/audio/separate-file, and only when
-    // it actually runs separation — its cache-hit path returns /api/audio/
-    // stem-file URLs, which the lipsync endpoint cannot resolve to a file.
+    // isolated vocals stem than the full mix. /api/audio/separate-file returns
+    // filesystem paths in stems_paths on both fresh separation and cache hits
+    // (stems itself carries playback URLs, which lipsync cannot resolve).
     // Resolve lazily on the first chorus so a track with no chorus never pays
     // for a separation it will not use.
     let lipSyncAudioResolved = false;
@@ -266,14 +265,14 @@ export function MusicVideoWizard() {
       setLipSyncStatus("Separating vocals stem for lip-sync (one-time, can take minutes)…");
       try {
         const sep = await separateAudioFile(libraryName);
-        const vocals = sep.stems.vocals;
-        // Cache-hit responses carry stem-file URLs ("/api/audio/stem-file/…"),
-        // not filesystem paths — only a real separation returns paths.
+        // stems_paths carries absolute filesystem paths on both fresh runs and
+        // cache hits; stems carries playback URLs which lipsync can't resolve.
+        const vocals = sep.stems_paths?.vocals ?? sep.stems.vocals;
         if (sep.success && vocals && !vocals.startsWith("/") && !/^https?:/i.test(vocals)) {
           lipSyncAudioPath = vocals;
         } else {
           addLipSyncNote(
-            "Lip-sync will use the full mix — an isolated vocals stem path was not available (stems already separated return URLs, not paths). Sync quality is reduced; re-run separation from the Visualizer if needed.",
+            "Lip-sync will use the full mix — an isolated vocals stem path was not available. Sync quality is reduced; re-run separation from the Visualizer if needed.",
           );
         }
       } catch (stemErr) {

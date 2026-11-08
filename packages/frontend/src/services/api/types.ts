@@ -114,6 +114,8 @@ export interface StemSeparationResponse {
   computed_at: string;
   error?: string | null;
   stems_mp3?: Record<string, string>;
+  /** Absolute filesystem paths per stem — `stems` carries playback URLs. */
+  stems_paths?: Record<string, string>;
 }
 
 export interface SeparationQualityOptions {
@@ -127,6 +129,7 @@ export interface AudioStemsResponse {
   audio_file: string;
   stems: Record<string, string>;
   stems_mp3?: Record<string, string>;
+  stems_paths?: Record<string, string>;
   found: boolean;
 }
 

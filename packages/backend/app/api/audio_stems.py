@@ -65,6 +65,9 @@ class StemSeparationResponse(BaseModel):
     computed_at: str
     error: str | None = None
     stems_mp3: dict[str, str] = {}
+    #: Absolute filesystem paths per stem. ``stems`` carries HTTP URLs for
+    #: playback; lipsync and other file-consuming callers need real paths.
+    stems_paths: dict[str, str] = {}
 
 
 @router.post("/separate", response_model=StemSeparationResponse)
@@ -138,6 +141,7 @@ async def separate_audio(
             computed_at=result.computed_at,
             error=result.error,
             stems_mp3=result.stems_mp3,
+            stems_paths=result.stems,
         )
     except Exception as e:
         logger.exception("Stem separation failed")
@@ -172,6 +176,8 @@ async def get_stems(filename: str) -> dict:
             name: f"/api/audio/stem-file/{Path(p).parent.name}/{Path(p).stem}?format=mp3"
             for name, p in stems.items()
         },
+        # Absolute paths for file-consuming callers (e.g. lip-sync input).
+        "stems_paths": dict(stems),
         "found": bool(stems),
     }
 
@@ -278,6 +284,7 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
             computed_at="",
             error=None,
             stems_mp3=existing.get("stems_mp3", {}),
+            stems_paths=existing.get("stems_paths", {}),
         )
 
     try:
@@ -302,6 +309,7 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
             computed_at=result.computed_at,
             error=result.error,
             stems_mp3=result.stems_mp3,
+            stems_paths=result.stems,
         )
     except Exception as e:
         logger.exception("Stem separation failed")
