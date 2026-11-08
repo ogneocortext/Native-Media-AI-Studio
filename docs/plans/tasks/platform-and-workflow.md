@@ -1650,10 +1650,13 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** pytest test_lipsync*.py 29/29; ruff clean; run-gates
   --only docs ruff type lint unit all PASS; nesting regressions flattened
   (helpers extracted, no baseline bump).
-- **Acceptance:** satisfied for the audit scope. Open follow-ups:
-  real MuseTalk v1.5 YAML command template still unconfigured (config
-  command empty by design); latents.pt prep is aspirational vs v1.5
-  --use_saved_coord pkl cache; batch runtime dirs have no retention
-  cleanup; no live non-mock inference has ever run.
+- **Acceptance:** satisfied for the audit scope. Follow-ups landed
+  2026-11-08: mock-mode live smoke PASS; stems_paths exposed on
+  separate-file cache hits (vocals stem no longer falls back to full
+  mix); post-stitch chunk-media cleanup; DELETE /lipsync-batch/{id}
+  with 409-on-active-jobs guard. Still open: real MuseTalk v1.5 YAML
+  command template unconfigured (command empty by design — needs the
+  actual install); latents.pt prep aspirational vs v1.5
+  --use_saved_coord pkl cache; no live non-mock inference has run.
 - **Last session:** Devin, 2026-11-08 — sweep complete, gates green,
-  commit+push.
+  commit+push; follow-up commits 1a24e148 + 8dfc897b.
