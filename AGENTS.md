@@ -56,13 +56,17 @@
 > is the handoff — there is no "update it next commit."
 > Format and rules: `docs/plans/tasks/README.md`.
 >
-> **Project skills** live in `.kilo/skills/` (local-only, auto-discovered
-> each session). Key ones: `visual-qa-loop` (screenshot → vision-analyze →
-> research → improve → re-verify), `gates-commit-push` (commit/push
-> protocol with the Co-authored-by trailer), `ollama-model-ops` (model
-> selection, vision pre-warm, VRAM/timeout budgets), `vision-page-analysis`,
-> `music-video-vision`, `blender-mcp`, `comfyui-mcp`, `unity-mcp`,
-> `storage-sweep` (storage/ + repo-debris hygiene). Load one
+> **Project skills** live in `.claude/skills/` (tracked canonical; mirrored
+> to `.kilo/`, `.devin/`, `.agents/` — keep copies in sync). Key ones:
+> `autonomous-session` (unattended-operation protocol + skill-chaining
+> router — load for multi-step work), `visual-qa-loop` (screenshot →
+> vision-analyze → research → improve → re-verify), `gates-commit-push`
+> (commit/push protocol with the Co-authored-by trailer),
+> `ollama-model-ops` (model selection, vision pre-warm, VRAM/timeout
+> budgets), `vision-page-analysis`, `music-video-vision`, `blender-mcp`,
+> `comfyui-mcp`, `unity-mcp`, `storage-sweep` (storage/ + repo-debris
+> hygiene), `vendor-drift`, `media-output-contract`, `test-measure-improve`,
+> `line-by-line-review`, plus the `*-design` UI-pattern skills. Load one
 > with the `skill` tool when the task matches its description.
 >
 > **If you are a rotated-in agent (D21):** the models used here rotate, so the

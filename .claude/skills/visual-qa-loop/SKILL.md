@@ -99,7 +99,11 @@ node tools/vision/analyze.mjs <image> "<task-specific prompt>" --mode ui
 # or via MCP: vision_describe / vision_batch_analyze with a custom prompt
 ```
 
-- Default model: `gemma4:e2b-it-qat` (detailed, reliable). Takes ~30–60s/image.
+- Model tiers (measured): `moondream` ~1.5s for smoke checks only (it
+  hallucinates detail), `gemma4:e2b-it-qat` ~7s warm workhorse (default),
+  `qwen3.5:4b` ~27s for deep defect hunts. Full routing table:
+  [[ollama-model-ops]]. Pass `--mode fast`/`--model <name>` or the MCP
+  `model` param to override.
 - **Pre-warm the model** if cold: a direct `curl` POST to `/api/generate` first,
   or the MCP call times out (300s inner budget in `tools/vision/vision-common.mjs`).
 - Batch with `vision_batch_analyze` for many images in one call.
@@ -149,7 +153,7 @@ Run gates, then commit with a conventional message and the Co-authored-by traile
 ```bash
 python tools/run-gates.py --only docs ruff type lint unit
 git add <intended files>
-git commit -m "feat(scope): summary" -m "Co-authored-by: Ling 3.1 Flash"
+git commit -m "feat(scope): summary" -m "Co-authored-by: <agent name>"
 ```
 
 ## Worked example

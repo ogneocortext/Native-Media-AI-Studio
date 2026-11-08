@@ -135,3 +135,12 @@ Payment Required — only `beam:cloud` is usable and it has no vision
 capability.
 
 **VRAM management:** The vision script automatically unloads any other currently running Ollama models before loading the vision model, preventing OAM errors on GPUs with limited VRAM. The backend VRAM manager has been refactored to use proper async patterns with `asyncio.to_thread()` for GPU operations.
+
+**Model tiers:** pick per task — `moondream` (~1.5s, smoke checks only; hallucinate detail), `gemma4:e2b-it-qat` (~7s warm, workhorse default), `qwen3.5:4b` (~27s, deep audits; returns text not schema JSON). Routing table and pre-warm: [[ollama-model-ops]]. For rendered music-video/3D frames prefer [[music-video-vision]] prompts; for multi-mode visualizer scoring use [[visualizer-mode-qa]].
+
+## See Also
+
+- [[ollama-model-ops]] — model tiers, pre-warm, VRAM budgets
+- [[visual-qa-loop]] — the full capture→analyze→fix→re-verify loop
+- [[music-video-vision]] — production-specific frame prompts
+- [[visualizer-mode-qa]] — scored multi-mode visualizer audits

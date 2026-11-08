@@ -164,6 +164,9 @@ When analyzing frames, structure feedback as:
 
 ## See Also
 
+- [[ollama-model-ops]] — vision model tiers (moondream smoke / gemma4 workhorse / qwen3.5 deep) and pre-warm
+- [[vision-page-analysis]] — generic UI/page screenshot analysis
+- [[visual-qa-loop]] — the capture→analyze→fix→re-verify loop
 - [[knowledge-library/music-video-production|Music Video Production Guide]]
 - [[knowledge-library/prompt-engineering|Prompt Engineering]]
 - [[knowledge-library/3d-rendering|3D Rendering]]

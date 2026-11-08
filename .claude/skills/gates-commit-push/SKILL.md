@@ -10,8 +10,8 @@ description: >-
 # Gates → Commit → Push
 
 > [!warning] Every commit carries a Co-authored-by trailer. Multiple agents commit
-> to this repo; the trailer is how the user tracks who did what. New commits from
-> 2026-10-06 onward must end with `Co-authored-by: Ling 3.1 Flash`.
+> to this repo; the trailer is how the user tracks who did what. End every
+> commit with `Co-authored-by: <your agent name>` — a bare name, no email.
 
 > [!warning] Stage only intended files. Never commit secrets, scratch files
 > (`tmp_*` in repo root), or generated `vite.config.js`/`vite.config.d.ts`
@@ -73,7 +73,7 @@ Stage only the files that belong to this change.
 ### 3. Commit (conventional + trailer)
 
 ```bash
-git commit -m "feat(visualizer): summary of the change" -m "Co-authored-by: Ling 3.1 Flash"
+git commit -m "feat(visualizer): summary of the change" -m "Co-authored-by: <agent name>"
 ```
 
 Scopes seen in this repo: `fix`, `feat`, `chore`, `docs`, `refactor`, `test`,
@@ -81,10 +81,14 @@ Scopes seen in this repo: `fix`, `feat`, `chore`, `docs`, `refactor`, `test`,
 body.
 
 > [!warning] The commit-msg hook rejects `Co-authored-by` trailers carrying a
-> third-party GitHub email. Use the bare agent name
-> (`Co-authored-by: Ling 3.1 Flash`) or a project-controlled address — never
+> third-party GitHub email. Use the bare agent name — never
 > `…+bot@users.noreply.github.com`-style external emails. Verify with
 > `python tools/agent-contribution-report.py --check` if unsure.
+
+> [!warning] The pre-push gate checks the **working tree**, not your commits.
+> If it fails on files you didn't touch (another agent's uncommitted work),
+> report the blocker — do not bypass hooks, stash their files, or "fix" them
+> mid-flight. Your commits are safe; only the push waits.
 
 > [!warning] Concurrent agents commit to this repo while you work. Their
 > rebase/merge cycles can silently revert your **uncommitted** edits or absorb

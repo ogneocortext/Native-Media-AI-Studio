@@ -1,72 +1,94 @@
 ---
 name: blender-mcp
 description: >-
-  Drive Blender 5.2 through the blender-mcp MCP server (uvx bridge, addon
-  protocol 4, socket port 9876): scene creation, modeling, rendering, and
-  music-video asset production. Use when a task requires creating or
-  manipulating Blender scenes, generating 3D assets inside Blender, or
-  verifying the Blender MCP connection — not for ComfyUI or Unity work.
+  Drive Blender 5.2 — interactively through the blender-mcp MCP server
+  (GUI Blender, socket port 9876, upstream protocol 15 / repo fork
+  protocol 4) or headless via `blender --background --python`. Use for
+  scene creation, modeling, rendering, rigging/export pipelines, and
+  music-video asset production — not for ComfyUI or Unity work.
 ---
 
 # Blender MCP Integration
 
 ## Overview
 
-Blender MCP connects Blender 5.2 to Kilo Code via the Model Context Protocol (MCP). It enables AI agents to create and manipulate 3D scenes, generate models, render animations, and build complete music video productions directly from Blender.
+Blender MCP connects a **live GUI Blender 5.2** session to the agent via a
+socket bridge on port 9876. Use it for interactive authoring, viewport
+screenshots, scene inspection, and iterative QA. For reproducible,
+unattended, or CI work use **headless Blender** instead — see below.
+
+> [!warning] Two MCP stacks share port 9876 and are NOT interchangeable:
+> the repo-local `tools/mcp/blender-mcp-bridge.mjs` + `tools/blender_mcp_addon.py`
+> fork (protocol 4) and the upstream `mcp-for-blender`/`blender-mcp` stack
+> (protocol 15, addon 1.8, configured via `opencode.json`). Only one can
+> listen at a time — check `get_addon_status`/scene info before assuming
+> which tools exist. The repo-local addon refuses `bpy.app.background`;
+> MCP always requires GUI Blender.
 
 ## Architecture
 
 ```
-AI Agent (Kilo Code) → blender-mcp (uvx) → Blender socket (port 9876) → Blender 5.2 Editor
+AI Agent → MCP bridge (uvx/npx) → Blender socket (port 9876) → Blender 5.2 Editor (GUI)
+AI Agent → blender --background --python <script>  → headless, no MCP
 ```
+
+## Headless vs MCP — pick deliberately
+
+| Need | Use |
+|---|---|
+| Interactive scene authoring, viewport screenshots, visual iteration | MCP (`get_scene_info`, `get_viewport_screenshot`, `execute_code`) |
+| Rigging/skin/export/clip pipelines, batch conversion, CI, unattended renders | `blender --background --python tools/...py` — committed bpy scripts are the source of truth |
+
+Headless pattern already in repo: `tools/blender/builder.py`,
+`tools/characters/house_rig.py`, `skin_weights.py`, `idle_clip.py`,
+`tools/convert_blend_to_glb.py`. Every pipeline step should be runnable as
+`blender --background --python <script> -- <args>`.
+
+Blender 5.x pitfalls (full detail:
+`docs/knowledge-library/blender-headless-vs-mcp-character-pipeline-operations-guide-2026.md`):
+
+- **Slotted Actions** replaced `action.fcurves` — code assuming the old API
+  breaks (the repo addon has a live `_snapshot_animation` bug here).
+- glTF animation export needs `export_animation_mode='ACTIONS'` +
+  NLA-stashed actions for named clips.
+- Compositor property names changed; look nodes up by type, not name.
 
 ## Prerequisites
 
 1. **Blender 5.2** installed at `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe`
-2. **Blender MCP Addon** (v1.5, protocol 4) — install via `uvx blender-mcp install-addon` or in Blender: Edit → Preferences → Add-ons → Install → `tools/blender_mcp_addon.py`
+2. **Blender MCP Addon** — upstream `mcp-for-blender` reports protocol 15 /
+   addon `[1, 8]` on Blender 5.2.3 LTS; the repo-local fork is protocol 4 /
+   addon 1.5 (`tools/blender_mcp_addon.py`). Install via `uvx blender-mcp install-addon`
+   or Edit → Preferences → Add-ons.
 3. **Start MCP Server** in Blender: 3D Viewport sidebar → BlenderMCP tab → "Start MCP Server"
-
-## Configuration (opencode.json)
-
-```json
-{
-  "mcp": {
-    "blender": {
-      "type": "local",
-      "command": ["uvx", "blender-mcp"],
-      "environment": {
-        "BLENDER_EXECUTABLE": "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe"
-      },
-      "enabled": true
-    }
-  }
-}
-```
 
 ## Connection Verification
 
 ```bash
-uvx blender-mcp --version
-# Expected: "Blender addon up to date (protocol 4, addon [1, 5], Blender 5.2.0 LTS)"
+# Which stack answered? Protocol version tells you.
+# Via MCP tools: get_addon_status / get_scene_info
+# Headless smoke test:
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --background --python-expr "import bpy; print(bpy.app.version_string)"
 ```
 
-## Available Tools
+## Available Tools (upstream protocol 15)
 
-The Blender MCP server exposes tools for:
+The active upstream stack exposes a smaller, code-first surface — prefer
+`execute_code` (arbitrary `bpy` in the live scene) over per-object helpers:
 
 | Category | Tools |
 |----------|-------|
-| **Scene Management** | `get_world_state`, `get_scene_info`, `set_scene` |
-| **Object Creation** | `create_cube`, `create_sphere`, `create_cylinder`, `create_cone`, `create_torus` |
-| **Object Manipulation** | `move_object`, `rotate_object`, `scale_object`, `delete_object` |
-| **Materials** | `set_material`, `add_texture`, `set_shader`, `set_material_color` |
-| **Animation** | `insert_keyframe`, `set_keyframe`, `set_pose` |
-| **Lighting** | `add_light`, `set_light_properties`, `set_world_background` |
-| **Camera** | `set_camera`, `set_camera_position`, `camera_dolly` |
-| **Rendering** | `render_image`, `render_animation`, `set_render_settings` |
-| **3D Models** | `generate_3d_model` (Hunyuan3D), `import_asset`, `load_sketchfab` |
-| **Assets** | `download_polyhaven_asset`, `download_sketchfab_model` |
-| **Modifiers** | `add_modifier`, `apply_modifier`, `remove_modifier` |
+| **Inspection** | `get_addon_status`, `get_scene_info`, `get_object_info`, `get_viewport_screenshot`, `get_polyhaven_categories`, `search_polyhaven_assets`, `download_polyhaven_asset` |
+| **Authoring** | `execute_code` (run `bpy` Python in Blender — the workhorse), `describe_node_type`, `bpy_api_lookup` (verify API before guessing) |
+| **Viewport** | `get_viewport_screenshot` returns inline image data; for vision-model QA, render to a file under `output/qa/` and analyze with `tools/vision/analyze.mjs` instead |
+
+The repo-local protocol-4 fork exposes a different, larger tool list — do
+not assume tool names carry over between stacks; call `get_scene_info` /
+`get_addon_status` first to learn which protocol answered.
+
+> [!warning] `execute_code` runs in the **GUI** Blender only. It cannot
+> substitute for `blender --background --python` batch jobs, and the
+> repo-local addon explicitly refuses background mode.
 
 ## Music Video Workflows
 
