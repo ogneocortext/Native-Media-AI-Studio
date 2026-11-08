@@ -1,0 +1,65 @@
+# VST Plugin Configuration for Native Media AI Studio
+# This file configures the VST host to scan for plugins in multiple locations
+
+vst_paths:
+  # Project VST directory - free/open-source plugins managed by this repo
+  - "assets/vst"
+  
+  # System VST directories (read-only, standard locations)
+  - "C:/Program Files/Common Files/VST3"
+  - "C:/Program Files (x86)/Common Files/VST3"
+  - "C:/Program Files/VST3"
+  - "C:/Program Files (x86)/VST3"
+  - "~/Documents/VST3"
+
+# Plugin categories for organization
+categories:
+  effect:
+    - eq
+    - compressor
+    - reverb
+    - delay
+    - filter
+    - distortion
+    - modulation
+  
+  instrument:
+    - synthesizer
+    - sampler
+    - piano
+    - drums
+  
+  midi:
+    - arpeggiator
+    - sequencer
+    - controller
+
+# Known working plugins (auto-detected on scan)
+known_plugins:
+  - name: "TDR VOS SlickEQ"
+    path: "C:/Program Files/Common Files/VST3/TDR VOS SlickEQ.vst3"
+    category: "effect"
+    vendor: "Tokyo Dawn Records"
+    parameters: 22
+    status: "verified"
+    description: "Free high-quality EQ with multiple bands"
+  
+  - name: "TDR VOS SlickEQ (x86)"
+    path: "C:/Program Files (x86)/Common Files/VST3/TDR VOS SlickEQ.vst3"
+    category: "effect"
+    vendor: "Tokyo Dawn Records"
+    parameters: 22
+    status: "verified"
+    description: "32-bit version of SlickEQ"
+
+# Plugin presets directory
+presets_dir: "assets/vst/presets"
+
+# Chain presets directory
+chains_dir: "assets/vst/chains"
+
+# Audio processing defaults
+defaults:
+  sample_rate: 48000
+  block_size: 512
+  bit_depth: 32
