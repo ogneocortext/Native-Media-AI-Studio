@@ -153,31 +153,34 @@ class HybridServerManager:
     def _load_server_configs(self) -> dict:
         """Load server configurations with optimized defaults"""
         return {
-            "granian": {
-                "type": "granian",
-                "command": "granian",
-                "args": ["--interface", "asgi"],
-                "max_workers": 1,  # Granian handles concurrency internally
-                "supports_reload": True,
-                "startup_timeout": 30,
-                "memory_efficient": True,
-            },
-            "uvicorn": {
-                "type": "uvicorn",
-                "command": "uvicorn",
-                "max_workers": 1,  # Single worker for Windows stability
-                "supports_reload": True,
-                "startup_timeout": 30,
-                "memory_efficient": False,
-            },
-            "hypercorn": {
-                "type": "hypercorn",
-                "command": "hypercorn",
-                "max_workers": 1,
-                "supports_reload": True,
-                "startup_timeout": 45,
-                "memory_efficient": False,
-            },
+"granian": {
+            "type": "granian",
+            "command": "granian",
+            "args": ["--interface", "asgi"],
+            "max_workers": 1,  # Granian handles concurrency internally
+            "supports_reload": True,
+            "startup_timeout": 30,
+            "memory_efficient": True,
+            "extra_args": ["--interface", "asgi", "--static-files", "/static=./static", "--blocking-threads", "4", "--runtime-threads", "2", "--runtime-blocking-threads", "2"],
+        },
+"uvicorn": {
+            "type": "uvicorn",
+            "command": "uvicorn",
+            "max_workers": 1,  # Single worker for Windows stability
+            "supports_reload": True,
+            "startup_timeout": 30,
+            "memory_efficient": False,
+            "extra_args": ["--loop", "winloop", "--http", "h2", "--no-access-log"],  # HTTP/2 + winloop
+        },
+"hypercorn": {
+            "type": "hypercorn",
+            "command": "hypercorn",
+            "max_workers": 1,
+            "supports_reload": True,
+            "startup_timeout": 45,
+            "memory_efficient": False,
+            "extra_args": ["--worker-class", "asyncio"],  # HTTP/2 native support
+        },
             "daphne": {
                 "type": "daphne",
                 "command": "daphne",

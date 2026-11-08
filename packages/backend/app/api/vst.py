@@ -1,14 +1,14 @@
-"""VST Plugin API — VST3 plugin hosting for AI music creation."""
-
 from __future__ import annotations
 
+import asyncio
 import logging
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Response, UploadFile, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from ..core.config import OUTPUT_DIR, PROJECT_ROOT
@@ -208,7 +208,7 @@ async def get_plugin_parameters(plugin_name: str) -> dict[str, Any]:
 
 
 @router.post("/chains")
-async def create_chain(chain: ChainCreate) -> ChainResponse:
+async def create_chain(chain: ChainCreate, response: Response) -> ChainResponse:
     """Create a new VST chain."""
     host = get_vst_host()
 
@@ -224,6 +224,21 @@ async def create_chain(chain: ChainCreate) -> ChainResponse:
         block_size=chain.block_size,
     )
     host.save_chain(vst_chain)
+
+    # HTTP/2 Server Push: Preload plugin manifests for all plugins in chain
+    # This only works with Hypercorn (HTTP/2 native) and when client supports push
+    if hasattr(response, "push"):
+        for plugin_data in chain.plugins:
+            plugin_name = plugin_data.name
+            if plugin_name in host.plugins:
+                try:
+                    # Push the plugin manifest to client
+                    await response.push(
+                        f"/api/vst/plugins/{plugin_name}",
+                        headers={"accept": "application/json"}
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to push manifest for {plugin_name}: {e}")
 
     return ChainResponse(**vars(vst_chain))
 
@@ -400,3 +415,40 @@ async def reset_host():
     """Reset the VST host (clear plugins, chains, cache)."""
     reset_vst_host()
     return {"status": "reset"}
+
+
+@router.websocket("/ws/{chain_name}")
+async def vst_params_websocket(websocket: WebSocket, chain_name: str):
+    """WebSocket endpoint for real-time VST parameter streaming."""
+    await websocket.accept()
+    host = get_vst_host()
+    
+    if chain_name not in host.chains:
+        await websocket.close(code=4004, reason=f"Chain not found: {chain_name}")
+        return
+    
+    try:
+        while True:
+            chain = host.chains.get(chain_name)
+            if chain:
+                # Get current parameters from all plugins in chain
+                params = {}
+                for plugin_data in chain.plugins:
+                    plugin_name = plugin_data.get("name", "")
+                    plugin_params = plugin_data.get("parameters", {})
+                    if plugin_params:
+                        params[plugin_name] = plugin_params
+                
+                await websocket.send_json({
+                    "chain_name": chain_name,
+                    "params": params,
+                    "timestamp": time.time()
+                })
+            
+            await asyncio.sleep(0.05)  # 20Hz update rate
+            
+    except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected for chain: {chain_name}")
+    except Exception as e:
+        logger.error(f"WebSocket error for chain {chain_name}: {e}")
+        await websocket.close(code=4000, reason=str(e))
