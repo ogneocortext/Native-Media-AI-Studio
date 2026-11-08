@@ -18,19 +18,19 @@ Features:
 - Structured logging with rotation
 """
 
+import logging
 import os
 import signal
 import subprocess
 import sys
-import time
 import threading
-import logging
-import json
-import psutil
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import ClassVar, Optional
+from typing import ClassVar
+
+import psutil
 import requests
 
 # Configure logging
@@ -123,22 +123,22 @@ class HybridServerManager:
     # Server priority (best to worst for this system)
     SERVER_PRIORITY: ClassVar[list[str]] = ["granian", "uvicorn", "hypercorn", "daphne"]
 
-    def __init__(self, project_root: Path, config: Optional[dict] = None):
+    def __init__(self, project_root: Path, config: dict | None = None):
         self.project_root = project_root
         self.backend_dir = project_root / "packages" / "backend"
         self.config = config or {}
-        
+
         # Runtime state
-        self.current_process: Optional[subprocess.Popen] = None
-        self.current_server_type: Optional[str] = None
-        self.current_config: Optional[dict] = None
-        
+        self.current_process: subprocess.Popen | None = None
+        self.current_server_type: str | None = None
+        self.current_config: dict | None = None
+
         # Monitoring
-        self._monitor_thread: Optional[threading.Thread] = None
+        self._monitor_thread: threading.Thread | None = None
         self._stop_monitor: threading.Event = threading.Event()
         self._restart_count: int = 0
         self._last_restart_time: float = 0
-        
+
         # Health check
         self.health_endpoint = f"http://127.0.0.1:{self.config.get('port', 8004)}/api/health"
         self.health_check_interval = 30
@@ -192,7 +192,7 @@ class HybridServerManager:
         """Check if a server is installed and available"""
         if server_type not in self.server_configs:
             return False
-        
+
         config = self.server_configs[server_type]
         try:
             result = subprocess.run(
@@ -246,16 +246,16 @@ class HybridServerManager:
         """Build command for server type"""
         config = self.get_server_config(server_type)
         server = self.server_configs[server_type]
-        
+
         cmd = [server["command"]]
-        
+
         if server_type == "granian":
             cmd.extend(["--interface", "asgi"])
             cmd.extend(["--host", config["host"], "--port", str(config["port"])])
             if config["reload"]:
                 cmd.append("--reload")
             cmd.append(config["app_module"])
-            
+
         elif server_type == "uvicorn":
             if config["reload"]:
                 cmd.append("--reload")
@@ -264,7 +264,7 @@ class HybridServerManager:
                 cmd.extend(["--workers", str(config["workers"])])
                 cmd.append("--no-access-log")
             cmd.append(config["app_module"])
-            
+
         elif server_type == "hypercorn":
             cmd.extend(["--bind", f"{config['host']}:{config['port']}"])
             if config["workers"] > 1:
@@ -272,13 +272,13 @@ class HybridServerManager:
             if config["reload"]:
                 cmd.append("--reload")
             cmd.append(config["app_module"])
-            
+
         elif server_type == "daphne":
             cmd.extend(["-b", config["host"], "-p", str(config["port"])])
             if config["workers"] > 1:
                 cmd.extend(["--processes", str(config["workers"])])
             cmd.append(config["app_module"])
-            
+
         return cmd
 
     def start_server(self, server_type: str) -> subprocess.Popen | None:
@@ -293,16 +293,12 @@ class HybridServerManager:
 
         env = os.environ.copy()
         env["PYTHONPATH"] = str(Path.cwd())
-        
-        creationflags = 0
-        if sys.platform == "win32":
-            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
 
         try:
             process = subprocess.Popen(
                 self.build_command(server_type),
                 cwd=Path.cwd() / "packages" / "backend",
-                env={**os.environ, "PYTHONPATH": str(Path.cwd())},
+                env=env,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -311,14 +307,14 @@ class HybridServerManager:
                 errors="replace",
                 bufsize=1,
             )
-            
+
             self.current_process = process
             self.current_server_type = server_type
             self.current_config = {"server_type": server_type}
-            
+
             logger.info(f"Started {server_type} (PID: {process.pid})")
             return process
-            
+
         except Exception as e:
             logger.error(f"Failed to start {server_type}: {e}")
             return None
@@ -334,7 +330,7 @@ class HybridServerManager:
             "Application startup complete.",
             "Started worker-1",
         ]
-        
+
         start_time = time.time()
         while time.time() - start_time < timeout:
             if process.poll() is not None:
@@ -346,17 +342,15 @@ class HybridServerManager:
                 line = process.stdout.readline()
                 if line:
                     logger.info(f"  {line.strip()}")
-                    for pattern in ["Application startup complete", "Uvicorn running on", 
-                                   "Granian running on", "Hypercorn running on", 
-                                   "Daphne running on", "Started worker-1"]:
+                    for pattern in ready_patterns:
                         if pattern in line:
                             logger.info("✓ Server ready!")
                             return True
             except Exception:
                 pass
-            
+
             time.sleep(0.1)
-        
+
         logger.error(f"Server startup timeout after {timeout}s")
         return False
 
@@ -366,39 +360,6 @@ class HybridServerManager:
             response = requests.get(f"http://127.0.0.1:8004{endpoint}", timeout=5)
             return response.status_code == 200
         except Exception:
-            return False
-
-    def stop_server(self, process: subprocess.Popen | None = None, timeout: int = 10) -> bool:
-        """Stop server gracefully"""
-        proc = process or self.current_process
-        if proc is None:
-            return True
-
-        logger.info(f"Stopping server (PID: {proc.pid})...")
-        
-        try:
-            if sys.platform == "win32":
-                proc.send_signal(signal.CTRL_BREAK_EVENT)
-            else:
-                proc.terminate()
-            
-            proc.wait(timeout=timeout)
-            logger.info("Server stopped gracefully")
-            return True
-            
-        except subprocess.TimeoutExpired:
-            logger.warning("Server didn't stop gracefully, killing...")
-            proc.kill()
-            proc.wait()
-            logger.info("Server killed")
-            return True
-        except Exception as e:
-            logger.error(f"Error stopping server: {e}")
-            try:
-                proc.kill()
-                proc.wait()
-            except:
-                pass
             return False
 
     def check_health(self) -> bool:
@@ -417,19 +378,19 @@ class HybridServerManager:
         3. Fall back to hypercorn if uvicorn fails
         """
         available = [s for s in ["granian", "uvicorn", "hypercorn", "daphne"] if self.check_server_available(s)]
-        
+
         if not available:
             logger.error("No ASGI servers available! Run with --install first.")
             return None
 
         logger.info(f"Available servers: {available}")
-        
+
         for server_type in ["granian", "uvicorn", "hypercorn", "daphne"]:
             if server_type not in available:
                 continue
-                
+
             logger.info(f"Attempting to start {server_type}...")
-            
+
             # Check memory before starting
             if self._is_memory_critical():
                 logger.warning("Memory critical, waiting before start...")
@@ -452,7 +413,7 @@ class HybridServerManager:
                     logger.warning(f"{server_type} started but health check failed")
             else:
                 logger.warning(f"{server_type} failed to start properly")
-            
+
             # Clean up failed process
             self.stop_server()
             time.sleep(2)  # Brief pause before next attempt
@@ -464,7 +425,7 @@ class HybridServerManager:
         """Start background monitoring thread"""
         if self._monitor_thread and self._monitor_thread.is_alive():
             return
-            
+
         self._stop_monitor.clear()
         self._monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._monitor_thread.start()
@@ -472,10 +433,6 @@ class HybridServerManager:
 
     def _monitor_loop(self):
         """Background monitoring: memory, health, auto-restart"""
-        check_interval = self.config.get("check_interval_seconds", 30)
-        memory_threshold = self.config.get("memory_threshold_percent", 85.0)
-        max_restarts_per_hour = 6  # Prevent restart loops
-        
         while not self._stop_monitor.is_set():
             try:
                 # Check memory
@@ -520,10 +477,10 @@ class HybridServerManager:
             return
 
         logger.info(f"Restarting server due to: {reason} (restart #{self._restart_count})")
-        
+
         self.stop_server()
         time.sleep(3)
-        
+
         # Try with fallback
         new_process = self.run_with_fallback()
         if not new_process:
@@ -537,13 +494,13 @@ class HybridServerManager:
             return
 
         logger.info(f"Stopping server (PID: {proc.pid})...")
-        
+
         try:
             if sys.platform == "win32":
                 proc.send_signal(signal.CTRL_BREAK_EVENT)
             else:
                 proc.terminate()
-            
+
             proc.wait(timeout=10)
             logger.info("Server stopped gracefully")
         except subprocess.TimeoutExpired:
@@ -555,9 +512,9 @@ class HybridServerManager:
             try:
                 proc.kill()
                 proc.wait()
-            except:
+            except Exception:
                 pass
-        
+
         self.current_process = None
         self.current_server_type = None
 
@@ -575,11 +532,11 @@ class HybridServerManager:
         logger.info("=" * 60)
         logger.info("Dynamic Hybrid Server Manager Starting")
         logger.info("=" * 60)
-        
+
         # Log available servers
         available = [s for s in ["granian", "uvicorn", "hypercorn", "daphne"] if self.check_server_available(s)]
         logger.info(f"Available servers: {available}")
-        
+
         if not available:
             logger.error("No ASGI servers available! Run with --install first.")
             return 1
@@ -591,7 +548,7 @@ class HybridServerManager:
             return 1
 
         logger.info("Server running with monitoring. Press Ctrl+C to stop.")
-        
+
         try:
             # Keep main thread alive
             while self.current_process and self.current_process.poll() is None:
@@ -600,13 +557,13 @@ class HybridServerManager:
             logger.info("Shutdown requested")
         finally:
             self.stop()
-        
+
         return 0
 
 
 def main():
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Dynamic Hybrid ASGI Server Manager")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind")
     parser.add_argument("--port", type=int, default=8004, help="Port to bind")
@@ -615,9 +572,9 @@ def main():
     parser.add_argument("--app", default="app.main:app", help="App module")
     parser.add_argument("--memory-threshold", type=float, default=85.0, help="Memory restart threshold percent")
     parser.add_argument("--check-interval", type=int, default=30, help="Health check interval (seconds)")
-    
+
     args = parser.parse_args()
-    
+
     config = {
         "host": args.host,
         "port": args.port,
@@ -627,7 +584,7 @@ def main():
         "memory_threshold_percent": args.memory_threshold,
         "check_interval_seconds": args.check_interval,
     }
-    
+
     manager = HybridServerManager(Path.cwd(), config)
     return manager.run()
 

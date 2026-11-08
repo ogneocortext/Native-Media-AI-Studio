@@ -18,7 +18,11 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-from .adapter_base import AdapterBase, AdapterStatus, _handle_adapter_error  # noqa: F401  # type: ignore[reportUnusedImport]
+from .adapter_base import (  # noqa: F401  # type: ignore[reportUnusedImport]
+    AdapterBase,
+    AdapterStatus,
+    _handle_adapter_error,
+)
 
 logger = logging.getLogger(__name__)
 

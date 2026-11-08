@@ -106,7 +106,7 @@ def chunk_markdown(text: str, config=None) -> list[Chunk]:
             # Start new chunk with overlap
             overlap_lines = current_chunk_lines[-config.overlap_tokens:] if config.overlap_tokens > 0 else []
             current_chunk_lines = overlap_lines + [line]
-            current_tokens = sum(count_tokens(l) for l in current_chunk_lines)
+            current_tokens = sum(count_tokens(line) for line in current_chunk_lines)
             current_start = i - len(overlap_lines)
         else:
             current_chunk_lines.append(line)
