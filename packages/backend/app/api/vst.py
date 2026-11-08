@@ -28,7 +28,7 @@ VST_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
 class PluginParameter(BaseModel):
     name: str
-    value: float
+    value: float = 0.0
     min: float
     max: float
     default: float
@@ -46,6 +46,55 @@ class PluginInfo(BaseModel):
     parameters: list[PluginParameter] = []
     is_valid: bool = True
     error_message: str = ""
+
+
+class PresetResponse(BaseModel):
+    plugin_name: str
+    name: str
+    parameters: dict[str, float]
+
+
+def convert_plugin_info(p: Any) -> PluginInfo:
+    """Convert VSTPluginInfo to API PluginInfo with proper parameter conversion."""
+    # Convert parameters to PluginParameter format
+    api_params = []
+    for param in p.parameters:
+        # Handle both dict and PluginParameter formats
+        if isinstance(param, dict):
+            # Get value from default or default to 0.0
+            val = param.get("default", param.get("value", 0.0))
+            api_params.append(PluginParameter(
+                name=param.get("name", ""),
+                min=param.get("min", 0.0),
+                max=param.get("max", 1.0),
+                default=param.get("default", 0.0),
+                unit=param.get("unit", ""),
+                value=val,
+            ))
+        else:
+            # Already a PluginParameter-like object
+            val = getattr(param, "default", getattr(param, "value", 0.0))
+            api_params.append(PluginParameter(
+                name=getattr(param, "name", ""),
+                min=getattr(param, "min", 0.0),
+                max=getattr(param, "max", 1.0),
+                default=getattr(param, "default", 0.0),
+                unit=getattr(param, "unit", ""),
+                value=val,
+            ))
+    
+    return PluginInfo(
+        name=p.name,
+        path=p.path,
+        vendor=p.vendor,
+        version=p.version,
+        category=p.category,
+        num_inputs=p.num_inputs,
+        num_outputs=p.num_outputs,
+        parameters=api_params,
+        is_valid=p.is_valid,
+        error_message=p.error_message,
+    )
 
 
 class ChainPlugin(BaseModel):
@@ -101,7 +150,7 @@ async def scan_plugins() -> dict[str, Any]:
     host = get_vst_host()
     plugins = host.scan_vst_plugins()
     return {
-        "plugins": [PluginInfo(**vars(p)) for p in plugins],
+        "plugins": [convert_plugin_info(p) for p in plugins],
         "count": len(plugins),
     }
 
@@ -113,7 +162,7 @@ async def list_plugins() -> dict[str, Any]:
     if not host.plugins:
         host.scan_vst_plugins()
     return {
-        "plugins": [PluginInfo(**vars(p)) for p in host.plugins.values()],
+        "plugins": [convert_plugin_info(p) for p in host.plugins.values()],
         "count": len(host.plugins),
     }
 
@@ -124,7 +173,7 @@ async def get_plugin(plugin_name: str) -> PluginInfo:
     host = get_vst_host()
     if plugin_name not in host.plugins:
         raise HTTPException(status_code=404, detail=f"Plugin not found: {plugin_name}") from None
-    return PluginInfo(**vars(host.plugins[plugin_name]))
+    return convert_plugin_info(host.plugins[plugin_name])
 
 
 @router.get("/plugins/{plugin_name}/parameters")

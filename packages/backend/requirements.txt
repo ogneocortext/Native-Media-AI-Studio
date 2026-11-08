@@ -11,6 +11,11 @@ soundfile>=0.13.1
 websockets>=17.3
 numpy>=1.24.0
 
+# ASGI Servers for Windows compatibility
+granian>=0.6.0      # Rust-based ASGI server, best Windows performance
+hypercorn>=0.17.0   # Pure Python, HTTP/2/3 support, Windows native
+# uvicorn[standard]>=0.54.0  # Standard ASGI, Windows compatible but multiprocess issues
+
 # GPU/VRAM monitoring for resource warnings
 gpustat>=1.1.1  # Easier setup, recommended
 nvidia-ml-py>=13.615.71  # pynvml for VRAM monitoring (required by gpustat)

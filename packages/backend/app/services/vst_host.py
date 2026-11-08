@@ -166,13 +166,19 @@ class VSTHost:
             parameters = []
             for _param_name, param in plugin.parameters.items():
                 # pedalboard parameter objects have different attribute names
+                # Handle missing attributes gracefully with defaults
                 default_val = getattr(param, 'default_raw_value', getattr(param, 'raw_value', None))
+                min_val = getattr(param, 'min_value', None)
+                max_val = getattr(param, 'max_value', None)
+                unit_val = getattr(param, 'label', '') if hasattr(param, 'label') else ''
+                
+                # Provide defaults for required fields
                 parameters.append({
-                    "name": param.name,
-                    "min": param.min_value,
-                    "max": param.max_value,
-                    "default": default_val,
-                    "unit": param.label if hasattr(param, 'label') else '',
+                    "name": getattr(param, 'name', 'unknown'),
+                    "min": min_val if min_val is not None else 0.0,
+                    "max": max_val if max_val is not None else 1.0,
+                    "default": default_val if default_val is not None else 0.0,
+                    "unit": unit_val if unit_val else '',
                 })
 
             return VSTPluginInfo(
