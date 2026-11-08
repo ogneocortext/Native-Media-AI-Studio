@@ -380,6 +380,17 @@ until the storyboard gate (T-VID-03) lands. Local-platform work only.
   colors — T0 engages if they ever do); T1 is direct-assign not bake;
   ComfyUI SaveImage path untested live (degrades to T0-only);
   248K-face ingest took minutes (timeout 360s).
+  2026-11-07 LIVE E2E VERIFIED: real text-to-3D run (hunyuan3d_2mini_fast,
+  "stylized low-poly DJ turntable", hero) — SaveImage wrote
+  `concept/texchain_e2e_*.png`, GLB repatriated to generated_3d. The
+  generate HTTP request died to an unrelated watchfiles reload, so the
+  postprocess stages were run manually in order: gen3d-texture T1
+  projection (method=projection, textured=1, 30K faces) → ingest-texture
+  KTX2 (1/1, 0.03 MB) → budget PASS-WARN (LOD only). Preview render
+  vision-checked: projected distressed-metal texture visible, not gray
+  clay. Remaining unverified link: concept_path recovery inside a
+  live _submit_workflow request (degrades to T0-only if history format
+  differs — low risk, code path reviewed).
 
 ### T-VID-13 — Design the frame-package contract: control-pass rendering from owned scenes
 - **Status:** done
