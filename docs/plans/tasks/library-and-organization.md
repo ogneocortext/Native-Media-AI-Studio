@@ -180,3 +180,34 @@ Rules: `docs/plans/tasks/README.md`
   endpoint verified. Remaining: wire more producers (comfyui images,
   stems separation, blender exports) and a library-UI surface.
 - **Last session:** Devin, 2026-11-08 — implemented + verified + committed.
+
+### T-LIB-09 — Repair /library page broken by API-layer rewrite (db2110ca)
+- **Status:** done
+- **Goal:** Restore http://localhost:5173/library after the typed-fetch
+  API rewrite left the route rendering an empty shell / "Error loading
+  files".
+- **Changes:** two one-line-class fixes in the rewritten layer.
+  (1) `services/api/core.ts` dynamically imported `./portConfig`, which
+  lives one level up at `services/portConfig.ts` — Vite returned HTTP
+  500 for the module, killing the whole import graph (blank page).
+  Fixed to `../portConfig`. (2) `services/api/typed-fetch.ts` derived
+  the error label via `new URL(url)` which throws `Invalid URL` on
+  every relative URL (`/api/...`) — so every typed-fetch call
+  (media-library org endpoints, jobStore fetchJobs/fetchQueueStats,
+  etc.) rejected before the request even mattered. Fixed to resolve
+  against `window.location.origin` with a split("?") fallback.
+- **Files:** packages/frontend/src/services/api/core.ts,
+  packages/frontend/src/services/api/typed-fetch.ts,
+  docs/plans/tasks/library-and-organization.md.
+- **Verification:** Playwright probe before: HTTP 500 on
+  /src/services/api/core.ts, empty #root. After: page renders, no
+  console/page errors, no "Error loading files", Favorites/Collections/
+  Trash counts populated (1/1/2), file rows list real output/ media
+  (names, types, sizes, dates, actions). Direct curl checks:
+  /api/outputs?limit=500 returns 511 total in ~3.4s; all five
+  /api/media-library endpoints 200. Remaining console noise: React 19
+  uncached-promise dev warnings (pre-existing) and ERR_ABORTED media
+  range/preload requests (normal browser behavior).
+- **Acceptance:** satisfied — /library loads data end-to-end.
+- **Last session:** Devin, 2026-11-08 — diagnosed via Playwright +
+  Vite error overlay, fixed both import/URL bugs, re-verified live.

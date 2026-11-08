@@ -203,7 +203,7 @@ export async function withDirectBackendFallback<T>(
     return await proxyCall();
   } catch {
     // Import portConfig dynamically to avoid circular dependency
-    const { getCachedConfig, getBackendUrl } = await import("./portConfig");
+    const { getCachedConfig, getBackendUrl } = await import("../portConfig");
     const cached = getCachedConfig();
     const backendUrl = cached?.backend_url ?? getBackendUrl();
     const directUrl = `${backendUrl.replace(/\/$/, "")}${directPath}`;

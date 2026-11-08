@@ -86,7 +86,13 @@ export async function fetchJson<T>(
   endpointName?: string
 ): Promise<T> {
   const response = await fetchWithTimeout(url, options);
-  return parseJson<T>(response, endpointName ?? new URL(url).pathname);
+  let label = url;
+  try {
+    label = new URL(url, window.location.origin).pathname;
+  } catch {
+    label = url.split("?")[0];
+  }
+  return parseJson<T>(response, endpointName ?? label);
 }
 
 /**
