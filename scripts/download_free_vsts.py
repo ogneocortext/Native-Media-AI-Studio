@@ -11,7 +11,6 @@ import argparse
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -82,18 +81,6 @@ FREE_VSTS = {
         "platforms": ["Windows", "macOS", "Linux"],
         "status": "manual",
         "note": "Windows installer (.exe) - run silently with /S flag",
-        "verified": "2026-11",
-    },
-    "vital": {
-        "name": "Vital",
-        "type": "Wavetable Synthesizer",
-        "description": "Spectral warping wavetable synth with advanced modulation. Free tier = full engine. Requires account for download.",
-        "source_url": "https://vital.audio/",
-        "download_url": "https://vital.audio/download/",
-        "download_note": "Requires free account on vital.audio for download. Full engine in free tier.",
-        "license": "Custom (free for personal/commercial)",
-        "platforms": ["Windows", "macOS", "Linux"],
-        "status": "manual",
         "verified": "2026-11",
     },
     "tal-noisemaker": {
@@ -285,15 +272,15 @@ def print_available():
     print("\n" + "=" * 80)
     print("FREE VST3 PLUGINS FOR NATIVE MEDIA AI STUDIO (Verified November 2026)")
     print("=" * 80)
-    
+
     auto_count = sum(1 for info in FREE_VSTS.values() if info.get("status", "auto") == "auto")
     manual_count = sum(1 for info in FREE_VSTS.values() if info.get("status", "auto") == "manual")
     installer_count = sum(1 for info in FREE_VSTS.values() if info.get("status", "auto") == "installer")
-    
+
     print(f"\nAutomated (zip): {auto_count}")
     print(f"Installer (.exe): {installer_count}")
     print(f"Manual download: {manual_count}")
-    
+
     print("\nAUTOMATED DOWNLOADS (zip):")
     print("-" * 80)
     for key, info in FREE_VSTS.items():
@@ -411,7 +398,7 @@ def run_installer_silently(exe_path: Path) -> bool:
             if result.returncode == 0:
                 print(f"  Installer succeeded with flags: {flags}")
                 return True
-        print(f"  All silent install attempts failed")
+        print("  All silent install attempts failed")
         return False
     except Exception as e:
         print(f"  Error running installer: {e}")
@@ -420,7 +407,6 @@ def run_installer_silently(exe_path: Path) -> bool:
 
 def find_vst3_in_program_files(plugin_name: str) -> list[Path]:
     """Search common VST3 locations for installed plugin"""
-    found = []
     common_paths = [
         Path(os.environ.get("ProgramFiles", "C:\\Program Files")) / "Common Files" / "VST3",
         Path(os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")) / "Common Files" / "VST3",
@@ -506,22 +492,22 @@ def download_and_install(key: str, info: dict) -> bool:
         # Handle based on file type
         if download_path.suffix.lower() == '.exe':
             # It's an installer
-            print(f"  Running installer silently...")
+            print("  Running installer silently...")
             if run_installer_silently(download_path):
                 # Search for VST3 in common locations
-                print(f"  Searching for installed VST3...")
+                print("  Searching for installed VST3...")
                 found = find_vst3_in_program_files(info['name'].replace(' ', ''))
                 if found:
                     return install_vst3(found[0], key)
                 else:
-                    print(f"  VST3 not found in standard locations after install")
+                    print("  VST3 not found in standard locations after install")
                     return False
             else:
-                print(f"  Silent install failed")
+                print("  Silent install failed")
                 return False
         else:
             # Assume zip file
-            print(f"  Extracting...")
+            print("  Extracting...")
             extracted = extract_zip(download_path, tmpdir, ".vst3")
 
             # Find VST3
@@ -546,11 +532,11 @@ def download_and_install(key: str, info: dict) -> bool:
                         break
 
             if not vst3_path:
-                print(f"  Could not find VST3 in extracted files")
+                print("  Could not find VST3 in extracted files")
                 return False
 
             # Install
-            print(f"  Installing...")
+            print("  Installing...")
             if install_vst3(vst3_path, key):
                 print(f"  ✓ Successfully installed {info['name']}")
                 return True

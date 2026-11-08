@@ -82,7 +82,7 @@ def convert_plugin_info(p: Any) -> PluginInfo:
                 unit=getattr(param, "unit", ""),
                 value=val,
             ))
-    
+
     return PluginInfo(
         name=p.name,
         path=p.path,
@@ -117,12 +117,6 @@ class ChainResponse(BaseModel):
 
 
 class PresetCreate(BaseModel):
-    plugin_name: str
-    name: str
-    parameters: dict[str, float]
-
-
-class PresetResponse(BaseModel):
     plugin_name: str
     name: str
     parameters: dict[str, float]
@@ -190,14 +184,14 @@ async def get_plugin_parameters(plugin_name: str) -> dict[str, Any]:
     try:
         plugin = host.load_plugin(plugin_name)
         parameters = []
-        for param in plugin.parameters:
+        for param in plugin.parameters.values():
             parameters.append({
                 "name": param.name,
                 "min": param.min_value,
                 "max": param.max_value,
                 "default": param.default_value,
                 "value": param.value,
-                "unit": getattr(param, 'unit', ''),
+                "unit": param.label if hasattr(param, 'label') else '',
             })
         return {"plugin": plugin_name, "parameters": parameters}
     except Exception as e:
