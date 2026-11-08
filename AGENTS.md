@@ -657,6 +657,141 @@ console: a tool-launched `pwsh -Command` reports
 Unrelated tools on PATH (Android SDK, WSL) are noise from the OS environment —
 they are not part of this project and should never be invoked for repo tasks.
 
+## Local Model Inventory & Management Rules (Critical)
+
+**Last verified: 2026-11-08** — Run `ollama list` before any model operation.
+
+### Currently Installed Local Models (Ollama)
+
+| Model | Size | Purpose | Status | Verified |
+|-------|------|---------|--------|----------|
+| `gemma4:e2b-it-qat` | 4.3 GB | Vision (primary) | ✅ Installed | 2026-11-08 |
+| `moondream:latest` | 1.7 GB | Vision (lightweight) | ✅ Installed | 2026-11-08 |
+| `nomic-embed-text:v1.5` | 274 MB | Embedding (primary) | ✅ Installed | 2026-11-08 |
+| `embeddinggemma-2:270m` | 303 MB | Embedding (fallback) | ✅ Installed | 2026-11-08 |
+| `nomic-embed-text:latest` | 274 MB | Embedding (latest) | ✅ Installed | 2026-11-08 |
+| `gemma4:e2b-it-qat` | 4.3 GB | Vision (QAT quantized) | ✅ Installed | 2026-11-08 |
+| `llama3.1:8b` | 4.9 GB | Chat/Reasoning | ✅ Installed | 2026-11-08 |
+| `qwen3.5:4b` | 3.4 GB | Chat/Reasoning | ✅ Installed | 2026-11-08 |
+| `llama3.2:3b` | 2.0 GB | Chat (lightweight) | ✅ Installed | 2026-11-08 |
+| `ibm/granite4.2:3b` | 2.2 GB | Chat/Reasoning | ✅ Installed | 2026-11-08 |
+| `llama3.2:3b` | 2.0 GB | Chat (lightweight) | ✅ Installed | 2026-11-08 |
+
+**Cloud/Atomic Chat Models (not local):**
+- `glm-5.3:cloud`, `muse-spark-open:cloud`, `minimax-m3.1-flash:cloud`, `beam:cloud` — Atomic Chat cloud
+- `unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M` — Atomic Chat local GGUF (port 1337)
+
+### ⛔ MANDATORY: Check Before Download Rules
+
+**NEVER download a model without verifying first.** This is non-negotiable.
+
+1. **Run `ollama list`** — Confirm the model isn't already installed
+2. **Check `config/settings.json`** — Verify `embedding_model` and other configured models
+3. **Check `tools/model-reliability/roster.md`** — Verify tier and route compatibility
+4. **Check `tools/model-reliability/observed.jsonl`** — Recent evidence for the model/route
+5. **Only if absent** — Proceed with download using verified URLs from this doc
+
+**Violations observed:** Multiple agents downloaded `gemma4:e2b-it-qat`, `nomic-embed-text`, `dexed`, `surge-xt` despite being pre-installed. This wastes bandwidth, corrupts configs, and wastes tokens.
+
+### Model Selection Criteria (Task-Based)
+
+| Task Category | Primary Model | Fallback | Route | VRAM Budget |
+|---------------|---------------|----------|-------|-------------|
+| **Vision (primary)** | `gemma4:e2b-it-qat` (4.3 GB) | `moondream:latest` (1.7 GB) | Local/Ollama | ~4.5 GB |
+| **Vision (lightweight)** | `moondream:latest` (1.7 GB) | `gemma4:e2b-it-qat` | Local/Ollama | ~2 GB |
+| **Embedding (primary)** | `nomic-embed-text:v1.5` (274 MB) | `embeddinggemma-2:270m` | Local/Ollama | ~0.5 GB |
+| **Chat/Reasoning (heavy)** | `llama3.1:8b` (4.9 GB) | `qwen3.5:4b` (3.4 GB) | Local/Ollama | ~5 GB |
+| **Chat/Reasoning (light)** | `qwen3.5:4b` (3.4 GB) | `llama3.2:3b` (2.0 GB) | Local/Ollama | ~3.5 GB |
+| **Embedding (fallback)** | `embeddinggemma-2:270m` (303 MB) | `nomic-embed-text:latest` | Local/Ollama | ~0.5 GB |
+| **Vision (lightweight/alt)** | `moondream:latest` (1.7 GB) | — | Local/Ollama | ~2 GB |
+| **Chat (Atomic Chat)** | `unsloth/Qwen3_5-4B-GGUF` | — | Atomic Chat (port 1337) | CPU/GPU |
+
+**Route Selection Rules:**
+- **Local/Ollama** — Default for all local models (ports 11434)
+- **Atomic Chat (port 1337)** — Only for `unsloth/Qwen3_5-4B-GGUF` GGUF
+- **Cloud routes** — Only for cloud models explicitly listed (`glm-5.3:cloud`, etc.)
+
+### Resource Management Rules (Critical for 8GB VRAM / System RAM)
+
+**Hardware Constraints:**
+- **GPU:** GTX 1070 Ti (8 GB VRAM, Pascal sm_61)
+- **System RAM:** Monitor closely — **98% = crash threshold**
+- **CPU:** 80% sustained = thermal throttle risk
+
+**Process Management Rules:**
+1. **One heavy model at a time** — Unload before loading another >2 GB model
+2. **Ollama keep-alive** — Set `OLLAMA_KEEP_ALIVE=5m` to avoid repeated loads
+3. **Monitor before load** — Run `nvidia-smi` and check system RAM before loading >2 GB models
+4. **Unload explicitly** — `ollama stop <model>` when done with heavy models
+5. **Sequential processing** — Never run multiple heavy models simultaneously
+
+**VRAM Budget per Operation:**
+| Operation | Max VRAM | Action if Exceeded |
+|-----------|----------|-------------------|
+| Vision (gemma4:e2b) | ~4.5 GB | Stop, unload others |
+| Chat 8B (llama3.1:8b) | ~5 GB | Use qwen3.5:4b instead |
+| Embedding | <1 GB | Safe to run with others |
+| Embedding + Vision | ~5.5 GB | Sequential only |
+
+**Process Loading/Unloading Protocol:**
+```powershell
+# Before loading heavy model
+nvidia-smi  # Check VRAM
+ollama stop <other_heavy_model>  # Free VRAM
+ollama run gemma4:e2b-it-qat  # Load
+
+# After done
+ollama stop gemma4:e2b-it-qat  # Explicit unload
+```
+
+**Ollama Config for Stability:**
+```yaml
+# In Ollama config or env vars
+OLLAMA_KEEP_ALIVE=5m
+OLLAMA_MAX_LOADED_MODELS=1
+OLLAMA_FLASH_ATTENTION=1
+```
+
+### Model Tier Enforcement (from tools/model-reliability/roster.md)
+
+| Tier | Models | Usage Rule |
+|------|--------|------------|
+| **A — Delegate** | Nemotron 3.5 Super VL (kilo), StepFun Step 5, Ling 3.1 Flash, Devin | Real work, structural changes, refactors |
+| **B — Scoped** | DeepSeek V4.1 Flash, Sonnet 4.5/4.6, MiMo V2.6, Kilo Auto | Task-file items with explicit acceptance check |
+| **C — Supervised** | Beam 1.0, Flint, GPT-6 Luna | Boilerplate/docs only, every diff reviewed |
+| **Avoid** | Nemotron 3 Ultra/Nano/Super, Nemotron 3.5 Lightning, Kilo free listings | Do not use |
+
+**Route-specific trust** (from roster): Same model on different routes = different tier. Kilo-routed Nemotron 3.5 Super VL = Tier A; free listings = Avoid.
+
+### First-Contact Rule (from roster.md)
+
+**Every new model's first job = smallest open task file item with known acceptance check.**
+- Pass → Log outcome, provisional Tier B
+- Fail (capability) → Tier C
+- Fail (availability) → Tier Avoid
+
+### Agent Onboarding Protocol (for model rotation)
+
+When a new agent/model joins:
+1. **Run `ollama list`** — Verify local inventory
+2. **Check roster.md** — Confirm tier for assigned route
+3. **Run first-contact task** — Smallest open task file item
+4. **Log outcome** in `tools/model-reliability/observed.jsonl`
+5. **Update roster.md** if tier changes
+
+### Quick Reference: Which Model for What
+
+| Need | Command |
+|------|---------|
+| Vision analysis (primary) | `ollama run gemma4:e2b-it-qat` |
+| Quick vision (low VRAM) | `ollama run moondream:latest` |
+| Embeddings (primary) | `ollama run nomic-embed-text:v1.5` |
+| Chat/Reasoning (complex) | `ollama run llama3.1:8b` |
+| Chat/Reasoning (fast) | `ollama run qwen3.5:4b` |
+| Embeddings (fallback) | `ollama run embeddinggemma-2:270m` |
+| Quick chat (low VRAM) | `ollama run llama3.2:3b` |
+| Atomic Chat | `atomic-chat` (port 1337) |
+
 ### Services
 
 - Start: `scripts\start-services.ps1` (backend + frontend, dynamic ports → `config/ports.json`).
