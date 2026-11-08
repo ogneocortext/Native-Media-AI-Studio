@@ -1,5 +1,6 @@
 # Sub-Agent Orchestration Configuration
 # Project: native-media-ai-studio
+# Integrates with: .kilo/agent-profiles.md (agent capabilities) and tools/model-reliability/roster.md (trust tiers)
 
 # Resource limits
 max_concurrent_agents: 3
@@ -8,149 +9,354 @@ default_timebox_seconds: 480  # 8 minutes
 max_agents_per_task: 8
 max_retries: 1
 
-# Model assignments by agent type
+# Agent Type Definitions (from .kilo/agent-profiles.md)
+# These map to the actual agent types available in the system
+agent_types:
+  orion:
+    description: "Research / Handoff agent — deep research, architecture planning, handoff creation"
+    max_concurrent: 1
+    default_model: "stepfun/step-5-preview-free"
+    tier_requirement: "A"
+    excluded_tasks: ["code_implementation", "code_review", "debugging", "testing"]
+  
+  ling:
+    description: "Local coding (Kilo Desktop) — full-stack implementation, root-causing, refactoring"
+    max_concurrent: 2
+    default_model: "inclusionai/ling-3.1-flash"
+    tier_requirement: "A"
+  
+  kilo:
+    description: "Local coding (Kilo Desktop) — orchestration, infrastructure, cross-cutting"
+    max_concurrent: 3
+    default_model: "kilo-auto/free"
+    tier_requirement: "A"
+  
+  cline:
+    description: "Local coding (Cline) — frontend, visual, motion, Playwright"
+    max_concurrent: 2
+    default_model: "cline/sonnet-4.5"
+    tier_requirement: "B"
+  
+  opencode:
+    description: "Terminal coding — benchmarks, vision pipeline, consolidation"
+    max_concurrent: 2
+    default_model: "deepseek-v4.1-flash-free"
+    tier_requirement: "B"
+  
+  gpt6:
+    description: "Codex desktop — supervised boilerplate, documentation"
+    max_concurrent: 1
+    default_model: "gpt-6"
+    tier_requirement: "C"
+  
+  devin:
+    description: "Cognition desktop — high-volume executor on planner-written Plans"
+    max_concurrent: 5
+    default_model: "devin"
+    tier_requirement: "A"
+    note: "Provisional A — executor lane only. 30-day promo window."
+  
+  bolt-local:
+    description: "Nemotron 3.5 Bolt E4B (Atomic Chat) — fast read-only lookups"
+    max_concurrent: 3
+    default_model: "nemotron-3.5-super-vl"
+    tier_requirement: "A"
+    excluded_tasks: ["code_implementation", "code_review", "testing"]
+  
+  qwen-local:
+    description: "Local Qwen3.5-4B (Atomic Chat) — fast read-only lookups"
+    max_concurrent: 5
+    default_model: "qwen3.5-4b"
+    tier_requirement: "Infrastructure"
+
+# Model assignments by agent type (legacy format for backward compatibility)
 models:
-  explore: "bolt-local"           # Fast read-only lookups
-  general: "gpt-6"                # Balanced reasoning
-  "backend-architect": "gpt-6"    # Deep architecture
-  "frontend-architect": "gpt-6"   # Deep frontend
-  "android-engineer": "gpt-6"     # Mobile specialist
-  "go-engineer": "gpt-6"          # Go specialist
+  explore: "bolt-local"
+  general: "ling"
+  "backend-architect": "kilo"
+  "frontend-architect": "cline"
+  "android-engineer": "gpt6"
+  "go-engineer": "gpt6"
 
 # Reasoning effort by complexity
 reasoning_effort:
-  quick: "low"        # <2 min
-  standard: "medium"  # 5-10 min
-  deep: "high"        # 15+ min
+  quick: "low"
+  standard: "medium"
+  deep: "high"
+
+# Trust Tier Requirements (from tools/model-reliability/roster.md)
+# A=Delegate, B=Scoped, C=Supervised, Avoid=Do not use, Untested=First-contact
+trust_tiers:
+  A: "Delegate — real work, structural changes, refactors under standard rules"
+  B: "Scoped — task-file items with explicit acceptance check, verified item by item"
+  C: "Supervised — boilerplate, docs, mechanical edits; every diff reviewed"
+  Avoid: "Do not use — observed availability failures"
+  Untested: "First-contact rule — smallest open item with known acceptance check"
+
+# Route-specific model preferences (integrated with roster.md)
+route_preferences:
+  kilo:
+    tier_A:
+      - "nemotron-3.5-super-vl"
+      - "stepfun/step-5-preview-free"
+      - "inclusionai/ling-3.1-flash"
+    tier_B:
+      - "kilo-auto/free"
+    tier_Avoid:
+      - "nvidia/nemotron-3-ultra-550b-a55b:free"
+      - "nvidia/nemotron-3.5-lightning:free"
+      - "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+      - "nvidia/nemotron-3-super-120b-a12b:free"
+  
+  cline:
+    tier_B:
+      - "cline/sonnet-4.5"
+      - "cline/sonnet-4.6"
+    tier_C:
+      - "muse-spark"
+  
+  opencode:
+    tier_B:
+      - "deepseek-v4.1-flash-free"
+      - "opencode/mimo-v2.6-flash-free"
+  
+  atomic_chat:
+    tier_A:
+      - "nemotron-3.5-super-vl"
+    tier_Infrastructure:
+      - "qwen3.5-4b"
+      - "gemma4:e2b-it-qat"
+
+# Automated model selection rules
+model_selection:
+  # Task tier requirements (minimum trust tier needed)
+  task_tier_requirements:
+    research: "A"
+    architecture_planning: "A"
+    implementation: "B"
+    refactoring: "A"
+    debugging: "A"
+    testing: "B"
+    visual_verification: "B"
+    documentation: "C"
+    boilerplate: "C"
+    code_search: "A"
+    orchestration: "A"
+    high_volume_execution: "A"
+  
+  # Agent-type to model mapping with tier filtering
+  agent_model_preferences:
+    orion:
+      tier_A: ["stepfun/step-5-preview-free", "nemotron-3.5-super-vl"]
+    ling:
+      tier_A: ["inclusionai/ling-3.1-flash"]
+      tier_B: ["kilo-auto/free"]
+    kilo:
+      tier_A: ["kilo-auto/free", "stepfun/step-5-preview-free"]
+      tier_B: ["deepseek-v4.1-flash-free"]
+    cline:
+      tier_B: ["cline/sonnet-4.5", "cline/sonnet-4.6"]
+      tier_C: ["muse-spark"]
+    opencode:
+      tier_B: ["deepseek-v4.1-flash-free", "opencode/mimo-v2.6-flash-free"]
+    gpt6:
+      tier_C: ["gpt-6"]
+    devin:
+      tier_A: ["devin"]
+    bolt-local:
+      tier_A: ["nemotron-3.5-super-vl"]
+    qwen-local:
+      tier_Infrastructure: ["qwen3.5-4b", "gemma4:e2b-it-qat"]
 
 # Auto-trigger patterns (no manual intervention needed)
+# Updated to use agent types from agent-profiles.md
 auto_triggers:
-  # Code review / analysis
-  - pattern: ["review", "audit", "analyze.*code", "line.by.line", "deep.dive"]
-    agent: "explore"
-    config:
-      thoroughness: "very thorough"
-      timebox: "600"  # 10 minutes
-  
-  # Research / best practices
-  - pattern: ["best.practice", "current.trend", "modern.approach", "research", "latest", "2026"]
-    agent: "general"
+  # Research / Architecture / Planning → Orion (Tier A)
+  - pattern: ["research", "best.practice", "current.trend", "modern.approach", "latest", "2026", "architecture", "plan", "spec", "model.select", "provider.route"]
+    agent: "orion"
     config:
       use_skill: "current-best-practices"
-      timebox: "480"  # 8 minutes
+      timebox: "480"
+      tier_requirement: "A"
   
-  # Visual / UI verification
-  - pattern: ["verify ui", "visual regression", "screenshot", "looks correct", "visual qa", "visual.qa", "ui verification", "visual verification"]
-    agent: "general"
+  # Code Review / Analysis → Explore/Bolt-Local (Tier A)
+  - pattern: ["review", "audit", "analyze.*code", "line.by.line", "deep.dive", "search", "summarize", "lookup", "diagnose.env"]
+    agent: "bolt-local"
+    config:
+      thoroughness: "very thorough"
+      timebox: "600"
+      tier_requirement: "A"
+  
+  # Full-stack Implementation → Ling (Tier A)
+  - pattern: ["implement", "refactor", "fix", "debug", "test", "document", "vst", "visualizer", "audio", "unity", "blender", "root.cause", "measure.before"]
+    agent: "ling"
+    config:
+      timebox: "600"
+      tier_requirement: "A"
+  
+  # Frontend / Visual / Motion / Playwright → Cline (Tier B)
+  - pattern: ["visual", "ui", "playwright", "motion", "remotion", "three.js", "frontend", "component", "create component", "build page", "implement ui", "create react", "build react"]
+    agent: "cline"
     config:
       use_skill: "visual-qa-loop"
-      timebox: "300"  # 5 minutes
+      timebox: "600"
+      tier_requirement: "B"
   
-  # Backend architecture / API design
-  - pattern: ["api.design", "backend.arch", "service.layer", "database.schema", "fastapi"]
-    agent: "backend-architect"
+  # Backend Architecture / API Design → Kilo (Tier A)
+  - pattern: ["api.design", "backend.arch", "service.layer", "database.schema", "fastapi", "orchestrat", "infrastructure", "ci", "gate", "pipeline", "performance", "security"]
+    agent: "kilo"
     config:
-      timebox: "480"  # 8 minutes
+      timebox: "480"
+      tier_requirement: "A"
   
-# Frontend component / page creation
-  - pattern: ["create component", "build page", "implement ui", "frontend", "react component", "create react", "build react"]
-    agent: "frontend-architect"
+  # Terminal / Benchmark / Vision Pipeline → Opencode (Tier B)
+  - pattern: ["benchmark", "vision", "consolidate", "ux.audit", "terminal", "vision.pipeline"]
+    agent: "opencode"
     config:
-      timebox: "600"  # 10 minutes
-
-  # Complex refactoring / multi-file changes
-  - pattern: ["refactor.*multiple", "rename across", "migrate", "modernize codebase"]
-    agent: "general"
-    config:
-      use_skill: "line-by-line-review"
-      timebox: "900"  # 15 minutes
+      timebox: "480"
+      tier_requirement: "B"
   
-  # Testing / E2E verification
+  # High-volume Execution → Devin (Tier A, executor lane)
+  - pattern: ["visualizer", "platform", "ledger", "high.volume"]
+    agent: "devin"
+    config:
+      timebox: "900"
+      tier_requirement: "A"
+      note: "Provisional A — executor lane only"
+  
+  # Documentation / Boilerplate → GPT-6 (Tier C, supervised)
+  - pattern: ["document", "boilerplate", "mechanical"]
+    agent: "gpt6"
+    config:
+      timebox: "300"
+      tier_requirement: "C"
+  
+  # Visual / UI Verification → Cline with visual-qa-loop (Tier B)
+  - pattern: ["verify ui", "visual regression", "screenshot", "looks correct", "visual qa", "visual.qa", "ui verification", "visual verification"]
+    agent: "cline"
+    config:
+      use_skill: "visual-qa-loop"
+      timebox: "300"
+      tier_requirement: "B"
+  
+  # Testing / E2E Verification → Cline with test-measure-improve (Tier B)
   - pattern: ["test.*e2e", "playwright", "integration test", "test measure improve", "fix failing test"]
-    agent: "general"
+    agent: "cline"
     config:
       use_skill: "test-measure-improve"
-      timebox: "600"  # 10 minutes
+      timebox: "600"
+      tier_requirement: "B"
   
-  # Dependency / security audit
+  # Dependency / Security Audit → Ling with dependency-management (Tier A)
   - pattern: ["dependency audit", "security scan", "supply chain", "vulnerability", "dependency check"]
-    agent: "general"
+    agent: "ling"
     config:
       use_skill: "dependency-management"
-      timebox: "300"  # 5 minutes
+      timebox: "300"
+      tier_requirement: "A"
   
-# Vendor drift / upgrade verification
+  # Vendor Drift / Upgrade Verification → Ling with vendor-drift (Tier A)
   - pattern: ["upgrade vendor", "drift check", "fresh pull", "vendor update", "vendor upgrade"]
-    agent: "general"
+    agent: "ling"
     config:
       use_skill: "vendor-drift"
-      timebox: "480"  # 8 minutes
-
-  # VST Host system specific
+      timebox: "480"
+      tier_requirement: "A"
+  
+  # VST Host System Specific → Ling with line-by-line-review (Tier A)
   - pattern: ["vst", "vst3", "plugin", "chain", "audio.plugin"]
-    agent: "general"
+    agent: "ling"
     config:
       use_skill: "line-by-line-review"
       context: "VST Host system in packages/frontend/src/features/vst/"
-      timebox: "600"  # 10 minutes
-
-  # Visualizer / shader / Three.js specific
+      timebox: "600"
+      tier_requirement: "A"
+  
+  # Visualizer / Shader / Three.js Specific → Cline with visual-qa-loop (Tier B)
   - pattern: ["visualizer", "shader", "three.js", "webgl", "unity", "blender"]
-    agent: "frontend-architect"
+    agent: "cline"
     config:
       use_skill: "visual-qa-loop"
       context: "Unity/Three.js visualizer in unity-visualizer/ and packages/frontend/src/features/visualizer/"
-      timebox: "600"  # 10 minutes
+      timebox: "600"
+      tier_requirement: "B"
 
-# Composite triggers for multi-agent workflows
 # Composite triggers for multi-agent workflows
 composite_triggers:
   - name: "vst_feature"
     when: "VST Host feature work"
     pattern: ["vst.*feature", "vst.*plugin", "vst.*chain", "vst.*host.*feature"]
     sequence:
-      - "explore"  # analyze VST codebase
-      - "frontend-architect"  # implement UI
-      - "general"  # tests and integration
-    timebox: "1800"  # 30 minutes
-    
+      - agent: "bolt-local"
+        task: "analyze VST codebase"
+      - agent: "cline"
+        task: "implement UI"
+      - agent: "ling"
+        task: "tests and integration"
+    timebox: "1800"
+    required_tiers: ["A", "B", "A"]
+  
   - name: "visualizer_feature"
     when: "Visualizer/Three.js feature work"
     pattern: ["visualizer.*feature", "shader.*feature", "three.*feature", "unity.*feature"]
     sequence:
-      - "explore"  # analyze visualizer code
-      - "frontend-architect"  # implement
-      - "general"  # visual-qa-loop verification
-    timebox: "1800"  # 30 minutes
-    
+      - agent: "bolt-local"
+        task: "analyze visualizer code"
+      - agent: "cline"
+        task: "implement"
+      - agent: "ling"
+        task: "visual-qa-loop verification"
+    timebox: "1800"
+    required_tiers: ["A", "B", "A"]
+  
   - name: "legacy_refactor"
     when: "refactor touches >5 files across layers"
     pattern: ["refactor.*legacy", "modernize.*codebase", "refactor.*across"]
     sequence:
-      - "explore"  # analyze current state
-      - ["backend-architect", "frontend-architect"]  # parallel redesign
-      - "general"  # implementation with line-by-line-review
-    timebox: "2700"  # 45 minutes
-    
+      - agent: "bolt-local"
+        task: "analyze current state"
+      - agents: ["kilo", "cline"]
+        task: "parallel redesign"
+      - agent: "ling"
+        task: "implementation with line-by-line-review"
+    timebox: "2700"
+    required_tiers: ["A", "A", "A"]
+  
   - name: "full_feature_implementation"
     when: "new feature spanning backend + frontend + tests"
     pattern: ["implement.*feature", "add.*feature", "build.*system", "new.*feature"]
     sequence:
-      - ["backend-architect", "frontend-architect"]  # parallel
-      - "general"  # integration verification
-    timebox: "1800"  # 30 minutes
+      - agents: ["kilo", "cline"]
+        task: "parallel backend + frontend"
+      - agent: "ling"
+        task: "integration verification"
+    timebox: "1800"
+    required_tiers: ["A", "B", "A"]
+  
+  - name: "research_and_implement"
+    when: "research followed by implementation"
+    pattern: ["research.*implement", "investigate.*build", "analyze.*create"]
+    sequence:
+      - agent: "orion"
+        task: "deep research and planning"
+      - agent: "ling"
+        task: "implementation"
+      - agent: "cline"
+        task: "visual verification and testing"
+    timebox: "2400"
+    required_tiers: ["A", "A", "B"]
 
 # Domain mappings for this repo
 domain_agents:
-  "backend/fastapi": "backend-architect"
-  "backend/python": "backend-architect"
-  "frontend/react": "frontend-architect"
-  "frontend/typescript": "frontend-architect"
-  "unity/csharp": "general"
-  "blender/python": "general"
-  "go/sidecars": "go-engineer"
-  "python/ml": "general"
-  "python/audio": "general"
+  "backend/fastapi": "kilo"
+  "backend/python": "kilo"
+  "frontend/react": "cline"
+  "frontend/typescript": "cline"
+  "unity/csharp": "ling"
+  "blender/python": "ling"
+  "go/sidecars": "kilo"
+  "python/ml": "ling"
+  "python/audio": "ling"
 
 # Project-specific context
 project:
@@ -163,3 +369,46 @@ project:
     - "packages/backend/app/services/vst_host.py"
     - "unity-visualizer/"
     - "unity-project-mcp/"
+
+# Observability and Feedback Loop
+observability:
+  # Auto-append to observed.jsonl after each agent task
+  auto_log_outcomes: true
+  log_fields:
+    - "date"
+    - "model"
+    - "route"
+    - "worked"
+    - "note"
+    - "task_type"
+    - "agent_type"
+    - "duration_seconds"
+    - "tokens_used"
+  
+  # Roster update rules
+  roster_update:
+    auto_update_on_tier_change: true
+    staleness_threshold_days: 30
+    first_contact_rule: true
+  
+  # Metrics collection
+  metrics:
+    track_duration: true
+    track_tokens: true
+    track_gate_results: true
+    track_conflicts: true
+
+# Model reliability integration
+model_reliability:
+  roster_path: "tools/model-reliability/roster.md"
+  observed_path: "tools/model-reliability/observed.jsonl"
+  score_script: "tools/model-reliability/score.py"
+  fetch_advertised_script: "tools/model-reliability/fetch_advertised.py"
+  
+  # Scoring weights (from score.py)
+  scoring:
+    source_listing_bonus: 20  # per source currently listing as free (max 40)
+    recent_success_bonus: 30  # if observed working within 7 days
+    older_success_bonus: 15   # if observed working within 30 days
+    recent_failure_penalty: -50  # if observed failing within 7 days
+    floor: 0
