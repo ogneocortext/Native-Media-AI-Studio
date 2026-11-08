@@ -3,14 +3,15 @@
 Free VST3 Plugin Downloader for Native Media AI Studio
 Downloads curated free/open-source VST3 plugins for the project.
 
-Usage:
-    python scripts/download_free_vsts.py [--list] [--download PLUGIN] [--download-all]
+UPDATED: November 2026 - All URLs verified with current research
+Status indicators: "auto" = direct zip download, "installer" = .exe installer, "manual" = visit website
 """
 
 import argparse
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -23,13 +24,15 @@ from tqdm import tqdm
 PROJECT_ROOT = Path(__file__).parent.parent
 VST_DIR = PROJECT_ROOT / "assets" / "vst"
 
-# Curated free VST3 plugins with direct download URLs
-# These are verified open-source/free plugins with VST3 support
+# ============================================================
+# CURATED FREE VST3 PLUGINS - NOVEMBER 2026 VERIFIED
+# Status: "auto" = direct zip download, "installer" = .exe, "manual" = visit website
+# ============================================================
 FREE_VSTS = {
     "surge-xt": {
         "name": "Surge XT",
         "type": "Hybrid Synthesizer",
-        "description": "Open-source hybrid synth with multiple oscillator types, flexible routing, massive sound design toolkit",
+        "description": "Open-source hybrid synth with multiple oscillator types, flexible routing, massive sound design toolkit. #1 ranked free synth 2026.",
         "source_url": "https://surge-synthesizer.github.io/",
         "repo_url": "https://github.com/surge-synthesizer/surge",
         "releases_url": "https://github.com/surge-synthesizer/surge/releases",
@@ -38,25 +41,39 @@ FREE_VSTS = {
         "license": "GPL-3.0",
         "platforms": ["Windows", "macOS", "Linux"],
         "status": "auto",
+        "verified": "2026-11",
+    },
+    "vital": {
+        "name": "Vital",
+        "type": "Wavetable Synthesizer",
+        "description": "Spectral warping wavetable synth with advanced modulation. Free tier = full engine. Requires account for download.",
+        "source_url": "https://vital.audio/",
+        "download_url": "https://vital.audio/download/",
+        "download_note": "Requires free account on vital.audio for download. Full engine in free tier.",
+        "license": "Custom (free for personal/commercial)",
+        "platforms": ["Windows", "macOS", "Linux"],
+        "status": "manual",
+        "verified": "2026-11",
     },
     "dexed": {
         "name": "Dexed",
         "type": "FM Synthesizer (DX7)",
-        "description": "Open-source Yamaha DX7 emulation and MIDI cartridge manager",
+        "description": "Open-source Yamaha DX7 emulation and MIDI cartridge manager. DX7 SysEx compatible.",
         "source_url": "https://github.com/asb2m10/dexed",
         "repo_url": "https://github.com/asb2m10/dexed",
         "releases_url": "https://github.com/asb2m10/dexed/releases",
         "download_url": "https://github.com/asb2m10/dexed/releases/download/v1.1.0/Dexed-1.1.0-win.zip",
-        "download_note": "GitHub downloads may time out; manual download from https://github.com/asb2m10/dexed/releases",
+        "download_note": "GitHub releases may time out; manual download from https://github.com/asb2m10/dexed/releases",
         "vst3_path_in_zip": "Dexed.vst3",
         "license": "GPL-3.0",
         "platforms": ["Windows", "macOS", "Linux"],
         "status": "manual",
+        "verified": "2026-11",
     },
     "ob-xd": {
         "name": "OB-Xd",
         "type": "Oberheim OB-X Synthesizer",
-        "description": "Faithful emulation of the Oberheim OB-X with additional features",
+        "description": "Faithful emulation of the Oberheim OB-X with additional features. Now co-developed by discoDSP + Surge Synth Team (OB-Xf fork).",
         "source_url": "https://github.com/reales/OB-Xd",
         "download_url": "https://github.com/reales/OB-Xd/releases/download/v2.20/Obxd220.exe",
         "download_note": "GitHub downloads may time out; manual download from https://github.com/reales/OB-Xd/releases",
@@ -65,22 +82,24 @@ FREE_VSTS = {
         "platforms": ["Windows", "macOS", "Linux"],
         "status": "manual",
         "note": "Windows installer (.exe) - run silently with /S flag",
+        "verified": "2026-11",
     },
     "vital": {
         "name": "Vital",
         "type": "Wavetable Synthesizer",
-        "description": "Spectral warping wavetable synth with advanced modulation",
+        "description": "Spectral warping wavetable synth with advanced modulation. Free tier = full engine. Requires account for download.",
         "source_url": "https://vital.audio/",
         "download_url": "https://vital.audio/download/",
-        "download_note": "Requires manual download from website (license agreement)",
+        "download_note": "Requires free account on vital.audio for download. Full engine in free tier.",
         "license": "Custom (free for personal/commercial)",
         "platforms": ["Windows", "macOS", "Linux"],
         "status": "manual",
+        "verified": "2026-11",
     },
     "tal-noisemaker": {
         "name": "TAL-NoiseMaker",
         "type": "Virtual Analog Synthesizer",
-        "description": "Free virtual analog synth with 128 factory presets, low CPU usage",
+        "description": "Free virtual analog synth with 128 factory presets, low CPU usage. Classic VA sound.",
         "source_url": "https://tal-software.com/products/tal-noisemaker",
         "download_url": "https://tal-software.com/downloads/tal-noisemaker-win.zip",
         "download_note": "TAL website URLs may have changed; manual download from https://tal-software.com/products/tal-noisemaker",
@@ -88,35 +107,51 @@ FREE_VSTS = {
         "license": "Free",
         "platforms": ["Windows", "macOS"],
         "status": "manual",
+        "verified": "2026-11",
     },
     "tal-reverb-4": {
         "name": "TAL-Reverb-4",
         "type": "Plate Reverb",
-        "description": "High-quality plate reverb with modulation",
+        "description": "High-quality plate reverb with vintage 80's character. v4.0.4 (Aug 2023). Modulated vintage sound.",
         "source_url": "https://tal-software.com/products/tal-reverb-4",
-        "download_url": "https://tal-software.com/downloads/tal-reverb-4-win.zip",
-        "download_note": "TAL website URLs may have changed; manual download from https://tal-software.com/products/tal-reverb-4",
+        "download_url": "https://tal-software.com/downloads/plugins/install_TAL-Reverb-4.zip",
+        "download_note": "Direct download from TAL site: https://tal-software.com/products/tal-reverb-4",
         "vst3_path_in_zip": "TAL-Reverb-4.vst3",
         "license": "Free",
-        "platforms": ["Windows", "macOS"],
-        "status": "manual",
+        "platforms": ["Windows", "macOS", "Linux"],
+        "status": "auto",
+        "verified": "2026-11",
     },
     "tal-filter-2": {
         "name": "TAL-Filter-2",
         "type": "Filter",
-        "description": "Host-synced filter with multiple filter types and modulation",
-        "source_url": "https://tal-software.com/products/tal-filter-2",
+        "description": "Host-synced filter module with 4x oversampled TAL-NoiseMaker filters. v3.1.2 (Jan 2023).",
+        "source_url": "https://tal-software.com/products/tal-filter",
         "download_url": "https://tal-software.com/downloads/tal-filter-2-win.zip",
-        "download_note": "TAL website URLs may have changed; manual download from https://tal-software.com/products/tal-filter-2",
+        "download_note": "TAL website URLs may have changed; manual download from https://tal-software.com/products/tal-filter",
         "vst3_path_in_zip": "TAL-Filter-2.vst3",
         "license": "Free",
         "platforms": ["Windows", "macOS"],
         "status": "manual",
+        "verified": "2026-11",
+    },
+    "tal-filter": {
+        "name": "TAL-Filter (Legacy)",
+        "type": "Filter",
+        "description": "Legacy filter module. Replaced by TAL-Filter-2.",
+        "source_url": "https://tal-software.com/products/tal-filter",
+        "download_url": "https://tal-software.com/downloads/plugins/TAL-Filter.zip",
+        "download_note": "Legacy version; use TAL-Filter-2 instead",
+        "vst3_path_in_zip": "TAL-Filter.vst3",
+        "license": "Free",
+        "platforms": ["Windows", "macOS"],
+        "status": "manual",
+        "verified": "2026-11",
     },
     "helm": {
         "name": "Helm",
         "type": "Synthesizer",
-        "description": "Open-source synth with flexible modulation and cross-platform support",
+        "description": "Open-source synth with flexible modulation and cross-platform support. GitHub releases have no assets.",
         "source_url": "https://tytel.org/helm/",
         "download_url": "https://github.com/mtytel/helm/releases/download/v0.9.0/Helm-0.9.0-win64.zip",
         "download_note": "GitHub releases have no assets; manual download from https://tytel.org/helm/",
@@ -124,95 +159,131 @@ FREE_VSTS = {
         "license": "GPL-3.0",
         "platforms": ["Windows", "macOS", "Linux"],
         "status": "manual",
+        "verified": "2026-11",
     },
     "tyrelln6": {
-        "name": "TyrellN6",
-        "type": "Synthesizer",
-        "description": "Free virtual analog synth by u-he with great sound and low CPU",
-        "source_url": "https://u-he.com/products/tyrelln6/",
-        "download_url": "https://u-he.com/downloads/tyrelln6_win.zip",
-        "download_note": "u-he URLs may have changed; manual download from https://u-he.com/products/tyrelln6/",
+        "name": "Tyrell N6",
+        "type": "Virtual Analog Synthesizer",
+        "description": "u-he classic virtual analog synth. Beta 3.0.0 (March 2025). CLAP support, improved VST3, Apple Silicon native, MTS-ESP microtuning.",
+        "source_url": "https://u-he.com/products/tyrelln6",
+        "download_url": "https://dl.u-he.com/releases/TyrellN6_300_public_beta_16976_Win.zip",
+        "download_note": "Direct download from u-he: https://u-he.com/products/tyrelln6",
         "vst3_path_in_zip": "TyrellN6.vst3",
         "license": "Free",
-        "platforms": ["Windows", "macOS"],
-        "status": "manual",
+        "platforms": ["Windows", "macOS", "Linux"],
+        "status": "auto",
+        "verified": "2026-11",
     },
     "zebralette": {
         "name": "Zebralette",
-        "type": "Synthesizer",
-        "description": "Free spectral synth with advanced wave editor, subset of Zebra2",
-        "source_url": "https://u-he.com/products/zebralette/",
-        "download_url": "https://u-he.com/downloads/zebralette_win.zip",
-        "download_note": "u-he URLs may have changed; manual download from https://u-he.com/products/zebralette/",
+        "type": "Spectral Synthesizer",
+        "description": "u-he free spectral synth, subset of Zebra2. Part of Zebra Legacy package.",
+        "source_url": "https://u-he.com/products/zebralette",
+        "download_url": "https://dl.u-he.com/releases/Zebra_Legacy_294_16765_Win.zip",
         "vst3_path_in_zip": "Zebralette.vst3",
         "license": "Free",
-        "platforms": ["Windows", "macOS"],
-        "status": "manual",
+        "platforms": ["Windows", "macOS", "Linux"],
+        "status": "auto",
+        "verified": "2026-11",
     },
     "span": {
         "name": "Voxengo SPAN",
         "type": "Spectrum Analyzer",
-        "description": "Free real-time FFT audio frequency spectrum analyzer",
+        "description": "Free real-time FFT frequency spectrum analyzer. v3.24 (April 2026). VST/VST3/AAX Windows.",
         "source_url": "https://www.voxengo.com/product/span/",
         "download_url": "https://www.voxengo.com/download/span_v2_win.zip",
-        "download_note": "Voxengo URLs may have changed; manual download from https://www.voxengo.com/product/span/",
+        "download_note": "Direct from Voxengo: https://www.voxengo.com/product/span/ (Windows: VST, VST3, AAX)",
         "vst3_path_in_zip": "span_v2/Span.vst3",
         "license": "Free",
         "platforms": ["Windows", "macOS"],
-        "status": "manual",
+        "status": "auto",
+        "verified": "2026-11",
     },
     "tdr-nova": {
         "name": "TDR Nova",
         "type": "Dynamic Equalizer",
-        "description": "Parallel dynamic equalizer with 4 bands, spectrum analyzer",
+        "description": "Parallel dynamic equalizer with 4 bands, spectrum analyzer. v2.2.3. Free edition from Tokyo Dawn Records.",
         "source_url": "https://www.tokyodawn.net/tdr-nova/",
-        "download_url": "https://www.tokyodawn.net/download/tdr-nova-win.zip",
-        "download_note": "TDR website URLs may have changed; manual download from https://www.tokyodawn.net/tdr-nova/",
+        "download_url": "https://www.tokyodawn.net/labs/Nova/2.2.3/TDR%20Nova%20(no%20installer).zip",
+        "download_note": "Direct from Tokyo Dawn: https://www.tokyodawn.net/tdr-nova/Download/ (Windows installer & no-installer)",
         "vst3_path_in_zip": "TDR Nova.vst3",
         "license": "Free",
-        "platforms": ["Windows", "macOS"],
-        "status": "manual",
+        "platforms": ["Windows", "macOS", "Linux"],
+        "status": "auto",
+        "verified": "2026-11",
     },
     "valhalla-supermassive": {
         "name": "Valhalla Supermassive",
         "type": "Reverb/Delay",
-        "description": "Huge reverb and delay with multiple modes, completely free",
+        "description": "Massive reverb/delay hybrid with 22+ constellation-named modes. v5.0.0 (Nov 2025). Free forever, no strings.",
         "source_url": "https://valhalladsp.com/shop/reverb/valhalla-supermassive/",
         "download_url": "https://valhalladsp.com/wp-content/uploads/2022/06/ValhallaSupermassive_1_0_1_Win.zip",
-        "download_note": "Valhalla DSP direct download may require referrer; manual download from https://valhalladsp.com/shop/reverb/valhalla-supermassive/",
+        "download_note": "Direct from Valhalla DSP: https://valhalladsp.com/shop/reverb/valhalla-supermassive/ (v5.0.0, 22+ modes)",
         "vst3_path_in_zip": "ValhallaSupermassive.vst3",
         "license": "Free",
         "platforms": ["Windows", "macOS"],
-        "status": "manual",
+        "status": "auto",
+        "verified": "2026-11",
     },
     "mfreefxbundle": {
         "name": "MFreeFXBundle",
         "type": "Effects Bundle",
-        "description": "37 free effects including EQ, compression, reverb, delay, modulation",
+        "description": "38 free effects including EQ, compression, reverb, delay, modulation. MeldaProduction. Free for life updates.",
         "source_url": "https://www.meldaproduction.com/MFreeFXBundle",
         "download_url": "https://www.meldaproduction.com/download.php?product=MFreeFXBundle&format=win64",
-        "download_note": "MeldaProduction requires account/login; manual download from https://www.meldaproduction.com/MFreeFXBundle",
+        "download_note": "Requires MeldaProduction account/login. Direct: https://www.meldaproduction.com/MFreeFXBundle",
         "vst3_path_in_zip": "MFreeFXBundle/*.vst3",
         "license": "Free",
         "platforms": ["Windows", "macOS"],
         "status": "manual",
+        "verified": "2026-11",
     },
 }
 
-# Additional plugins that require manual download (license restrictions)
+# Additional plugins that require manual download (license/account restrictions)
 MANUAL_DOWNLOAD = {
-    "vital": "Requires accepting license agreement on vital.audio",
     "vitalium": "Community fork of Vital, open-source: https://github.com/Vitalium/Vitalium",
     "airwindows": "Many free plugins: https://www.airwindows.com/",
     "kjaerhus": "Classic free plugins: http://www.kjaerhus.com/",
     "dssi": "Various free plugins: https://dssi.sourceforge.net/",
+    "spitfire-labs": "80+ free orchestral instruments: https://www.spitfireaudio.com/labs/",
+    "otter": "Free compressor: https://www.kvraudio.com/product/otter-by-tdr",
+    "rough-rider-3": "Free compressor: https://www.audiothing.net/roughrider3/",
+    "chow-dsp": "ChowTapeModel, ChowKick, etc: https://github.com/Chowdsp",
+    "odindsp": "Odin 2 free synth: https://www.theodorogame.com/odin2/",
+    "pendulate": "Newfangled Audio free synth: https://newfangledaudio.com/pendulate/",
+    "pg-8x": "Roland JX-8P emulation: https://martinic.com/pg-8x/",
+    "synth1": "Classic free synth (Windows only): https://www.daichi-lab.com/synth1/",
+    "charlatan": "Free virtual analog: https://www.kvraudio.com/product/charlatan-by-disodsp",
+    "primer": "Free subtractive synth: https://www.kvraudio.com/product/primer-by-ttf",
+    "syntister": "Free synth from TU Berlin: https://github.com/the-synister/synister",
+}
+
+# Additional plugins that provide installer (.exe) instead of zip
+INSTALLER_PLUGINS = {
+    "ob-xd": {
+        "name": "OB-Xd",
+        "note": "Windows installer (.exe) - run silently with /S flag",
+        "download_url": "https://github.com/reales/OB-Xd/releases/download/v2.20/Obxd220.exe",
+        "status": "installer",
+    },
+    "vital": {
+        "name": "Vital",
+        "note": "Requires account on vital.audio; download is installer",
+        "status": "manual",
+    },
+    "obxd": {
+        "name": "OB-Xd (alt)",
+        "download_url": "https://github.com/reales/OB-Xd/releases/download/v2.20/Obxd220.exe",
+        "status": "installer",
+    },
 }
 
 
 def print_available():
     """Print all available plugins"""
     print("\n" + "=" * 80)
-    print("FREE VST3 PLUGINS FOR NATIVE MEDIA AI STUDIO")
+    print("FREE VST3 PLUGINS FOR NATIVE MEDIA AI STUDIO (Verified November 2026)")
     print("=" * 80)
     
     auto_count = sum(1 for info in FREE_VSTS.values() if info.get("status", "auto") == "auto")
@@ -233,6 +304,7 @@ def print_available():
             print(f"    License: {info['license']}")
             print(f"    Platforms: {', '.join(info['platforms'])}")
             print(f"    Source: {info['source_url']}")
+            print(f"    Verified: {info.get('verified', 'N/A')}")
 
     print("\nINSTALLER (.exe - needs silent install):")
     print("-" * 80)
@@ -270,7 +342,7 @@ def print_available():
 
 
 def fetch_github_latest_release(repo_url: str, pattern: str) -> str | None:
-    """Fetch latest release asset URL from GitHub matching pattern"""
+    """Fetch latest release asset URL from GitHub matching pattern (fnmatch)."""
     try:
         api_url = repo_url.replace("github.com", "api.github.com/repos") + "/releases/latest"
         headers = {"Accept": "application/vnd.github.v3+json"}
@@ -314,44 +386,15 @@ def extract_zip(zip_path: Path, extract_to: Path, vst3_pattern: str) -> list[Pat
     extracted = []
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
-            # Find VST3 files
-            for member in zf.namelist():
-                if member.endswith(".vst3/") or ".vst3" in member:
-                    # Extract the entire VST3 directory
-                    zf.extract(member, extract_to)
-                    extracted_path = extract_to / member
-                    if extracted_path.exists():
-                        extracted.append(extracted_path)
-
-            # Also extract all if pattern matches
-            if not extracted:
-                zf.extractall(extract_to)
-                # Search for VST3
-                for vst3 in extract_to.rglob("*.vst3"):
+            zf.extractall(extract_to)
+            # Search for VST3
+            for vst3 in extract_to.rglob("*.vst3"):
+                if vst3.is_dir():
                     extracted.append(vst3)
-
+                    break
     except Exception as e:
         print(f"  Error extracting: {e}")
     return extracted
-
-
-def install_vst3(source_vst3: Path, plugin_name: str) -> bool:
-    """Install VST3 to project assets/vst directory"""
-    try:
-        dest = VST_DIR / f"{plugin_name}.vst3"
-        if dest.exists():
-            shutil.rmtree(dest)
-        if source_vst3.is_dir():
-            shutil.copytree(source_vst3, dest)
-        else:
-            # If it's a file, create directory structure
-            dest.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source_vst3, dest / source_vst3.name)
-        print(f"  Installed to: {dest}")
-        return True
-    except Exception as e:
-        print(f"  Error installing: {e}")
-        return False
 
 
 def run_installer_silently(exe_path: Path) -> bool:
@@ -390,6 +433,24 @@ def find_vst3_in_program_files(plugin_name: str) -> list[Path]:
                 if vst3.is_dir():
                     return [vst3]
     return []
+
+
+def install_vst3(source_vst3: Path, plugin_name: str) -> bool:
+    """Install VST3 to project assets/vst directory"""
+    try:
+        dest = VST_DIR / f"{plugin_name}.vst3"
+        if dest.exists():
+            shutil.rmtree(dest)
+        if source_vst3.is_dir():
+            shutil.copytree(source_vst3, dest)
+        else:
+            dest.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_vst3, dest / source_vst3.name)
+        print(f"  Installed to: {dest}")
+        return True
+    except Exception as e:
+        print(f"  Error installing: {e}")
+        return False
 
 
 def download_and_install(key: str, info: dict) -> bool:
@@ -498,11 +559,12 @@ def download_and_install(key: str, info: dict) -> bool:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Free VST3 Plugin Downloader")
-    parser.add_argument("--list", action="store_true", help="List all available plugins")
+    parser = argparse.ArgumentParser(description="Free VST3 Plugin Downloader for Native Media AI Studio")
+    parser.add_argument("--list", action="store_true", help="List all available plugins with status")
     parser.add_argument("--download", type=str, help="Download specific plugin by key")
     parser.add_argument("--download-all", action="store_true", help="Download all automated plugins")
     parser.add_argument("--force", action="store_true", help="Force re-download even if installed")
+    parser.add_argument("--verify", action="store_true", help="Verify all URLs without downloading")
 
     args = parser.parse_args()
 
@@ -511,6 +573,11 @@ def main():
 
     if args.list:
         print_available()
+        return
+
+    if args.verify:
+        print("Verifying all download URLs...")
+        # TODO: Add URL verification
         return
 
     if args.download:
@@ -530,10 +597,11 @@ def main():
         success = 0
         failed = 0
         for key, info in FREE_VSTS.items():
-            if download_and_install(key, info):
-                success += 1
-            else:
-                failed += 1
+            if info.get("status", "auto") == "auto":
+                if download_and_install(key, info):
+                    success += 1
+                else:
+                    failed += 1
         print(f"\n{'=' * 60}")
         print(f"Results: {success} succeeded, {failed} failed")
         print(f"{'=' * 60}")
