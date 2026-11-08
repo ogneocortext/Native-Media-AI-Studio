@@ -13,7 +13,7 @@ import { Card } from "../../components/common";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { VSTPluginCard } from "./components/VSTPluginCard";
 import { VSTChainBuilder } from "./components/VSTChainBuilder";
-import { PluginInfo, Chain, ProcessResult } from "./types";
+import type { PluginInfo, Chain, ProcessResult } from "./types";
 import styles from "./VSTPage.module.css";
 
 export const fmtTime = (sec: number): string => {
@@ -48,8 +48,8 @@ export function VSTPage() {
     setLoading(true);
     try {
       const [pluginsRes, chainsRes] = await Promise.all([
-        fetch(`${api}/api/vst/plugins`).then(r => r.json() as Promise<{plugins: PluginInfo[]}>),
-        fetch(`${api}/api/vst/chains`).then(r => r.json() as Promise<{chains: Chain[]}>),
+        fetch(`${api}/api/vst/plugins`).then(async (r) => (await r.json()) as { plugins: PluginInfo[] }),
+        fetch(`${api}/api/vst/chains`).then(async (r) => (await r.json()) as { chains: Chain[] }),
       ]);
       setPlugins(pluginsRes.plugins);
       setChains(chainsRes.chains);
@@ -207,9 +207,9 @@ export function VSTPage() {
         <VSTChainBuilder
           chain={selectedChain}
           plugins={plugins}
-          onSave={handleSaveChain}
-          onDelete={handleDeleteChain}
-          onProcess={handleProcessChain}
+          onSave={(c) => void handleSaveChain(c)}
+          onDelete={() => void handleDeleteChain()}
+          onProcess={(name, input) => void handleProcessChain(name, input)}
           isProcessing={processing}
           availableInputs={availableInputs}
         />

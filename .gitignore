@@ -370,3 +370,4 @@ tools/self-metrics/
 
 # Knowledge-library EPUB exports - local host only, not for commit
 /*.epub
+.kilo/skills/sub_agent_orchestration/__pycache__/

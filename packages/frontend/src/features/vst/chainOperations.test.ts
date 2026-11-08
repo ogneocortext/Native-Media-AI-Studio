@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PluginInfo, Chain, ChainPlugin } from "./types";
+import type { PluginInfo, Chain, ChainPlugin } from "./types";
 
 /* ------------------------------------------------------------------ */
 /* Chain Operation Utilities                                          */

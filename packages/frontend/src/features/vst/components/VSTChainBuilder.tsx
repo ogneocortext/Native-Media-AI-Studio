@@ -16,7 +16,7 @@ import {
   ListMusic,
 } from "lucide-react";
 import { getApiBase } from "../../../services/api/core";
-import { PluginInfo, Chain, ChainPlugin } from "../types";
+import type { PluginInfo, Chain, ChainPlugin } from "../types";
 import { useHistory } from "../hooks/useHistory";
 import styles from "./VSTChainBuilder.module.css";
 
@@ -69,9 +69,9 @@ export const VSTChainBuilder = React.memo<VSTChainBuilderProps>(({
   isProcessing,
   availableInputs,
 }) => {
-  const [chainName, setChainName] = useState(chain?.name || "");
-  const [sampleRate, setSampleRate] = useState(chain?.sample_rate || 48000);
-  const [blockSize, setBlockSize] = useState(chain?.block_size || 512);
+  const [chainName, setChainName] = useState(chain?.name ?? "");
+  const [sampleRate, setSampleRate] = useState(chain?.sample_rate ?? 48000);
+  const [blockSize, setBlockSize] = useState(chain?.block_size ?? 512);
   const [selectedInput, setSelectedInput] = useState<string>("");
   const [editingParamsFor, setEditingParamsFor] = useState<string | null>(null);
   const [pluginParams, setPluginParams] = useState<Record<string, number>>({});
@@ -81,7 +81,7 @@ export const VSTChainBuilder = React.memo<VSTChainBuilderProps>(({
   const dragOverRef = useRef<Set<number>>(new Set());
 
   // Chain plugins state with history
-  const initialPlugins = useMemo(() => chain?.plugins || [], [chain]);
+  const initialPlugins = useMemo(() => chain?.plugins ?? [], [chain]);
   const { current: chainPlugins, push: pushHistory, undo, redo, canUndo, canRedo } = useHistory<
     ChainPlugin[]
   >(initialPlugins);
@@ -89,7 +89,7 @@ export const VSTChainBuilder = React.memo<VSTChainBuilderProps>(({
   // Sync chainPlugins with incoming chain prop
   useEffect(() => {
     if (chain) {
-      pushHistory(chain.plugins || []);
+      pushHistory(chain.plugins);
     }
   }, [chain, pushHistory]);
 
@@ -121,7 +121,7 @@ export const VSTChainBuilder = React.memo<VSTChainBuilderProps>(({
     setLoadingParamsFor(pluginName);
     try {
       const res = await fetch(`${api}/api/vst/plugins/${pluginName}/parameters`);
-      const data = await res.json() as { parameters: Array<{ name: string; value: number }> };
+      const data = (await res.json()) as { parameters: { name: string; value: number }[] };
       const params: Record<string, number> = {};
       data.parameters.forEach(p => { params[p.name] = p.value; });
       setPluginParams(params);
@@ -403,7 +403,7 @@ export const VSTChainBuilder = React.memo<VSTChainBuilderProps>(({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleLoadPluginParams(plugin.name, index);
+                        void handleLoadPluginParams(plugin.name, index);
                       }}
                       disabled={loadingParamsFor === plugin.name}
                       className={styles.iconBtn}
@@ -434,7 +434,7 @@ export const VSTChainBuilder = React.memo<VSTChainBuilderProps>(({
       </div>
 
       {/* Parameter Editor */}
-      {editingParamsFor && pluginParams && Object.keys(pluginParams).length > 0 && (
+      {editingParamsFor && Object.keys(pluginParams).length > 0 && (
         <div className={styles.paramEditor}>
           <div className={styles.paramEditorHeader}>
             <h4>Parameters for {editingParamsFor}</h4>

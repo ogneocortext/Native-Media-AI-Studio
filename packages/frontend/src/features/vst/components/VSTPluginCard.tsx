@@ -9,7 +9,7 @@ import {
   ListMusic,
 } from "lucide-react";
 import { getApiBase } from "../../../services/api/core";
-import { PluginInfo, PluginParameter } from "../types";
+import type { PluginInfo, PluginParameter } from "../types";
 import styles from "./VSTPluginCard.module.css";
 
 const api = getApiBase();
