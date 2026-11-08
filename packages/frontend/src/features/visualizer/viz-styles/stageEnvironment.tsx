@@ -363,6 +363,16 @@ export function StageEnvironment({ audioData }: VizProps) {
       {/* Reactive practicals on the truss */}
       <ReactiveLights levelRef={lightLevel} />
 
+      {/* DJ-area practical — keeps the GLB props readable against the
+          near-black stage without flattening the beam contrast. */}
+      <pointLight
+        position={[0.4, -0.6, 1.6]}
+        intensity={6}
+        distance={7}
+        decay={2}
+        color="#ffc98a"
+      />
+
       {/* Crowd silhouettes (foreground depth plane) */}
       <CrowdField audioData={audioData} />
 
@@ -370,10 +380,10 @@ export function StageEnvironment({ audioData }: VizProps) {
           KTX2-aware load; per-prop Suspense keeps the set dressing visible
           while textures decode instead of blanking the whole scene. */}
       <Suspense fallback={null}>
-        <GlbProp url={`${ENV}/speakers.glb`} position={[-1.7, STAGE_Y, REAR_Z + 0.35]} scale={0.9} />
-        <GlbProp url={`${ENV}/speakers.glb`} position={[1.7, STAGE_Y, REAR_Z + 0.35]} scale={0.9} rotationY={Math.PI} />
-        <GlbProp url={`${ENV}/turntable.glb`} position={[0.9, STAGE_Y, -0.7]} scale={0.8} rotationY={Math.PI} />
-        <GlbProp url={`${ENV}/boombox.glb`} position={[-0.6, STAGE_Y, -1.15]} scale={0.7} rotationY={0.4} />
+        <GlbProp url={`${ENV}/speakers.glb`} position={[-1.7, STAGE_Y, REAR_Z + 0.35]} targetSize={1.9} />
+        <GlbProp url={`${ENV}/speakers.glb`} position={[1.7, STAGE_Y, REAR_Z + 0.35]} targetSize={1.9} rotationY={Math.PI} />
+        <GlbProp url={`${ENV}/turntable.glb`} position={[0.9, STAGE_Y, -0.7]} targetSize={2.4} rotationY={Math.PI} />
+        <GlbProp url={`${ENV}/boombox.glb`} position={[-2.3, STAGE_Y, -1.3]} targetSize={1.1} rotationY={0.9} />
       </Suspense>
     </group>
   );
@@ -419,24 +429,37 @@ function ReactiveLights({ levelRef }: { levelRef: React.MutableRefObject<number>
   );
 }
 
-function GlbProp({ url, position, scale = 1, rotationY = 0 }: {
+function GlbProp({ url, position, targetSize = 1.5, rotationY = 0 }: {
   url: string;
   position: [number, number, number];
-  scale?: number;
+  targetSize?: number;
   rotationY?: number;
 }) {
   const { gl } = useThree();
   const { scene } = useLoader(getGLTFLoader(gl), url);
   const clone = useMemo(() => {
     // GLB scenes may carry KTX2 textures; clone shallowly per instance.
-    return scene.clone(true);
-  }, [scene]);
+    const c = scene.clone(true);
+    // Sketchfab sources arrive in arbitrary units with inconsistent node
+    // TRS (turntable sits ~27 units off-origin at scale 100), so a fixed
+    // `scale` prop renders them microscopic, colossal, or off-screen.
+    // Fit the world bbox to targetSize and rest the bottom on y=0.
+    const box = new THREE.Box3().setFromObject(c);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim > 1e-6 && isFinite(maxDim)) {
+      c.scale.multiplyScalar(targetSize / maxDim);
+      const box2 = new THREE.Box3().setFromObject(c);
+      const c2 = box2.getCenter(new THREE.Vector3());
+      c.position.set(-c2.x, -box2.min.y, -c2.z);
+    }
+    return c;
+  }, [scene, targetSize]);
   return (
     <primitive
       object={clone}
       position={position}
       rotation={[0, rotationY, 0]}
-      scale={scale}
     />
   );
 }

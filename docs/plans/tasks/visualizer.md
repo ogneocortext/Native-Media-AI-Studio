@@ -1372,15 +1372,30 @@ evidence above.
   null ×3, page stuck Loading); crowd initially placed below frame and
   inside the platform volume; `pnpm install` by another process pruned
   the .pnpm store mid-session (restored, 789 pkgs).
-- **Next:** prop texture/scale audit (vision pass on env GLBs),
-  crowd readability vs beams, mode re-score via viz-capture, then
-  BuilderFigure replacement once a rigged character exists.
+- **Prop audit (this session):** GLB props were loading (200s, KTX2
+  transcoder fetched, meshes mounted) but rendering nothing — root
+  cause: Sketchfab sources carry arbitrary node TRS (turntable at
+  scale 100 / ~27 units off-origin), so fixed `scale` props landed
+  microscopic or off-screen. `GlbProp` now fits the world bbox to a
+  `targetSize` and rests the bottom on y=0 (speakers 1.9, turntable
+  2.4, boombox 1.1). Verified via unlit-green debug pass (all 4 props
+  rasterize at correct positions) then real materials: vision sees
+  speaker cabinets + DJ deck readable; added a warm DJ-area practical
+  (pointLight) so props aren't crushed by the dark stage. Boombox
+  remains marginal — crowd plane occludes low stage-front items
+  (physically consistent; revisit if it matters).
+- **Next:** mode re-score via viz-capture, then BuilderFigure
+  replacement once a rigged character exists (see mesh-topology
+  research: raw gen3d output is props/blockout only — character needs
+  rigged base or cloud Smart-Mesh/auto-rig path).
 - **Files:** packages/frontend/src/features/visualizer/viz-styles/
   stageEnvironment.tsx, viz-styles/index.ts, VisualizerScene.tsx,
   trackConceptAnalyzer.ts; packages/frontend/public/models/env/*.glb;
   packages/backend/app/services/gen3d/gen3d_service.py (.gltf ingest fix)
 - **Acceptance:** stage-env mode renders a coherent reactive stage in
   the live visualizer (met for v1); pending re-score vs baseline.
-- **Last session:** Devin, 2026-11-08 — crowd silhouette rework verified
-  (13/7 distinct figures quiet/loud, full-frame 4-5/5); awaiting
-  viz-capture re-score and prop texture audit.
+- **Last session:** Devin, 2026-11-08 — prop audit done: GLbProp
+  bbox-normalize fix (props were off-screen/microscopic from Sketchfab
+  node TRS); speakers + deck verified visible; boombox marginal.
+  Mesh-topology research completed — gen3d output is blockout/props
+  only, character needs rigged base or cloud retopo+rig path.
