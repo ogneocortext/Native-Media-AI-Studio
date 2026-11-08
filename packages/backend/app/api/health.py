@@ -301,8 +301,8 @@ async def agent_health() -> dict:
     queue_info = {
         "is_healthy": queue_stats.is_healthy and queue_stats.active_jobs < 50 and stranded == 0,
         "active_jobs": queue_stats.active_jobs,
-        "queued_jobs": queue_stats.queued_jobs,
-        "failed_jobs": queue_stats.failed_jobs,
+        "queued_jobs": queue_stats.queued,
+        "failed_jobs": queue_stats.failed,
         "stranded_running_jobs": stranded,
     }
 
