@@ -98,6 +98,7 @@ def run_hook(command: str):
         input=payload,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=10,
     )
     out = proc.stdout.strip()
