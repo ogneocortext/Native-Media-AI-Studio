@@ -57,6 +57,14 @@ logger = logging.getLogger(__name__)
 #: MuseTalk was trained at 25 fps. A mismatched source fps drifts the lip track.
 DEFAULT_FPS = 25
 
+#: Extensions MuseTalk's ``get_file_type()`` accepts (scripts/inference.py).
+#: Anything else -- e.g. the ``.webp`` stills ``lipsync-upload`` allows --
+#: dies with a bare ``ValueError`` deep in the worker.
+_MUSETALK_VIDEO_EXTS = {".avi", ".mp4", ".mov", ".flv", ".mkv"}
+_MUSETALK_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
+#: Still-image formats we can transcode to PNG before inference.
+_STILL_TRANSCODE_EXTS = {".webp", ".gif", ".heic", ".heif", ".avif"}
+
 
 class LipSyncError(Exception):
     """Base error for lip-sync failures."""
@@ -493,6 +501,14 @@ class MuseTalkAdapter:
             raise FileNotFoundError(f"Video not found: {video}")
         if not audio.is_file():
             raise FileNotFoundError(f"Audio not found: {audio}")
+        ext = video.suffix.lower()
+        if ext not in (_MUSETALK_VIDEO_EXTS | _MUSETALK_IMAGE_EXTS | _STILL_TRANSCODE_EXTS):
+            raise ValueError(
+                f"Unsupported input format {video.suffix!r} for {video.name}: "
+                "MuseTalk accepts "
+                f"{sorted(_MUSETALK_VIDEO_EXTS | _MUSETALK_IMAGE_EXTS)} "
+                f"(plus transcoded {sorted(_STILL_TRANSCODE_EXTS)})"
+            )
         out.parent.mkdir(parents=True, exist_ok=True)
 
         # Frame-rate validation -- MuseTalk is trained at 25 fps; mismatch drifts.
@@ -611,6 +627,10 @@ class MuseTalkAdapter:
             infer_out = staged_dir / "output.mp4"
             shutil.copyfile(video, infer_video)
             shutil.copyfile(wav, infer_audio)
+            if video.suffix.lower() in _STILL_TRANSCODE_EXTS:
+                converted = staged_dir / "video.png"
+                await asyncio.to_thread(self._transcode_still_to_png, infer_video, converted)
+                infer_video = converted
         try:
             # Stream inference output for real per-frame progress when a
             # callback is provided; otherwise run synchronously in a thread.
@@ -635,6 +655,26 @@ class MuseTalkAdapter:
         finally:
             if staged_dir is not None:
                 shutil.rmtree(staged_dir, ignore_errors=True)
+
+    def _transcode_still_to_png(self, src: Path, dst: Path) -> None:
+        """Transcode a still MuseTalk can't read (e.g. .webp) to PNG via ffmpeg."""
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            raise RuntimeError(
+                f"Cannot transcode {src.suffix} still for MuseTalk: ffmpeg not on PATH"
+            )
+        proc = subprocess.run(
+            [ffmpeg, "-y", "-v", "error", "-i", str(src), str(dst)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=120,
+        )
+        if proc.returncode != 0 or not dst.is_file():
+            raise RuntimeError(
+                f"Failed to transcode still {src.name} to PNG: "
+                f"{(proc.stderr or '')[-300:]}"
+            )
 
     def _probe_fps(self, video_path: Path) -> float | None:
         """Probe the video frame rate via ffprobe. Returns None on failure."""
@@ -885,7 +925,7 @@ class MuseTalkAdapter:
         try:
             stdout_task = asyncio.create_task(_read_stream(proc.stdout))
             stderr_task = asyncio.create_task(_read_stream(proc.stderr))
-            _stdout_log, stderr_log = await asyncio.gather(stdout_task, stderr_task)
+            stdout_log, stderr_log = await asyncio.gather(stdout_task, stderr_task)
             await proc.wait()
         except (LipSyncCancelledError, asyncio.CancelledError):
             for t in (stdout_task, stderr_task):
@@ -906,7 +946,16 @@ class MuseTalkAdapter:
             self._current_proc = None
         self._check_cancelled()
         if proc.returncode != 0:
+            # MuseTalk catches its own exceptions and prints them to *stdout*
+            # (scripts/inference.py "Error occurred during processing:"), so
+            # prefer whichever stream tail carries an explicit error marker.
+            detail = (stderr_log or "")[-800:]
+            for stream_log in (stderr_log, stdout_log):
+                if stream_log and (
+                    "Error occurred" in stream_log or "Traceback" in stream_log
+                ):
+                    detail = stream_log[-800:]
+                    break
             raise RuntimeError(
-                f"MuseTalk inference failed (rc={proc.returncode}): "
-                f"{(stderr_log or '')[-800:]}"
+                f"MuseTalk inference failed (rc={proc.returncode}): {detail}"
             )

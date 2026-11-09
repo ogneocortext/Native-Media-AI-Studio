@@ -100,6 +100,12 @@ Staging behavior:
 - The staged paths feed the same job machinery unchanged — response
   shape, polling (`GET /api/jobs/{job_id}`), and download
   (`GET /output/video/...`) are identical to `/lipsync`.
+- `.webp`/`.gif`/`.heic`/`.heif`/`.avif` stills are transcoded to PNG
+  before inference (MuseTalk's detector only reads its own extension
+  list); other unsupported formats fail the job with a clear error.
+  Note MuseTalk's S3FD face detector needs a real, detectable
+  face — illustrated or heavily stylized portraits can fail with a
+  "no face" error even when a human would recognize one.
 
 Example:
 
