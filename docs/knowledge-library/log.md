@@ -195,3 +195,6 @@ for AI agents.
 2. Under the heading, list each change as a bullet with file paths.
 3. Add a one-line rationale when the change is structural (not just wording).
 4. Never edit or delete previous entries — this log is append-only.
+## 2026-11-09 — Knowledge library additions
+- Added `docs/knowledge-library/torch-cuda-support-windows-2026.md` → `#platform`
+

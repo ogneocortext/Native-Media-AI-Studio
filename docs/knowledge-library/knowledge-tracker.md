@@ -98,7 +98,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `three-js-studio-scene-quality-2026.md`  → `#technical`, `#3d`, `#three-js`
 - ✅ `programmatic-tool-calling-2026.md`  → `#technical`, `#ai-agents`, `#tooling`
 
-### 🎮 MCP & Platform Integrations (12/12 completed) ✅
+### 🎮 MCP & Platform Integrations (13/13 completed) ✅
+- ✅ `torch-cuda-support-windows-2026.md`  → `#platform`
 
 - ✅ `mcp-contracts-2026.md`  → `#platform`, `#mcp`
 - ✅ `unity-integration-2026.md`  → `#platform`, `#platform-unity`, `#3d`, `#audio`
