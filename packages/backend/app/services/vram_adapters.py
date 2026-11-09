@@ -117,8 +117,15 @@ def _reload_ollama_models_sync(model_name: str) -> bool:
         method="POST",
     )
 
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            resp.read()
+    except Exception as exc:
+        # Ollama is optional (see VRAMManager.__init__): a down/unreachable
+        # server must not kill the GPU job that just finished -- callers
+        # treat False as "reload skipped" and move on.
+        logger.warning("VRAM Manager: Ollama reload failed for %s: %s", model_name, exc)
+        return False
 
     return True
 
