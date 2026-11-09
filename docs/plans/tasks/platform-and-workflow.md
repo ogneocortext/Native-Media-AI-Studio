@@ -1714,4 +1714,4 @@ Rules: `docs/plans/tasks/README.md`
   POST /api/video/lipsync -> job c97d1406 completed.
 - **Acceptance:** satisfied — synth wav -> lipsync job c97d1406 completed (300 frames, 12s, h264 704x1216, HTTP 200).
 - **Last session:** Devin, 2026-11-09 — install + service + API + remote
-  proof PASS; ledger + VOICE_API.md + commit.
+  proof PASS; ledger + VOICE_API.md + commit. Follow-up 2026-11-09: maya profile re-seeded with cast voice (Pendant) via lipsync-upload staged clip; vram_adapters Ollama-reload fail-soft fix (aa04e8d0) after Ollama-down killed two jobs post-inference.

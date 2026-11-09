@@ -1,5 +1,5 @@
 {
   "name": "Maya",
   "language": "en",
-  "ref_text_source": "bundled F5-TTS example (basic_ref_en.wav) -- replace ref.wav + ref.txt with a real Maya voice sample for production use"
+  "ref_text_source": "Maya's cast voice (Pendant), seeded 2026-11-09 via POST /api/video/lipsync-upload staged clip"
 }
