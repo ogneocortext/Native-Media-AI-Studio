@@ -1330,7 +1330,9 @@ evidence above.
 
 ### T-VIZ-54 — StageEnvironment: basement-club concert stage kit (v1)
 
-- **Status:** doing (v2 crowd fix verified; mode re-score pending)
+- **Status:** doing (acceptance artifact reproducible via
+  `tests/stage-env.spec.ts` → `output/tests/stage-env-v2.png`, verified
+  2026-11-09; mode re-score pending)
 - **Goal:** Give the 3D visualizer a designed space per
   `stylized-3d-environment-design-for-browser-music-visualizers-2026.md`
   — platform, truss, props, beams, crowd, reactive rig — ahead of the
@@ -1364,9 +1366,12 @@ evidence above.
   "Take the Crown"): quiet section 13 distinct figures, loud section 7;
   full-frame vision scores stage 4/5, crowd 5/5, beams 5/5, designed
   5/5, hero negative space 4/5.
-- **Verified:** playwright capture `output/tests/stage-env-v2.png` —
-  truss/beams/screen/props render; crowd confirmed via pixel analysis
-  (VLM can't distinguish near-black silhouettes — expected).
+- **Verified:** `tests/stage-env.spec.ts` (Playwright) drives
+  `__VIZ_TEST__.setStyle("stage-env")` and writes the acceptance capture
+  to `output/tests/stage-env-v2.png` — truss/beams/screen/props render;
+  crowd confirmed via pixel analysis (VLM can't distinguish near-black
+  silhouettes — expected). Spec added 2026-11-09: previously the PNG was
+  an ad-hoc capture no spec produced, so the claim was not reproducible.
 - **Bugs found en route:** drei `<Instances>` rejects `<group>` children
   (must be `<Instance>`) — was crashing the whole R3F tree ('attributes'
   null ×3, page stuck Loading); crowd initially placed below frame and
@@ -1394,11 +1399,16 @@ evidence above.
   packages/backend/app/services/gen3d/gen3d_service.py (.gltf ingest fix)
 - **Acceptance:** stage-env mode renders a coherent reactive stage in
   the live visualizer (met for v1); pending re-score vs baseline.
-- **Last session:** Devin, 2026-11-08 — prop audit done: GLbProp
-  bbox-normalize fix (props were off-screen/microscopic from Sketchfab
-  node TRS); speakers + deck verified visible; boombox marginal.
-  Mesh-topology research completed — gen3d output is blockout/props
-  only, character needs rigged base or cloud retopo+rig path.
+- **Last session:** Devin (SWE-2), 2026-11-09 — acceptance artifact made
+  reproducible: new `tests/stage-env.spec.ts` captures
+  `output/tests/stage-env-v2.png` via the `__VIZ_TEST__.setStyle` harness
+  (spec PASSED; canvas2d + lrc-visualizer specs also run — canvas2d 3/3,
+  lrc skipped, no .lrc-backed track in library). Prior session 2026-11-08:
+  prop audit done — GLbProp bbox-normalize fix (props were
+  off-screen/microscopic from Sketchfab node TRS); speakers + deck
+  verified visible; boombox marginal. Mesh-topology research completed —
+  gen3d output is blockout/props only, character needs rigged base or
+  cloud retopo+rig path.
 
 ### T-VIZ-55 — Hero character: HouseRig_v1 toolchain + stylized DJ build
 - **Status:** doing
