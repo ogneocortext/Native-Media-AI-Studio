@@ -1725,6 +1725,20 @@ Rules: `docs/plans/tasks/README.md`
   verdict on the shape-swap render; if procedural mouths read too
   flat, next levers are drawn mouth assets or ComfyUI-generated
   variants into the same compositor.
+- **Last session:** Devin, 2026-11-10 (cont.) — mouth assets moved from
+  procedural/SDXL-inpaint to ControlNet-guided generation: downloaded
+  `noob-sdxl-controlnet-lineart_anime` fp16 (2.33 GB, only new model) into
+  ComfyUI controlnet dir; `comfy_mouth_gen.py` now adds Canny edge node
+  (0.3/0.7) + `ControlNetApplyAdvanced` (strength 0.7, end_percent 0.7)
+  after InpaintModelConditioning. Regenerated half/open/pucker mouths
+  (seed batch `_00004_`), vision ~9–9.5/10 vs ~3/10 inpaint-only. Compositor
+  switched to inner-lip-polygon constraint (v3 fix: original outer lip
+  contour/width preserved) → `maya_avatar_v3_mouth_shapes_v4.mp4` +
+  `_v4_720p.mp4` (1280×720 letterbox, compat encode). Reusable recipe
+  written to `docs/guides/LIPSYNC_2D_MOUTH_SHAPES.md` incl. one-off
+  hardcoded paths inventory; scripts remain gitignored scratch pending
+  owner verdict. PENDING: owner motion verdict on v4_720p — pass ratifies
+  the recipe as standard; a named flaw gets a scoped fix only.
 
 ### T-VOICE-01 — Local F5-TTS voice synthesis service (follows T-LIPSYNC-01)
 - **Status:** done
