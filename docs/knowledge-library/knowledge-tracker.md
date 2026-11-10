@@ -37,7 +37,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 
 ## ✅ Completed Migrations
 
-### 🎬 Production Pipeline (23/23 completed) ✅
+### 🎬 Production Pipeline (24/24 completed) ✅
+- ✅ `cheap-character-animation-lanes-while-musetalk-is-down-2026.md`  → `#production`
 
 - ✅ `music-video-production.md`  → `#production`, `#platform-youtube`, `#audio`
 - ✅ `youtube-optimization.md`  → `#production`, `#platform-youtube`

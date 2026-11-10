@@ -206,3 +206,5 @@ for AI agents.
 
 - Added `docs/knowledge-library/acp-agent-registry-2026.md` → `#platform`
 
+- Added `docs/knowledge-library/cheap-character-animation-lanes-while-musetalk-is-down-2026.md` → `#production`
+

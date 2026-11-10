@@ -28,6 +28,7 @@ date: 2026-09-30
 ## 🗂️ Library Structure
 
 ### 🎬 Production Pipeline (Workflow & Creative)
+- [[cheap-character-animation-lanes-while-musetalk-is-down-2026|Cheap Character Animation Lanes While MuseTalk Is Down]] — Cheap Character Animation Lanes While MuseTalk Is Down
 
 - [[music-video-production|🎵 Music Video Production Guide]] — Complete production workflow from audio upload to final export
 - [[youtube-optimization|📺 YouTube Optimization]] — Platform-specific optimization for reach and engagement
@@ -207,7 +208,7 @@ date: 2026-09-30
 
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
-|| `#production/*` | Production workflow & creative guides | 23 documents |
+|| `#production/*` | Production workflow & creative guides | 24 documents |
 || `#technical/*` | System implementation & code | 35 documents |
 || `#platform/*` | Platform-specific integrations | 14 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
