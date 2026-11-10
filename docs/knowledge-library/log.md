@@ -198,3 +198,5 @@ for AI agents.
 ## 2026-11-09 — Knowledge library additions
 - Added `docs/knowledge-library/torch-cuda-support-windows-2026.md` → `#platform`
 
+- Added `docs/knowledge-library/acp-agent-registry-2026.md` → `#platform`
+

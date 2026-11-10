@@ -84,6 +84,7 @@ date: 2026-09-30
 - [[texture-pipeline-ktx2-authoring-and-ingest-2026|🧱 Texture Pipeline — KTX2 Authoring & Ingest]] — KTX2/Basis texture authoring, mip generation, and the ingest path into ComfyUI/three.js consumers (indexed 2026-11-08)
 
 ### 🎮 MCP & Platform Integrations
+- [[acp-agent-registry-2026|ACP Agent Registry 2026]] — ACP Agent Registry 2026
 - [[torch-cuda-support-windows-2026|Torch CUDA Support Windows 2026]] — Torch CUDA Support Windows 2026
 
 - [[mcp-contracts-2026|🤝 MCP Tool Contracts 2026]] — Canonical Unity/Ollama/Vision/HyperFrames tool schemas
@@ -205,7 +206,7 @@ date: 2026-09-30
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 23 documents |
 || `#technical/*` | System implementation & code | 33 documents |
-|| `#platform/*` | Platform-specific integrations | 13 documents |
+|| `#platform/*` | Platform-specific integrations | 14 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
 || `#ai/*` | AI models, training & ML | 21 documents |
