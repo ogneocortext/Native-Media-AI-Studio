@@ -19,12 +19,24 @@ bin/
 # IDE
 .vscode/
 .idea/
-.agents/
+# Agent homes are machine-local EXCEPT the skill mirrors: .claude/skills is
+# canonical and the mirrors under these three roots are tracked on purpose
+# (tools/check-skill-mirrors.py enforces byte-identity in the docs gate).
+# A blanket ignore here silently ate a mirror commit on 2026-11-09 - the
+# sync reported success against the working tree while git committed none
+# of it. Do not re-widen these ignores.
+.agents/*
+!.agents/skills/
+!.agents/skills/**
 .zed/
-.kilo/
+.kilo/*
+!.kilo/skills/
+!.kilo/skills/**
 .playwright-mcp/
 .obsidian/
-.devin/
+.devin/*
+!.devin/skills/
+!.devin/skills/**
 
 # OS
 .DS_Store

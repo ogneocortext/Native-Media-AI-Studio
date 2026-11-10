@@ -77,8 +77,7 @@ Lifecycle (PowerShell, run via `pwsh -File`): `manage-servers.ps1`
 `check-ports.ps1`, `check-env-health.ps1`, `check-tunnel.ps1`,
 `start-tunnel.ps1`, `stop-tunnel.ps1`, `comfyui-patch-status.ps1`,
 `comfyui-safe-update.ps1`. Subdirs: `utility/`, `dev/`, `git-hooks/`,
-`comfyui-patches/`. Also present: `.py`/`.mjs` one-off probes and benchmarks —
-see `scripts/README.md`.
+`comfyui-patches/`. Also present: `.py`/`.mjs` one-off probes and benchmarks.
 
 ## Tools — `tools/`
 
