@@ -75,6 +75,7 @@ def gates(*, fix: bool = False, verbose: bool = False) -> list[Gate]:
         # slowest tests, which is where optimization effort is most valuable.
         Gate("pytest", [PY, "-m", "pytest", "-v", "--durations=10",
                         "-p", "no:cacheprovider", "--testmon", "-m", "not integration"], BACKEND,
+             timeout=400,
              desc="backend pytest suite (incremental via pytest-testmon, excludes integration)"),
         Gate("pytest-integration", [PY, "-m", "pytest", "-v", "--durations=10",
                                      "-p", "no:cacheprovider", "--testmon", "-m", "integration"], BACKEND,

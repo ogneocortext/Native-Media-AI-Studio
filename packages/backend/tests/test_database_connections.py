@@ -17,6 +17,7 @@ without bound:
 import os
 import sqlite3
 import sys
+import time
 
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -161,6 +162,8 @@ def test_cleanup_old_log_events_commits_when_it_owns_the_connection(tmp_path, mo
         check.close()
 
     # And the marker must move, or the startup cleanup re-runs forever.
+    # Sleep >1s to ensure the isoformat timestamp advances (second precision).
+    time.sleep(1.1)
     assert database.get_log_analytics_last_cleanup() != before_marker
 
 

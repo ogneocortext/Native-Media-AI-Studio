@@ -34,9 +34,13 @@ import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, override
+from typing import Any
+
+import typing_extensions
 
 from ..core.config import PROJECT_ROOT
+
+override = typing_extensions.override
 
 # Capture the *original* stdout/stderr at import time. setup_logging() can run
 # more than once (e.g. `python -m app.main` executes the module under both
@@ -412,7 +416,7 @@ class SafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
         super().__init__(*args, **kwargs)
 
     @override
-    def doRollover(self):
+    def doRollover(self):  # noqa: N802 - overrides parent class method
         """Override to add retry logic for Windows file locking."""
         if platform.system() == "Windows":
             self._safe_rollover()
