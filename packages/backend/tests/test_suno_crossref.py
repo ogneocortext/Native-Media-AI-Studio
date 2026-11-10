@@ -117,8 +117,20 @@ def test_meta_exposes_its_sources():
 
 
 def test_missing_file_degrades_to_empty_not_an_exception(monkeypatch, tmp_path):
-    monkeypatch.setattr(cx, "_CROSSREF_PATH", tmp_path / "nope.json")
-    monkeypatch.setattr(cx, "_loaded", False)
-    assert cx.tier_for("classical") is None
-    assert cx.production_count() == 0
-    assert cx.production_vocab("808") == []
+    # Save original state to restore after test
+    orig_tag_tier = cx._tag_tier
+    orig_production = cx._production
+    orig_meta = cx._meta
+    orig_loaded = cx._loaded
+    try:
+        monkeypatch.setattr(cx, "_CROSSREF_PATH", tmp_path / "nope.json")
+        monkeypatch.setattr(cx, "_loaded", False)
+        assert cx.tier_for("classical") is None
+        assert cx.production_count() == 0
+        assert cx.production_vocab("808") == []
+    finally:
+        # Restore all global state
+        cx._tag_tier = orig_tag_tier
+        cx._production = orig_production
+        cx._meta = orig_meta
+        cx._loaded = orig_loaded

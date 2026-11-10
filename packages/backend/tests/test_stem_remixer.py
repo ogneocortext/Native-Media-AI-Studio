@@ -1339,6 +1339,12 @@ def remix_dirs(tmp_path, monkeypatch):
     (audio / "Cold-Steel.m4a").write_bytes(b"x")  # library track with no stems
     monkeypatch.setattr(stem_remixer, "SEPARATION_DIR", stems)
     monkeypatch.setattr(stem_remixer, "AUDIO_DIR", audio)
+    # library_audio_files() imports AUDIO_DIR from remix_constants, not stem_remixer
+    from app.services import remix_constants
+    monkeypatch.setattr(remix_constants, "AUDIO_DIR", audio)
+    # remix_source also imports AUDIO_DIR at module load time
+    from app.services import remix_source
+    monkeypatch.setattr(remix_source, "AUDIO_DIR", audio)
     return stems, audio
 
 

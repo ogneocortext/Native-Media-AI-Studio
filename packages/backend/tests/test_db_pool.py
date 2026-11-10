@@ -29,6 +29,8 @@ def _fresh_db(tmp_path, monkeypatch):
     database = _database_module()
     db_file = tmp_path / "pool.db"
     monkeypatch.setattr(database, "DB_PATH", db_file, raising=False)
+    # Also patch the connection module's DB_PATH since close_pooled_connections uses it
+    monkeypatch.setattr(database._connection_module, "DB_PATH", db_file, raising=False)
     # Start from an empty pool so cross-test state cannot leak in.
     database.close_pooled_connections()
     database.init_db()
@@ -36,7 +38,9 @@ def _fresh_db(tmp_path, monkeypatch):
 
 
 def _pool_size(database):
-    return len(getattr(database._local, "pool", []) or [])
+    # database module re-exports connection functions but not _local;
+    # use the connection module's _local directly
+    return len(getattr(database._connection_module._local, "pool", []) or [])
 
 
 def test_connection_is_actually_reused(tmp_path, monkeypatch):
