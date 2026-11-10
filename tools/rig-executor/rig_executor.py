@@ -234,7 +234,8 @@ class Handler(BaseHTTPRequestHandler):
 def detect_tailnet_ip():
     try:
         out = subprocess.run(["tailscale", "ip", "-4"], capture_output=True,
-                             text=True, timeout=10).stdout.strip().splitlines()
+                             text=True, encoding="utf-8", errors="replace",
+                             timeout=10).stdout.strip().splitlines()
         for line in out:
             if line.strip().startswith("100."):
                 return line.strip()
