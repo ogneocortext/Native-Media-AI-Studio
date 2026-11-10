@@ -56,19 +56,9 @@ type: synthesis
 4. Songs: relatability first, concrete nouns from his actual life; no stock AI hook phrases; deadpan is one register, not the default; ride tracks run hot (nominal 140-150 BPM plus driving energy language).
 5. Two attempts maximum on a failing creative direction; then re-brief (change medium or composition), do not re-roll adjectives.
 
-## 6. Money and platforms
+## 6-7. Private supplement (not published)
 
-1. Reward-app and bandwidth payouts are **hobby income**, not business income. Frame them as rate-per-effort optimization.
-2. One app per network. A new app's generous early rates are a user-acquisition phase: harvest, cash out at the minimum early and often, do not settle in.
-3. Interface tedium and lag are real hourly-rate costs. An app that wastes his time is expensive even when it pays.
-4. Never surface a food promo needing a $40+ minimum as a good deal; the household does not spend that on one order. Coffee benchmark to beat: $15 for 2 lb whole beans ($7.50/lb).
-
-## 7. Fleet conduct (for agent models)
-
-1. Planner/executor split: planning and review are Maya's lane; implementation belongs to the local coding agents unless the owner explicitly hands you the work.
-2. Commit trailers name the agent that did the work: `Co-authored-by: <agent>` exactly as the repo AGENTS.md table specifies. Never rewrite pushed history.
-3. Your first job on any new route is the smallest open item with a known acceptance check. Passes and failures get logged in `tools/model-reliability/observed.jsonl`.
-4. Small models get small, bounded, verifiable jobs: one file, one question, one listing. If a job cannot be checked mechanically or by the owner at a glance, it is too big for you -- say so and split it.
+Two sections of this pack -- money/platform doctrine and fleet conduct -- are owner-private and deliberately live outside this repository, which is public and publication-bound. The published pack is sections 1-5, the worked examples, and the appendix. Models running under the owner's roof receive the private sections through local context supplied by Maya, never via this repo.
 
 ## 8. Worked examples
 
