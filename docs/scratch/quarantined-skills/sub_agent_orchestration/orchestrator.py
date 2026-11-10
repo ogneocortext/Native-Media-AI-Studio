@@ -2,6 +2,8 @@
 Sub-Agent Orchestration Runtime
 Provides automatic agent spawning, task decomposition, and result synthesis.
 Integrates with agent profiles, model roster trust tiers, and observability.
+STATUS: SIMULATION ONLY - _execute_agent returns mock results; never
+use its output as evidence or log its outcomes.
 """
 
 import asyncio
@@ -832,26 +834,11 @@ class SubAgentOrchestrator:
         return artifact
     
     def _log_outcome(self, artifact: AgentArtifact, card: TaskCard):
-        """Auto-log outcome to observed.jsonl for model reliability tracking"""
-        try:
-            import datetime
-            outcome = {
-                "date": datetime.date.today().isoformat(),
-                "model": artifact.metadata.get("model", "unknown"),
-                "route": self._get_route_for_agent(artifact.agent_type),
-                "worked": artifact.status == AgentStatus.COMPLETED,
-                "note": artifact.summary,
-                "task_type": self._infer_task_type(card),
-                "agent_type": artifact.agent_type,
-                "duration_seconds": 0,  # Would need timing instrumentation
-                "tokens_used": artifact.metadata.get("tokens_used", 0)
-            }
-            
-            observed_path = Path("tools/model-reliability/observed.jsonl")
-            with open(observed_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(outcome) + "\n")
-        except Exception:
-            pass  # Don't let logging failures break orchestration
+        """DISABLED (v2 quarantine): this runtime is a simulation scaffold.
+        Its outcomes are fabricated and must never be written to
+        tools/model-reliability/observed.jsonl. Kept as a no-op so the
+        existing call site does not break."""
+        return None
     
     def _get_route_for_agent(self, agent_type: str) -> str:
         """Map agent type to route"""
@@ -911,6 +898,13 @@ class SubAgentOrchestrator:
         
         # 1. Analyze task
         analysis = self.analyze_task(task_description, context)
+        
+        if analysis["pattern"] in (OrchestrationPattern.CONCURRENT,
+                                   OrchestrationPattern.AGENT_TEAMS,
+                                   OrchestrationPattern.SHARED_STATE):
+            raise NotImplementedError(
+                "Pattern %s is not implemented in this simulation "
+                "scaffold; see SKILL.md v2." % analysis["pattern"].value)
         
         # 2. Decompose into task cards
         cards = self.decompose_task(task_description, analysis)

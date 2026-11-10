@@ -144,6 +144,7 @@ must not do any of them:
 - [[vendor-drift]] — required after any vendor pull
 - [[media-output-contract]] — required for any new media producer
 - [[ollama-model-ops]] — vision/model routing table
-- `docs/scratch/quarantined-skills/sub_agent_orchestration/` — deeper
-  sub-agent patterns, quarantined 2026-11-09 pending an owner-handoff v2
-  (mirror-pending; the trigger table above is the repo-scoped subset)
+- [[sub-agent-orchestration]] — the v2 orchestration protocol (canonical,
+  landed 2026-11-09). Its bundled runtime stays quarantined at
+  `docs/scratch/quarantined-skills/sub_agent_orchestration/`
+  (simulation-only; the observed.jsonl write path is removed)
