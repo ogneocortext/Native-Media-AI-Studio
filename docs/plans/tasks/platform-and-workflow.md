@@ -1739,6 +1739,30 @@ Rules: `docs/plans/tasks/README.md`
   hardcoded paths inventory; scripts remain gitignored scratch pending
   owner verdict. PENDING: owner motion verdict on v4_720p — pass ratifies
   the recipe as standard; a named flaw gets a scoped fix only.
+- **Last session:** Devin, 2026-11-10 (v4 verdict + v5 fix) — owner motion
+  verdict on `maya_avatar_v3_mouth_shapes_v4_720p.mp4`: **FAIL**. Scoped
+  fixes executed: (1) QA sheet generator rewritten — `make_mouth_sheet.py`
+  enforces identical crop rect/scale, neutral gray bg+labels; old sheets
+  ruled invalid evidence. (2) Asset set normalized — 6 generated shapes on
+  one landmark-anchored canvas, Reinhard lip-palette match to the still,
+  composite mask widened to dilated OUTER lip polygon (still's teeth/fang
+  can no longer bleed into non-teeth shapes; v3's inner-only constraint
+  was the bleed-through cause). (3) Articulation widened — Rhubarb letters
+  now map 1:1-ish to six distinct mouths (A/X closed, B slight, C open,
+  D/H wide, E teeth, F/G pucker) via 4 new ComfyUI generations; prompts
+  enforce "no teeth" except the teeth variant. Infra note: port-8188
+  ComfyUI had been restarted under Python311 with stale comfy-kitchen
+  0.2.8 (VAEEncodeForInpaint `pageout_callback` TypeError); killed it and
+  relaunched under `D:\conda-envs\comfyui-cuda` after pip-syncing
+  comfy-aimdo 0.6.0 / comfy-kitchen 0.2.41 there. Rendered
+  `maya_avatar_v3_mouth_shapes_v5.mp4` + `_v5_720p.mp4` (same still, same
+  audio, nothing else changed); mode distribution slight 87 / closed 61 /
+  open 26 / pucker 14 / wide 12 / teeth 7. Fixed-format sheets:
+  `mouth_assets_sheet.png` (vision: 6 distinct mouths, teeth only in
+  teeth, closed fully closed) + `..._v5_mouth_sheet.png`. PENDING: owner
+  motion verdict on v5_720p — pass ratifies `docs/guides/
+  LIPSYNC_2D_MOUTH_SHAPES.md` as the standard recipe; a named flaw gets a
+  scoped fix only.
 
 ### T-VOICE-01 — Local F5-TTS voice synthesis service (follows T-LIPSYNC-01)
 - **Status:** done
