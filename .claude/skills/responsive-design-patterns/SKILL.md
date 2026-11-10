@@ -11,6 +11,8 @@ description: >-
 
 # Skill: responsive-design-patterns
 
+> **Scope:** imported reference guidance, not studio workflow. For studio surfaces the visual style system and visual-hierarchy win on any conflict. Mobile-first and responsive material here targets public-web surfaces, not studio chrome.
+
 # Responsive Design Patterns
 
 > [!warning] This skill provides battle-tested responsive patterns for Tailwind v4 (sm/md/lg/xl/2xl breakpoints). Use when building or refactoring any page that must work across 320px–1920px+.

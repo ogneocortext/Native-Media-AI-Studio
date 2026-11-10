@@ -10,6 +10,8 @@ description: >-
 
 # Skill: desktop-layout-patterns
 
+> **Scope:** imported reference guidance, not studio workflow. For studio surfaces the visual style system and visual-hierarchy win on any conflict. Mobile-first and responsive material here targets public-web surfaces, not studio chrome.
+
 # Desktop Layout Patterns
 
 > [!warning] Desktop isn't "mobile with more space" — it's a different medium. Mouse/keyboard, large viewports, multi-window workflows, dense information. This skill covers layouts that *exploit* desktop capabilities.

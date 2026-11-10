@@ -10,6 +10,8 @@ description: >-
 
 # Skill: layout-structures
 
+> **Scope:** imported reference guidance, not studio workflow. For studio surfaces the visual style system and visual-hierarchy win on any conflict. Mobile-first and responsive material here targets public-web surfaces, not studio chrome.
+
 # Layout Structures
 
 > [!warning] A layout structure is the invisible skeleton of a page. Good structure = effortless responsive behavior, predictable maintenance, clear component boundaries. This skill catalogs reusable layout primitives and composition patterns.

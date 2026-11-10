@@ -10,6 +10,8 @@ description: >-
 
 # Skill: design-tokens-system
 
+> **Scope:** imported reference guidance, not studio workflow. For studio surfaces the visual style system and visual-hierarchy win on any conflict. Mobile-first and responsive material here targets public-web surfaces, not studio chrome.
+
 # Design Tokens System
 
 > [!warning] Design tokens are the atomic units of design — color, spacing, typography, motion, etc. — expressed as platform-agnostic values. This skill covers creating, maintaining, and consuming a token system that works across CSS, Tailwind, React Native, Figma, and code.

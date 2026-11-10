@@ -10,6 +10,8 @@ description: >-
 
 # Skill: mobile-first-design
 
+> **Scope:** imported reference guidance, not studio workflow. For studio surfaces the visual style system and visual-hierarchy win on any conflict. Mobile-first and responsive material here targets public-web surfaces, not studio chrome.
+
 # Mobile-First Design
 
 > [!warning] Mobile-first isn't just "make it work on phone" — it's designing FROM the constraints upward. Start with 320px, then enhance. This skill covers the mindset, patterns, and Tailwind v4 techniques for mobile-excellent experiences.
