@@ -1783,6 +1783,21 @@ Rules: `docs/plans/tasks/README.md`
   (~6.5/10, painterly casts remain inside the lips). GATE: owner rules
   on the assets sheet; only a passing sheet earns a video render, and
   the motion verdict still closes the task.
+- **Last session:** Devin, 2026-11-10 (cel v2 + grading protocol v1) —
+  owner FAILed v5 and closed the gen lane; cel iteration per spec:
+  shapes now REPLACE the whole lip polygon (0 still-pixels inside INNER
+  verified for 5/6 shapes; teeth' 123 px are teeth-tone coincidence),
+  closed = sampled lip tones + seam (no gray band), interiors use
+  maroon-brown + tongue palette, all six share the landmark width
+  family with centered lip-sized pucker, debug polygon strokes removed.
+  Grading protocol v1 adopted for this task forward: binary checklists
+  over /10 scores (closed-Y/N, teeth-only-in-teeth-Y/N, no-debug-Y/N,
+  replace-lip-region-Y/N), measurable metrics first (still-pixel
+  fraction inside lip polygon, off-palette fraction, flicker),
+  claim-evidence pairing (composite claims need composited frames),
+  maker self-grade is pre-filter only — owner ruling remains acceptance.
+  Cel v2 sheet self-graded PASS on all 7 checks; awaiting owner ruling
+  before any render.
 
 ### T-VOICE-01 — Local F5-TTS voice synthesis service (follows T-LIPSYNC-01)
 - **Status:** done
