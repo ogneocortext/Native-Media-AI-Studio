@@ -27,6 +27,14 @@ MuseTalk is the studio's only audio-driven lip-sync path, and it is down for deb
 
 **Honest scoping:** none of A-C replaces MuseTalk's audio-to-mouth sync. Lane A transfers *performance* (an actor's head/expression motion), which pairs with F5-TTS audio for a talking-head result whose lips are approximately, not phonetically, synced. For Shorts-length character pieces that is usually enough; phonetic sync still waits on MuseTalk.
 
+## Install state -- verified on the rig 2026-11-10 (Bolt + Route B executor, raw listings)
+
+- **LivePortraitKJ: NOT installed.** Lane A's install step is real.
+- **ComfyUI-Manager: present but `.disabled`** -- the Manager install route below is unavailable until it is re-enabled; use the `git clone` route.
+- **AnimateDiff-Evolved, WanVideoWrapper, LTX-Video: all present but `.disabled`.** The motion lanes need a folder rename, not a download.
+- **ComfyUI-LatentSync: present and ENABLED** -- an audio-driven lip-sync lane is already installed (see [[musetalk-quality-and-stylized-lip-sync-options-2026]] for where it fits the lip-sync paths).
+- `input/` already holds `avatar_masked.png` and `character_2d_v2_00001_.png` from earlier character work.
+
 ## Lane A -- LivePortrait via ComfyUI (attempt first)
 
 **Node pack:** `kijai/ComfyUI-LivePortraitKJ` -- install via ComfyUI Manager (search "ComfyUI-LivePortraitKJ") or `git clone` into `ComfyUI/custom_nodes`. Example workflows ship in the pack's `examples/` folder; start from one, do not build the graph from scratch.
