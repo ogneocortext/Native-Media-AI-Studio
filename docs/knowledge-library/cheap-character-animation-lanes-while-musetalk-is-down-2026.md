@@ -37,6 +37,8 @@ MuseTalk is the studio's only audio-driven lip-sync path, and it is down for deb
 
 **Dependency caution:** the pack pins `numpy<=1.26.4` and pulls `onnxruntime`, `mediapipe`, `opencv-python`, `pykalman`. Install into the **ComfyUI env only** (`D:\conda-envs\comfyui-cuda`) -- never the backend env.
 
+**Inputs -- stage these on the rig first** (gap caught by Bolt E4B review, 2026-11-10): neither input below lives on the rig yet. The source image is `04-avatar-cut-gemini-v3.jpg` in the Google Drive folder "Maya -- Design Reference & Backup" (also in Maya's workspace `your_files/`); copy it into the ComfyUI input folder before the first run. The driving clip does not exist yet -- the owner records it (step 2).
+
 **Test protocol (acceptance):**
 1. Source image: the Gemini v3 avatar cut (1024x1024, face large in frame). If the cropper struggles with the anime face, fall back to the master bust portrait.
 2. Driving source: a 5-10 s front-facing performance clip (owner on webcam is fine): neutral -> smile -> the approved test line's expressions, slow head turns, two blinks.
