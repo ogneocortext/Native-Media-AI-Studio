@@ -66,7 +66,10 @@
 > Format and rules: `docs/plans/tasks/README.md`.
 >
 > **Project skills** live in `.claude/skills/` (tracked canonical; mirrored
-> to `.kilo/`, `.devin/`, `.agents/` — keep copies in sync). Key ones:
+> to `.kilo/`, `.devin/`, `.agents/` — keep copies in sync). A skill that
+> exists in any mirror but not in `.claude/skills/` is a docs-gate failure
+> (`tools/check-skill-mirrors.py` enforces mirror completeness and
+> identity). Key ones:
 > `autonomous-session` (unattended-operation protocol + skill-chaining
 > router — load for multi-step work), `visual-qa-loop` (screenshot →
 > vision-analyze → research → improve → re-verify), `gates-commit-push`

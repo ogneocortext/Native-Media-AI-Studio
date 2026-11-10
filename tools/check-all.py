@@ -12,16 +12,17 @@ Checks, in order of cost (cheapest first, so a fast failure surfaces early):
   4. tools/check-banned-chars.py        - control/invisible/mojibake chars
   5. tools/validate-knowledge-tags.py   - frontmatter, tags, tracker, index
   6. tools/check-consistency.py         - R1-R4 task-block/library consistency
-  7. tools/check-repo-layout.py         - generated output, duplicates, collisions
-  8. tools/check-path-references.py     - stale repo-relative path references
-  9. tools/report-nesting.py            - control-flow nesting vs baseline
- 10. tools/check-db-integrity.py        - studio.db + newest backup quick_check
- 11. tools/check-secrets.py             - credential patterns in tracked files
- 12. tools/check-staged-hygiene.py      - scratch files / over-broad staging
- 13. tools/docs-triage.py               - report-only untagged-doc grouping
- 14. tools/docs-tracker.py              - report-only doc provenance
- 15. tools/report-path-orphans.py       - report-only dangling references
- 16. tools/check-hooks-installed.py     - report-only git hooks state
+  7. tools/check-skill-mirrors.py       - .kilo/.devin/.agents == .claude/skills
+  8. tools/check-repo-layout.py         - generated output, duplicates, collisions
+  9. tools/check-path-references.py     - stale repo-relative path references
+ 10. tools/report-nesting.py            - control-flow nesting vs baseline
+ 11. tools/check-db-integrity.py        - studio.db + newest backup quick_check
+ 12. tools/check-secrets.py             - credential patterns in tracked files
+ 13. tools/check-staged-hygiene.py      - scratch files / over-broad staging
+ 14. tools/docs-triage.py               - report-only untagged-doc grouping
+ 15. tools/docs-tracker.py              - report-only doc provenance
+ 16. tools/report-path-orphans.py       - report-only dangling references
+ 17. tools/check-hooks-installed.py     - report-only git hooks state
 
 Run:  python tools/check-all.py     (-v also runs the report-only checks)
       python tools/check-all.py --changed docs/x.md packages/backend/app/y.py
@@ -75,6 +76,11 @@ CHECKS = [
     # doc, meta-file class). Hard gate since the 2026-11-06 census reached
     # zero - drift now fails instead of accumulating (T-LIB-06).
     ("consistency", "check-consistency.py", [], False),
+    # Canonical .claude/skills vs the .kilo/.devin/.agents mirrors: a skill
+    # that exists in only one mirror means agents on different tools load
+    # different instructions. Mirrors are gitignored, so drift is invisible
+    # to git — this is the only check that sees it.
+    ("skill mirrors", "check-skill-mirrors.py", [], False),
     ("repo layout", "check-repo-layout.py", [], False),
     # Dangling repo-relative path references: the moved-file signature
     # (target gone, same basename still tracked elsewhere). The only
@@ -125,6 +131,7 @@ CHECK_TIMEOUTS = {
     "check-db-integrity.py": 90,  # WAL read can stall behind the live backend under gate concurrency
     "check-secrets.py": 60,
     "check-staged-hygiene.py": 30,
+    "check-skill-mirrors.py": 30,
 }
 
 # Max concurrent check workers. Checks are independent read-only scans, so
@@ -301,6 +308,13 @@ def _check_relevant(script: str, changed: set[str]) -> bool:
         # Scopes are docs/plans/tasks/ + docs/knowledge-library/ - both
         # under docs/.
         return docs_changed
+    if script == "check-skill-mirrors.py":
+        # Only canonical skills or the checker itself can change the verdict;
+        # mirrors are gitignored so they never appear in a changed list.
+        return any(
+            f.startswith((".claude/skills/", "tools/check-skill-mirrors.py"))
+            for f in changed
+        )
     if script == "check-text-encoding.py":
         return text_changed
     if script == "check-repo-layout.py":

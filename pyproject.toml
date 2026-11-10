@@ -65,7 +65,7 @@ exclude = ["third_party", "runtime"]
 required-version = ">=0.14.0,<0.18.0"
 line-length = 100
 target-version = "py311"
-exclude = ["third_party", "runtime", "node_modules"]
+exclude = ["third_party", "runtime", "node_modules", "docs/scratch"]
 
 [tool.ruff.lint]
 # Use `extend-select` to add to Ruff's curated defaults rather than
