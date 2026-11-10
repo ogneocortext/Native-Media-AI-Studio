@@ -103,3 +103,7 @@ All tools in `comfyui-mcp` (image, img2img, controlnet, upscale, remove_backgrou
 - Unsloth artifacts: https://github.com/unslothai/unsloth/discussions/4921 (Apr 8 2026, grad-accum/`use_cache`/audio fixes)
 
 _Last updated: 2026-09-09 — 8GB-capped; E4B is cloud-only_
+
+## Related
+
+- [[musetalk-quality-and-stylized-lip-sync-options-2026]] :see-also — MuseTalk Quality and Stylized Lip-Sync Options 2026

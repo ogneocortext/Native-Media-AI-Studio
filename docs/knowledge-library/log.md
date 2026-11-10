@@ -197,6 +197,12 @@ for AI agents.
 4. Never edit or delete previous entries — this log is append-only.
 ## 2026-11-09 — Knowledge library additions
 - Added `docs/knowledge-library/torch-cuda-support-windows-2026.md` → `#platform`
+## 2026-11-10 — Knowledge library additions
+- Added `docs/knowledge-library/musetalk-quality-and-stylized-lip-sync-options-2026.md` → `#ai`
+
+- Added `docs/knowledge-library/mp4-encoding-for-maximum-player-compatibility-2026.md` → `#technical`
+
+- Added `docs/knowledge-library/anime-checkpoint-selection-for-8gb-vram-inpainting-2026.md` → `#technical`
 
 - Added `docs/knowledge-library/acp-agent-registry-2026.md` → `#platform`
 

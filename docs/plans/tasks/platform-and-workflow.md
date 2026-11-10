@@ -1686,6 +1686,46 @@ Rules: `docs/plans/tasks/README.md`
   remote smoke PASS; lipsync-upload endpoint + remote multipart proof;
   ledger + config + wrapper + LIPSYNC_API.md.
 
+### T-LIPSYNC-02 — Stylized-avatar lip-sync quality: MuseTalk limits, path B recomposite, path C shape-swap prototype
+- **Status:** doing
+- **Goal:** Make lip-sync usable on illustrated/anime avatars — MuseTalk's
+  256 px realism prior produces a blurry mouth on line art; evaluate
+  recomposite (path B) and 2D mouth-shape swap (path C) alternatives.
+- **Files:** docs/knowledge-library/musetalk-quality-and-stylized-lip-sync-options-2026.md,
+  docs/knowledge-library/mp4-encoding-for-maximum-player-compatibility-2026.md,
+  docs/scratch/lipsync_shapes_v1.py (gitignored scratch),
+  tools/rhubarb/ (local binary, untracked)
+- **Acceptance:** Owner reviews maya_avatar_v3_mouth_shapes.mp4 and picks
+  ship / iterate / drawn-assets direction.
+- **Last session:** Devin, 2026-11-10 — MuseTalk v1.5 rendered the Gemini
+  avatar (`74bcef781bc642899b5ba2fb3c475447_lipsync_89f13360.mp4`) after
+  two external patches in D:\MuseTalk (S3FD detect-input downscale to
+  1152 px + landmark-bbox fallback in preprocessing.py; uncommitted
+  local changes, not in this repo). Quality research written to
+  knowledge library: MuseTalk's realism prior is architectural (UNet
+  trained on photoreal faces, 256 px face crop) — not removable via
+  knobs; WIDER-lipSync shows MuseTalk weaker on identity/mouth fidelity
+  than LatentSync but smoother temporally. Path B (feathered mouth-crop
+  recomposite of MuseTalk output over the untouched still, LAB
+  color-match + region USM) built and vision-scored ~3/10 fidelity —
+  fixes seams/color, cannot restore drawn lip line work. Path C
+  prototype built: Rhubarb Lip Sync v1.14.0 (MIT, CPU) → 46 mouth cues →
+  4 procedural mouth shapes (closed/half/open/pucker) from DWpose lip
+  landmarks with sampled lip-color rim → per-frame compositor + ffmpeg
+  mux → `output/video/maya_avatar_v3_mouth_shapes.mp4` (1024², 25 fps,
+  8.28 s, h264+aac). Vision QA (gemma4): mouth animation plausible,
+  7/10, no visible defects at 1 s sampling; owner playback review
+  pending. Playback-compat incident handled: 24 kHz mono AAC + moov-at-
+  end made WMP refuse the file; remuxed compat copy produced and
+  compositor encode flags patched (44.1 kHz stereo AAC, bt709 tags,
+  +faststart); tactics documented in the mp4-encoding KB doc. ComfyUI
+  inspected (running, 8188): new custom nodes ComfyUI-LatentSync +
+  ComfyUI_zura_nodes present; inpainting/mouth-variant middle path
+  noted as available but same stylized-domain risk. PENDING: owner
+  verdict on the shape-swap render; if procedural mouths read too
+  flat, next levers are drawn mouth assets or ComfyUI-generated
+  variants into the same compositor.
+
 ### T-VOICE-01 — Local F5-TTS voice synthesis service (follows T-LIPSYNC-01)
 - **Status:** done
 - **Goal:** Give external callers (Maya over the tailnet) local voice

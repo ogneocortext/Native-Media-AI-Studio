@@ -77,3 +77,7 @@ A lookup table, not a framework. Scene tags from the A1 plan (energy/mood/sectio
 ---
 
 *Source: platform research [[ai-music-video-platforms-2026]] (2026-09-29) plus follow-up tooling analysis. Status: proposed, not implemented — goes through the plan-approval flow.*
+
+## Related
+
+- [[musetalk-quality-and-stylized-lip-sync-options-2026]] :see-also — MuseTalk Quality and Stylized Lip-Sync Options 2026

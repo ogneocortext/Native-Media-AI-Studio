@@ -53,6 +53,8 @@ date: 2026-09-30
 - [[organizational-consistency-2026|🧭 Organizational Consistency]] — One source per organizational fact: the 2026-11-06 drift census, canonical task-block/index/frontmatter rules (R1–R6), the area↔category crosswalk, and the checker that enforces them (NEW 2026-11-06)
 
 ### 🛠️ Technical Implementation (Code & Systems)
+- [[anime-checkpoint-selection-for-8gb-vram-inpainting-2026|anime checkpoint, illustrious, animagine, noobai, pony diffusion, sdxl anime, civitai model]] — Anime checkpoint selection for 8GB VRAM inpainting
+- [[mp4-encoding-for-maximum-player-compatibility-2026|h264 encoding, mp4 compatibility, faststart, player compatibility, ffmpeg encoding]] — MP4 encoding for maximum player compatibility
 - [[blender-headless-vs-mcp-character-pipeline-operations-guide-2026|Blender Headless vs MCP: Character Pipeline Operations Guide]] — Blender Headless vs MCP: Character Pipeline Operations Guide
 - [[ai-generated-mesh-topology-why-local-gen3d-output-is-not-rigging-ready-2026|AI-Generated Mesh Topology: Why Local gen3d Output Is Not Rigging-Ready]] — AI-Generated Mesh Topology: Why Local gen3d Output Is Not Rigging-Ready
 - [[texture-generation-stage-for-ai-generated-3d-assets-2026|Texture generation stage for AI-generated 3D assets]] — Texture generation stage for AI-generated 3D assets
@@ -142,6 +144,7 @@ date: 2026-09-30
 - [[stack-extensions-2026|🔧 Stack Extensions 2026]] — Optional languages (CUDA C++, Rust/PyO3, WGSL, **Go**) + high-value Python tools for audio/video/3D (core-flux, madmom-infer, sonara, MovieLite, essentia, audiofeat, videopython, BeatSync Engine, gsplat) — benchmark-first adoption
 
 ### 🤖 AI & ML (Models & Training)
+- [[musetalk-quality-and-stylized-lip-sync-options-2026|MuseTalk lip sync quality]] — MuseTalk Quality and Stylized Lip-Sync Options 2026
 
 - [[ollama-utilization-2026|🧠 Ollama Model Utilization 2026]] — Installed model inventory, task → model routing, VRAM-aware scheduling, integration points, gaps, and expansion for the 8GB workstation
 - [[nemotron-3-5-bolt-e4b-2026|🤖 Nemotron 3.5 Bolt E4B 4GB]] — Local agent model reference: strengths (multi-turn tool use, instruction following, structured output, brevity, conversational mode), measured latency vs Ollama models, routing guidance for cloud models (NEW 2026-11-01)
@@ -205,11 +208,11 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 23 documents |
-|| `#technical/*` | System implementation & code | 33 documents |
+|| `#technical/*` | System implementation & code | 35 documents |
 || `#platform/*` | Platform-specific integrations | 14 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
-|| `#ai/*` | AI models, training & ML | 21 documents |
+|| `#ai/*` | AI models, training & ML | 22 documents |
 || `#research/*` | Industry trends & analysis | 25 documents |
 
 ### Cross-Cutting Tags
@@ -219,15 +222,15 @@ date: 2026-09-30
 || `#platform-youtube` | YouTube-specific content | 4 documents |
 || `#platform-unity` | Unity-specific integration | 3 documents |
 || `#platform-blender` | Blender-specific | 3 documents |
-|| `#platform-comfyui` | ComfyUI-specific | 7 documents |
+|| `#platform-comfyui` | ComfyUI-specific | 8 documents |
 || `#platform-remotion` | Remotion video compositing | 3 documents |
-|| `#hardware-8gb` | 8GB VRAM constraints | 17 documents |
+|| `#hardware-8gb` | 8GB VRAM constraints | 18 documents |
 || `#hardware-pascal` | Pascal architecture specifics | 10 documents |
 || `#mcp` | Model Context Protocol | 1 document |
 || `#ascii-art` | ASCII art generation, rendering & tools | 1 document |
 || `#testing` | Testing & QA | 4 documents |
 || `#design` | Design systems & UX | 8 documents |
-|| `#audio` | Audio analysis & processing | 26 documents |
+|| `#audio` | Audio analysis & processing | 27 documents |
 || `#visualization` | Visualization techniques | 19 documents |
 || `#3d` | 3D generation & rendering | 20 documents |
 || `#webgpu` | WebGPU/TSL/compute shaders | 3 documents |

@@ -238,3 +238,7 @@ def forward(model, image, batch):
 ---
 
 _Last updated: 2026-09-07 — Created after PyTorch 2.14 upgrade + 3D capability audit_
+
+## Related
+
+- [[musetalk-quality-and-stylized-lip-sync-options-2026]] :see-also — MuseTalk Quality and Stylized Lip-Sync Options 2026

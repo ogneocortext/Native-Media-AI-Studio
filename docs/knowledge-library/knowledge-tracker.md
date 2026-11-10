@@ -63,7 +63,9 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 - ✅ `organizational-consistency-2026.md`  → `#production`, `#documentation`, `#knowledge-library`
 
-### 🛠️ Technical Implementation (32/32 completed) ✅
+### 🛠️ Technical Implementation (34/34 completed) ✅
+- ✅ `anime-checkpoint-selection-for-8gb-vram-inpainting-2026.md`  → `#technical`
+- ✅ `mp4-encoding-for-maximum-player-compatibility-2026.md`  → `#technical`
 - ✅ `blender-headless-vs-mcp-character-pipeline-operations-guide-2026.md`  → `#technical`
 - ✅ `ai-generated-mesh-topology-why-local-gen3d-output-is-not-rigging-ready-2026.md`  → `#technical`
 - ✅ `texture-generation-stage-for-ai-generated-3d-assets-2026.md`  → `#technical`
@@ -156,7 +158,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `unsloth-triton-windows-fixes-2026.md`  → `#performance`, `#hardware-pascal`
 - ✅ `video-model-test-protocol-2026.md`  → `#performance`, `#hardware-8gb`, `#hardware-pascal`, `#testing`
 
-### 🤖 AI & ML (21/21 completed) ✅
+### 🤖 AI & ML (22/22 completed) ✅
+- ✅ `musetalk-quality-and-stylized-lip-sync-options-2026.md`  → `#ai`
 
 - ✅ `ollama-utilization-2026.md`  → `#ai`, `#hardware-8gb`
 - ✅ `nemotron-3-5-bolt-e4b-2026.md`  → `#ai`, `#ai-agents`, `#platform-atomic-chat`
