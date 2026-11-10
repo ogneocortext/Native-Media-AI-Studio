@@ -208,3 +208,5 @@ for AI agents.
 
 - Added `docs/knowledge-library/cheap-character-animation-lanes-while-musetalk-is-down-2026.md` → `#production`
 
+- Added `docs/knowledge-library/owner-judgment-pack-for-small-models-2026.md` → `#ai`
+
