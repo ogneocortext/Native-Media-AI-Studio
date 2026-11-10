@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Rig-side bridge executor (Route B, v1 — READ-ONLY).
 
-Run this ON THE OWNER'S RIG (Windows). It exposes four read-only,
+Run this ON THE OWNER'S RIG (Windows). It exposes five read-only,
 root-confined tools to the cloud agent's relay over the tailnet:
 
     list_dir   {path}                                  directory listing
     read_file  {path, max_bytes?}                      text file contents (capped)
+    fetch_file {path}                                  binary-safe fetch (base64, 16 MB cap)
     grep       {pattern, path?, glob?}                 regex search under the root
     file_info  {path}                                  size / mtime / type
 
@@ -31,12 +32,13 @@ Usage:
 
 Python 3, standard library only. Ctrl+C stops it.
 """
-import argparse, datetime, hmac, json, os, re, secrets, subprocess, sys, time
+import argparse, base64, datetime, hashlib, hmac, json, os, re, secrets, subprocess, sys, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MAX_BODY = 64 * 1024
 READ_DEFAULT = 64 * 1024
 READ_HARD_CAP = 256 * 1024
+FETCH_HARD_CAP = 16 * 1024 * 1024
 LIST_CAP = 200
 GREP_FILE_CAP = 512 * 1024
 GREP_FILES_CAP = 2000
@@ -111,6 +113,26 @@ def tool_read_file(args):
             "truncated": os.path.getsize(real) > len(head), "content": text}, None
 
 
+def tool_fetch_file(args):
+    """Binary-safe fetch for the cloud agent (images, QA sheets, docs).
+    Returns base64 plus a sha256; the relay saves the bytes in the
+    agent's workspace and shows the model only a receipt -- the payload
+    never enters a conversation transcript."""
+    real = resolve_inside(args.get("path", ""))
+    if real is None:
+        return None, "path escapes the root or is invalid"
+    if not os.path.isfile(real):
+        return None, "not a file"
+    size = os.path.getsize(real)
+    if size > FETCH_HARD_CAP:
+        return None, f"file too large to fetch: {size} bytes (cap {FETCH_HARD_CAP})"
+    with open(real, "rb") as f:
+        raw = f.read()
+    return {"path": rel(real), "size": size,
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "data_base64": base64.b64encode(raw).decode("ascii")}, None
+
+
 def tool_file_info(args):
     real = resolve_inside(args.get("path", ""))
     if real is None:
@@ -167,6 +189,7 @@ def tool_grep(args):
 
 
 TOOLS = {"list_dir": tool_list_dir, "read_file": tool_read_file,
+         "fetch_file": tool_fetch_file,
          "grep": tool_grep, "file_info": tool_file_info}
 
 

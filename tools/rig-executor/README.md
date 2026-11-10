@@ -2,7 +2,12 @@
 
 Owner-run bridge that lets Maya + Bolt (Atomic Chat relay) inspect this
 repo on the rig without Google Drive pulls. Read-only by construction:
-`list_dir`, `read_file`, `grep`, `file_info`. No write, delete, or shell.
+`list_dir`, `read_file`, `grep`, `file_info`, `fetch_file`. No write,
+delete, or shell. `fetch_file` returns one binary file (16 MB cap) as
+base64 with a sha256; the relay saves it in Maya's workspace and shows
+the model only a receipt — that is how QA sheets and images reach Maya
+without a Drive upload (`relay.py fetch --path <root-relative> [--out <local path>]`,
+no model call needed).
 
 Run it on the rig, from this folder, in PowerShell 7:
 
