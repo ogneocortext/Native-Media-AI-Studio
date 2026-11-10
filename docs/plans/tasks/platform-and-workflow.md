@@ -1763,6 +1763,26 @@ Rules: `docs/plans/tasks/README.md`
   motion verdict on v5_720p — pass ratifies `docs/guides/
   LIPSYNC_2D_MOUTH_SHAPES.md` as the standard recipe; a named flaw gets a
   scoped fix only.
+- **Last session:** Devin, 2026-11-10 (v5 verdict + diagnosis) — owner
+  ruled v5 **FAIL on the frame sheets** (video never watched; defects in
+  every frame): smeared painterly mouths on green-tinted surrounds
+  bleeding into the composite as a discolored patch right of the mouth.
+  Settled and kept: sheet generator, registration, cue mapping, mask
+  geometry. Diagnosis of one raw generation vs conditioning inputs:
+  denoise 0.95 repaints the ENTIRE frame (mean |diff| ~186 far outside
+  the inpaint mask; vision confirms global painterly/green-shifted
+  surround) — the surround was never preserved pixels, so any composite
+  region wider than the lips ingests the artifact. Compositor fixed per
+  owner spec: color composites only from inside the lip polygon (OUTER
+  eroded 2 px, feather ≤2 px); dilated OUTER bounds geometry; palette
+  normalization restricted to the same region. Option B built in
+  parallel: `lipsync_cel_shapes.py` hand-authors six flat cel mouths
+  (closed/slight/open/wide/teeth/pucker) in the still's sampled lip
+  palette + line color, same landmark anchor — `cel_assets_sheet.png`
+  (vision ~7.5/10) vs repaired generated set `gen_assets_sheet.png`
+  (~6.5/10, painterly casts remain inside the lips). GATE: owner rules
+  on the assets sheet; only a passing sheet earns a video render, and
+  the motion verdict still closes the task.
 
 ### T-VOICE-01 — Local F5-TTS voice synthesis service (follows T-LIPSYNC-01)
 - **Status:** done

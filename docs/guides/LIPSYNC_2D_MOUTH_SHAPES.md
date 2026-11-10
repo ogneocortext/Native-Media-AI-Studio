@@ -1,10 +1,14 @@
 # 2D Mouth-Shape Lip-Sync (Path C) — Reusable Recipe
 
-> **Status:** v5 rendered 2026-11-10 — `maya_avatar_v3_mouth_shapes_v5_720p.mp4`.
-> v4 FAILED the owner's motion verdict (tooth/fang visible in every shape,
-> ~2 distinct mouths, invalid QA sheets); v5 is the scoped fix, owner
-> verdict pending. Local-only: Rhubarb (CPU) + ComfyUI SDXL inpainting.
-> No MuseTalk, no third-party APIs.
+> **Status:** v5 FAILED owner verdict on frame sheets (2026-11-10) —
+> generated mouths are globally repainted painterly art (denoise 0.95
+> regenerates the whole frame, not just the mask). Compositor masking was
+> tightened to owner spec (color only inside eroded lip polygon), but the
+> mouth interior itself remains painterly. **Option B pending owner
+> ruling:** hand-authored cel shapes (`docs/scratch/lipsync_cel_shapes.py`,
+> `cel_assets_sheet.png`) — flat shapes in the still's palette/line weight,
+> same cue mapping and compositor. Only a passing assets sheet earns a
+> video render; motion verdict closes the task.
 
 Use this instead of MuseTalk when the avatar is an **illustration / anime
 portrait**. MuseTalk's 256 px photoreal prior destroys drawn lip line work
