@@ -1798,6 +1798,30 @@ Rules: `docs/plans/tasks/README.md`
   maker self-grade is pre-filter only — owner ruling remains acceptance.
   Cel v2 sheet self-graded PASS on all 7 checks; awaiting owner ruling
   before any render.
+- **Last session:** Devin, 2026-11-10 (v2 ruling + v3 iteration) — owner
+  ruled cel v2 "real progress, not a pass": protocol compliance,
+  maroon interiors, no debug geometry confirmed; four scoped fixes —
+  (1) repaint region widened from INNER opening to full lip+fang extent,
+  metric = 0 still-pixels across that whole region; (2) closed at full
+  lip saturation, no wash, defined seam at mouth-line weight; (3) hard
+  edges only — flat fills, one-tone steps, no gradients/feather; (4)
+  anchor on mouth visual center (fang corner = left reference), pucker
+  centered on lips, no rightward drift. Gate unchanged: sheet →
+  checklist+metrics → owner ruling before render.
+- **Last session:** Devin, 2026-11-10 (cel v3 sheet) — repaint region
+  redefined as full lip+fang extent (dilated OUTER ∪ detected fang blob,
+  4550 px); all six shapes repaint it entirely — still-pixel metric
+  0–3/4550 for non-teeth shapes (teeth 191 = teeth-tone coincidence).
+  Closed = full-saturation two-tone lip fill + defined seam, no wash.
+  Hard edges: all feather/gradient removed; sheet upscale switched to
+  INTER_NEAREST (INTER_AREA was softening tiles — a sheet artifact, not
+  shape blur; verified via 3x NEAREST still-vs-closed comparison showing
+  complete repaint, no surviving lip/fang pixels). Anchor moved to
+  region centroid (62.5,42.2 — fang pulls center left); pucker centered
+  on OUTER centroid. Self-grade: all protocol-v1 checks pass; vision
+  model returned contradictory verdicts across passes (claim-evidence
+  rule applied — trusted pixel metrics + NEAREST zoom over sheet-level
+  impressions). Awaiting owner ruling on `cel_assets_sheet.png`.
 
 ### T-VOICE-01 — Local F5-TTS voice synthesis service (follows T-LIPSYNC-01)
 - **Status:** done
