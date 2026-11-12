@@ -1,0 +1,55 @@
+{
+  "prompt_id": "a62ff8f5-c7aa-4edd-8597-d75369d2f261",
+  "peak_vram_mib": 7867,
+  "events": [
+    {
+      "t": 559.02,
+      "type": "progress",
+      "node": "5",
+      "value": 1,
+      "max": 4,
+      "status_str": null,
+      "exception_type": null,
+      "exception_message": ""
+    },
+    {
+      "t": 704.526,
+      "type": "progress",
+      "node": "5",
+      "value": 2,
+      "max": 4,
+      "status_str": null,
+      "exception_type": null,
+      "exception_message": ""
+    },
+    {
+      "t": 710.427,
+      "type": "progress",
+      "node": "5",
+      "value": 3,
+      "max": 4,
+      "status_str": null,
+      "exception_type": null,
+      "exception_message": ""
+    },
+    {
+      "t": 716.353,
+      "type": "progress",
+      "node": "5",
+      "value": 4,
+      "max": 4,
+      "status_str": null,
+      "exception_type": null,
+      "exception_message": ""
+    }
+  ],
+  "status": "success",
+  "outputs": {
+    "9": {
+      "filename": "fluxschnell_dualclip_512_00001_.png",
+      "subfolder": "",
+      "saved": "docs/scratch/comfy_out/fluxschnell_dualclip_512_00001_.png"
+    }
+  },
+  "status_messages": []
+}

@@ -142,11 +142,53 @@ Peak VRAM 7884/8192 MiB (96%) — the 6.31 GB schnell GGUF is the
 largest model run on this card; it fits only because ComfyUI streams
 weights, and there is zero headroom for co-resident GPU work.
 
+### FLUX encoder fix — DualCLIPLoaderGGUF (verified 2026-11-12)
+
+The missing-encoder defect is now fixed and verified. No CLIP-L GGUF
+download was needed: `clip_l.safetensors` (246 MB, ViT-L/14) was
+already in `ComfyUI/models/text_encoders/` from the SD3.5 encoder
+setup, and `DualCLIPLoaderGGUF` resolves `clip` folder paths across
+both `clip/` and `text_encoders/` — its loader accepts a safetensors
+CLIP next to a GGUF T5. FLUX's trained conditioning is CLIP-L (pooled)
++ T5-XXL, so this is the architecturally correct stack; T5-only is an
+approximation.
+
+Canonical workflow: `tools/mcp/comfyui-workflows/flux-schnell-gguf-dualclip.json`
+(API format) — UnetLoaderGGUF(`flux1-schnell-Q4_0.gguf`) →
+DualCLIPLoaderGGUF(`clip_l.safetensors` +
+`t5-v1_1-xxl-encoder-Q4_K_M.gguf`, type `flux`) → KSampler(4 steps,
+cfg 1.0, euler/simple, seed 1234) → VAEDecode(`ae.safetensors`) →
+SaveImage. Scratch copy: `docs/scratch/flux_dualclip_512.json`.
+
+Complex-prompt A/B at 512×512, seed 1234 — "a red vintage bicycle
+leaning against a blue wooden fence, a ginger cat sitting on the
+bicycle seat, golden hour sunlight, photorealistic, shallow depth of
+field" — same graph except encoder node (DualCLIP vs T5-only
+CLIPLoaderGGUF):
+
+| Graph | Vision adherence (8-point checklist) | Total exec | Peak VRAM | Output |
+|-------|--------------------------------------|------------|-----------|--------|
+| DualCLIP (clip_l + t5xxl) | **8/8 faithful, no artifacts** | 723.5 s | 7867 MiB | `fluxschnell_dualclip_512_00001_.png` |
+| T5-only (control) | **8/8 faithful, no artifacts** | 888.6 s | 7885 MiB | `fluxschnell_t5only_512_00001_.png` |
+
+Honest verdict: **no measurable adherence difference on this prompt** —
+T5-only also nailed all subjects, colors, the spatial relation
+(cat on seat, bike on fence), lighting, and DoF. The dual stack is
+still the right canonical choice: it matches FLUX's trained
+conditioning, and T5-only is expected to degrade first on prompts with
+attribute binding, counting, or negation-heavy descriptions. Both
+runs sat at ~96–98% VRAM and showed multi-minute inter-step stalls —
+the encoder swap did not change the memory ceiling.
+
 ## Gotchas worth remembering
 
 - `CLIPLoaderGGUF` loads ONE encoder file. SD3/Flux-family models need
-  all their encoders; for SD3.5 that means `TripleCLIPLoader`, not a
+  all their encoders; for SD3.5 that means `TripleCLIPLoader`, for
+  FLUX `DualCLIPLoaderGGUF` (CLIP-L + T5-XXL, type `flux`) — not a
   bigger GGUF.
+- `DualCLIPLoaderGGUF` accepts mixed formats: a safetensors CLIP-L
+  from `models/text_encoders/` pairs fine with a GGUF T5 — no
+  CLIP-L GGUF is required.
 - GGUF checkpoints contain **no VAE and no text encoders** — city96's
   format is one-model-per-file by design.
 - `EmptySD3LatentImage` always makes 16-channel latents; feeding it to
