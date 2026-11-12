@@ -1,0 +1,65 @@
+{
+  "prompt": {
+    "1": {
+      "class_type": "UnetLoaderGGUF",
+      "inputs": { "unet_name": "sd3.5_large_turbo-Q4_0.gguf" }
+    },
+    "2": {
+      "class_type": "ModelSamplingSD3",
+      "inputs": { "shift": 3, "model": ["1", 0] }
+    },
+    "3": {
+      "class_type": "TripleCLIPLoader",
+      "inputs": {
+        "clip_name1": "clip_g.safetensors",
+        "clip_name2": "clip_l.safetensors",
+        "clip_name3": "t5xxl_fp8_e4m3fn.safetensors"
+      }
+    },
+    "4": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "a beautiful landscape, highly detailed, 8k, photorealistic, golden hour lighting",
+        "clip": ["3", 0]
+      }
+    },
+    "5": {
+      "class_type": "EmptySD3LatentImage",
+      "inputs": { "width": 1024, "height": 1024, "batch_size": 1 }
+    },
+    "6": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": 1234,
+        "steps": 4,
+        "cfg": 1.2,
+        "sampler_name": "euler",
+        "scheduler": "sgm_uniform",
+        "denoise": 1.0,
+        "model": ["2", 0],
+        "positive": ["4", 0],
+        "negative": ["7", 0],
+        "latent_image": ["5", 0]
+      }
+    },
+    "7": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "blurry, low quality, distorted, ugly, bad anatomy",
+        "clip": ["3", 0]
+      }
+    },
+    "8": {
+      "class_type": "VAELoader",
+      "inputs": { "vae_name": "sd3_vae.safetensors" }
+    },
+    "9": {
+      "class_type": "VAEDecode",
+      "inputs": { "samples": ["6", 0], "vae": ["8", 0] }
+    },
+    "10": {
+      "class_type": "SaveImage",
+      "inputs": { "filename_prefix": "sd35turbo_sd3vae_1024", "images": ["9", 0] }
+    }
+  }
+}

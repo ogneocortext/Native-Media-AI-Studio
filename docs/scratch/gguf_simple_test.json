@@ -1,0 +1,17 @@
+{
+  "prompt": {
+    "1": {
+      "class_type": "UnetLoaderGGUF",
+      "inputs": {
+        "unet_name": "sd3.5_large_turbo-Q4_0.gguf"
+      }
+    },
+    "2": {
+      "class_type": "CLIPLoaderGGUF",
+      "inputs": {
+        "clip_name": "t5-v1_1-xxl-encoder-Q4_K_M.gguf",
+        "type": "sd3"
+      }
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "prompt_id": "c9aa9e96-5dc7-4ad4-9895-3d8e80a6c529",
+  "peak_vram_mib": 7884,
+  "events": [
+    {
+      "t": 754.464,
+      "type": "progress",
+      "node": "5",
+      "value": 1,
+      "max": 4,
+      "status_str": null,
+      "exception_type": null,
+      "exception_message": ""
+    },
+    {
+      "t": 760.58,
+      "type": "progress",
+      "node": "5",
+      "value": 2,
+      "max": 4,
+      "status_str": null,
+      "exception_type": null,
+      "exception_message": ""
+    },
+    {
+      "t": 766.744,
+      "type": "progress",
+      "node": "5",
+      "value": 3,
+      "max": 4,
+      "status_str": null,
+      "exception_type": null,
+      "exception_message": ""
+    },
+    {
+      "t": 772.957,
+      "type": "progress",
+      "node": "5",
+      "value": 4,
+      "max": 4,
+      "status_str": null,
+      "exception_type": null,
+      "exception_message": ""
+    }
+  ],
+  "status": "success",
+  "outputs": {
+    "9": {
+      "filename": "fluxschnell_gguf_512_00001_.png",
+      "subfolder": "",
+      "saved": "docs/scratch/comfy_out/fluxschnell_gguf_512_00001_.png"
+    }
+  },
+  "status_messages": []
+}

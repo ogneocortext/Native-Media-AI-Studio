@@ -209,4 +209,14 @@ for AI agents.
 - Added `docs/knowledge-library/cheap-character-animation-lanes-while-musetalk-is-down-2026.md` → `#production`
 
 - Added `docs/knowledge-library/owner-judgment-pack-for-small-models-2026.md` → `#ai`
+## 2026-11-12 — Knowledge library additions
+- Added `docs/knowledge-library/comfyui-sd3-5-turbo-gguf-on-8gb-vae-triple-text-encoders-and-what-actually-broke-2026.md` → `#technical`
+
+- Added `docs/knowledge-library/stable-diffusion-local-models-2026.md` → `#technical`
+
+- Added `docs/knowledge-library/tools-checkpoints-models-2026.md` → `#technical`
+
+- Added `docs/knowledge-library/runtime-models-2026.md` → `#technical`
+
+- Added `docs/knowledge-library/voice-synthesis-api-2026.md` → `#technical`
 

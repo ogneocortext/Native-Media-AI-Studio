@@ -175,6 +175,7 @@ holds.
   hold and the storyboard-first priority are unchanged by it.
 
 ## Related
+- [[comfyui-sd3-5-turbo-gguf-on-8gb-vae-triple-text-encoders-and-what-actually-broke-2026]] :see-also — ComfyUI SD3.5 Turbo GGUF on 8GB: VAE, triple text encoders, and what actually broke
 
 - [[comfyui-workflows]] — ComfyUI workflow craft in this studio
 - [[gemma4-comfyui-mcp-2026]] — MCP control of ComfyUI

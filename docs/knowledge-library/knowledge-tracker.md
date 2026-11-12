@@ -64,7 +64,12 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 - ✅ `organizational-consistency-2026.md`  → `#production`, `#documentation`, `#knowledge-library`
 
-### 🛠️ Technical Implementation (34/34 completed) ✅
+### 🛠️ Technical Implementation (39/39 completed) ✅
+- ✅ `voice-synthesis-api-2026.md`  → `#technical`
+- ✅ `runtime-models-2026.md`  → `#technical`
+- ✅ `tools-checkpoints-models-2026.md`  → `#technical`
+- ✅ `stable-diffusion-local-models-2026.md`  → `#technical`
+- ✅ `comfyui-sd3-5-turbo-gguf-on-8gb-vae-triple-text-encoders-and-what-actually-broke-2026.md`  → `#technical`
 - ✅ `anime-checkpoint-selection-for-8gb-vram-inpainting-2026.md`  → `#technical`
 - ✅ `mp4-encoding-for-maximum-player-compatibility-2026.md`  → `#technical`
 - ✅ `blender-headless-vs-mcp-character-pipeline-operations-guide-2026.md`  → `#technical`
