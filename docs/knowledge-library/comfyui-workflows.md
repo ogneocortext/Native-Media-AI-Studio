@@ -37,7 +37,7 @@ type: entity
 
 ## Model Inventory — Updated Sep 2026 (8GB GTX 1070 Ti capped)
 
-> **Sep 2026 add**: Native ComfyUI now ships **Gemma 4** (E2B/E4B/31B) as built-in text encoder with `TextGenerate` node (128K E2B/E4B, 256K 31B, multimodal text+image+audio+video, thinking mode). Hunyuan3D updated to **3.0** (see §4d). New Sep 2026 API nodes: **VOID** (video object deletion) & **BiRefNet** (hair/fur segmentation). **Subgraphs** beta (June 2026) replaces group nodes. Model table respects **8GB local** limit:
+> **Nov 2026 update**: ComfyUI models folder cleaned (2026-11-12): removed 9.6 GB of `.incomplete` partial downloads from `.cache/huggingface/download/` and 3.6 GB exact duplicate (`hunyuan3d-2mini` turbo variant). **Total freed: 13.2 GB**. Post-cleanup models folder: **131.9 GB** (was 145.1 GB). Largest subfolders: `text_encoders` 45.1 GB, `checkpoints` 30.4 GB, `diffusion_models` 26.0 GB, `unet` 20.4 GB, `vae` 9.2 GB, `controlnet` 6.7 GB.
 
 ### Installed Models (8GB-local only)
 
@@ -66,6 +66,8 @@ type: entity
 
 > [!warning] Wan 2.2 5B/14B FP16 models deleted — too large for 8GB GPU
 > The Wan 2.2 5B FP16 model (`wan2.2_ti2v_5B_fp16.safetensors`, 9.5GB), UMT5 XXL text encoder (`umt5_xxl_fp8_e4m3fn_scaled.safetensors`, 6.4GB), and associated text encoder (`model.safetensors`, 8.9GB) have been deleted. They require 16-24GB VRAM and will OOM on GTX 1070 Ti (8GB). **Do not re-download FP16 models.** Use **Wan 2.2 TI2V-5B GGUF** (Q4/Q5 + CPU T5 offload) for 8GB-quality video, or **AnimateDiff Evolved** for fastest iteration — both work with your 8GB GPU using `--lowvram` mode.
+
+> [!note] **2026-11-12 cleanup**: Removed 9.6 GB of `.incomplete` partial downloads from `.cache/huggingface/download/` (unet, LatentSync, whisper), and 3.6 GB exact duplicate `hunyuan3d-2mini` turbo variant (kept `fast` variant). **Total freed: 13.2 GB**. Post-cleanup `models/` = 131.9 GB (was 145.1 GB). The `t5-xxl-fp8.safetensors` / `t5xxl_fp8_e4m3fn.safetensors` pair (4.6 GB each, exact duplicates) both retained — referenced by `cliploader_gguf.json` + `unetloader_gguf.json` (t5-xxl-fp8) and `calcuis_sd35_gguf_workflow.json` + `gguf_test_sd35_turbo_fixed.json` (t5xxl_fp8_e4m3fn). All `umt5-xxl` variants retained (referenced by workflows).
 
 ### Model Management
 
