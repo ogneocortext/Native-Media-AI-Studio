@@ -1,0 +1,133 @@
+{
+  "prompt": {
+    "1": {
+      "class_type": "UnetLoaderGGUF",
+      "inputs": {
+        "unet_name": "flux1-dev-Q4_0.gguf"
+      }
+    },
+    "2": {
+      "class_type": "DualCLIPLoaderGGUF",
+      "inputs": {
+        "clip_name1": "clip_l.safetensors",
+        "clip_name2": "t5-v1_1-xxl-encoder-Q4_K_M.gguf",
+        "type": "flux"
+      }
+    },
+    "3": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "anime girl with a long purple ponytail and a cat-ear headset, one eyebrow raised higher than the other, calm unimpressed expression, slight smirk, glowing cyan eyes, flat cel shading, no text, no watermark, no signature",
+        "clip": [
+          "2",
+          0
+        ]
+      }
+    },
+    "4": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "maya-ref-head-768.png"
+      }
+    },
+    "30": {
+      "class_type": "FluxGuidance",
+      "inputs": {
+        "conditioning": [
+          "3",
+          0
+        ],
+        "guidance": 3.5
+      }
+    },
+    "31": {
+      "class_type": "FluxGuidance",
+      "inputs": {
+        "conditioning": [
+          "6",
+          0
+        ],
+        "guidance": 3.5
+      }
+    },
+    "5": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": 1234,
+        "steps": 20,
+        "cfg": 1.0,
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "denoise": 0.5,
+        "model": [
+          "1",
+          0
+        ],
+        "positive": [
+          "30",
+          0
+        ],
+        "negative": [
+          "31",
+          0
+        ],
+        "latent_image": [
+          "13",
+          0
+        ]
+      }
+    },
+    "6": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "blurry, low quality, distorted, ugly, bad anatomy",
+        "clip": [
+          "2",
+          0
+        ]
+      }
+    },
+    "7": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "ae.safetensors"
+      }
+    },
+    "8": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "5",
+          0
+        ],
+        "vae": [
+          "7",
+          0
+        ]
+      }
+    },
+    "9": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "maya-dev-test-img2img-d0.5-seed1234",
+        "images": [
+          "8",
+          0
+        ]
+      }
+    },
+    "13": {
+      "class_type": "VAEEncode",
+      "inputs": {
+        "pixels": [
+          "4",
+          0
+        ],
+        "vae": [
+          "7",
+          0
+        ]
+      }
+    }
+  }
+}
