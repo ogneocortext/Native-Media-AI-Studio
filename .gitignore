@@ -387,3 +387,20 @@ tools/self-metrics/
 # Knowledge-library EPUB exports - local host only, not for commit
 /*.epub
 .kilo/skills/sub_agent_orchestration/__pycache__/
+
+# Maya <-> Nate private transfer bridge (local only, never commit)
+Maya — Transfer Inbox/
+Maya — Transfer Inbox-*.zip
+Maya - Transfer Inbox/
+Maya - Transfer Inbox-*.zip
+assets/character-references/
+pull-transfers.ps1
+tools/transfer-inbox/
+tools/rig-executor/executor-audit.jsonl
+
+# Maya character material — private, never committed (owner rule)
+assets/character-references/
+assets/character/expressions/
+assets/character/portraits/
+assets/character/clips/
+assets/character/misc/
