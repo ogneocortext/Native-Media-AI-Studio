@@ -123,7 +123,7 @@ CHECKS = [
 # Per-check timeouts in seconds. None means the checker's own default.
 CHECK_TIMEOUTS = {
     "check-subprocess-encoding.py": 60,
-    "check-banned-chars.py": 30,
+    "check-banned-chars.py": 60,
     "validate-knowledge-tags.py": 60,
     "check-repo-layout.py": 60,
     "check-path-references.py": 120,

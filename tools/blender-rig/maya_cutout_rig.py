@@ -67,7 +67,7 @@ def parse_args():
 def clean_scene():
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
-    for datablocks in (bpy.data.meshes, bpy.data.curves, bpy.data.armatures,
+    for _ in (bpy.data.meshes, bpy.data.curves, bpy.data.armatures,
                        bpy.data.cameras, bpy.data.lights):
         pass  # orphaned datablocks are purged on save/reload; harmless here
 

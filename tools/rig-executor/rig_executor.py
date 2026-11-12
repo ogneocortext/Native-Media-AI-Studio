@@ -32,7 +32,19 @@ Usage:
 
 Python 3, standard library only. Ctrl+C stops it.
 """
-import argparse, base64, datetime, hashlib, hmac, json, os, re, secrets, subprocess, sys, time
+import argparse
+import base64
+import datetime
+import hashlib
+import hmac
+import json
+import os
+import pathlib
+import re
+import secrets
+import subprocess
+import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MAX_BODY = 64 * 1024
@@ -50,7 +62,7 @@ STATE = {}  # root_real, root_norm, token, audit_path
 
 
 def now_iso():
-    return datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat(timespec="seconds")
+    return datetime.datetime.now(datetime.UTC).astimezone().isoformat(timespec="seconds")
 
 
 def audit(entry):
@@ -126,8 +138,7 @@ def tool_fetch_file(args):
     size = os.path.getsize(real)
     if size > FETCH_HARD_CAP:
         return None, f"file too large to fetch: {size} bytes (cap {FETCH_HARD_CAP})"
-    with open(real, "rb") as f:
-        raw = f.read()
+    raw = pathlib.Path(real).read_bytes()
     return {"path": rel(real), "size": size,
             "sha256": hashlib.sha256(raw).hexdigest(),
             "data_base64": base64.b64encode(raw).decode("ascii")}, None
@@ -172,8 +183,7 @@ def tool_grep(args):
                 if os.path.getsize(full) > GREP_FILE_CAP:
                     continue
                 scanned += 1
-                with open(full, "rb") as f:
-                    raw = f.read()
+                raw = pathlib.Path(full).read_bytes()
                 if b"\x00" in raw[:4096]:
                     continue
                 for i, line in enumerate(raw.decode("utf-8", "replace").splitlines(), 1):

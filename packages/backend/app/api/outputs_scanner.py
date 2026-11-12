@@ -36,7 +36,7 @@ _SIDECAR_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp")
 _SCAN_EXCLUDE_DIRS = frozenset({
     "agent-state", "audio_analysis", "beat_data", "benchmarks", "cache",
     "fingerprints", "interaction-audit", "kb-context-cache",
-    "kb-embed-cache", "logs", "metadata", "runtime", "scratch",
+    "kb-embed-cache", "logs", "metadata", "qa", "runtime", "scratch",
     "screenshots", "setup-env", "structure", "tests", "thumbnails",
     "uploads", "workflows",
 })
@@ -122,6 +122,13 @@ def _iter_scannable_dirs(output_base: Path):
         yield entry, entry.name
 
 
+# Additional directories that should always be scanned if they exist
+# (these are common producer output directories)
+_ADDITIONAL_SCAN_DIRS = frozenset({
+    "packages-output", "previews", "renders", "enhanced", "images",
+})
+
+
 def _get_dir_mtime() -> float:
     """Get the latest mtime across all scannable output dirs (recursive)."""
     output_base = Path(config.output_dir)
@@ -137,6 +144,20 @@ def _get_dir_mtime() -> float:
                     continue
         except OSError:
             pass
+    # Also check additional scan directories for mtime changes
+    for additional_name in _ADDITIONAL_SCAN_DIRS:
+        additional_path = output_base / additional_name
+        if additional_path.is_dir() and additional_name not in _SCAN_EXCLUDE_DIRS:
+            try:
+                latest = max(latest, additional_path.stat().st_mtime)
+                for f in additional_path.rglob("*"):
+                    try:
+                        if f.is_file():
+                            latest = max(latest, f.stat().st_mtime)
+                    except OSError:
+                        continue
+            except OSError:
+                pass
     # Root-level files count too.
     try:
         for f in output_base.iterdir():
@@ -400,66 +421,101 @@ def _scan_with_cache() -> list[OutputFile]:
         ):
             return cache["files"]
 
-    # Cache miss - scan directory recursively (without FFmpeg - fast metadata only)
+    # Cache miss - scan directory
     all_outputs: list[OutputFile] = []
     output_base = Path(config.output_dir)
 
-    # Scan every non-excluded top-level dir under output/ recursively, so
-    # generated media is listed no matter which producer subdir it lands
-    # in (images, video, audio, remixes, previews, videos, stems,
-    # packages-output, ...). A new producer dir needs no code change.
-    for dir_path, top_name in _iter_scannable_dirs(output_base):
-        # Pre-compute media stems for O(1) sidecar lookups instead of O(N^2)
-        media_stems = _build_media_stem_set(dir_path)
-        for file_path in _iter_media_files(dir_path):
-            out = _scan_file(file_path, top_name, media_stems, output_base)
-            if out is not None:
-                all_outputs.append(out)
+    # Scan standard directories
+    all_outputs.extend(_scan_standard_dirs(output_base))
 
-    # Root-level files (rare, but keep coverage complete)
-    try:
-        root_files = [f for f in output_base.iterdir() if f.is_file()]
-    except OSError:
-        root_files = []
-    for file_path in root_files:
-        out = _scan_file(file_path, "", {}, output_base)
-        if out is not None:
-            all_outputs.append(out)
+    # Scan additional known producer directories
+    all_outputs.extend(_scan_additional_dirs(output_base))
+
+    # Scan root-level files
+    all_outputs.extend(_scan_root_files(output_base))
 
     # Scan ComfyUI output directory for 3D assets
-    comfyui_output = comfyui_output_dir()
-    if comfyui_output.exists():
-        for glb_file in comfyui_output.rglob("*.glb"):
-            try:
-                stat = glb_file.stat()
-                rel_path = f"comfyui/{glb_file.relative_to(comfyui_output).as_posix()}"
-                all_outputs.append(
-                    OutputFile(
-                        filename=glb_file.name,
-                        path=str(glb_file),
-                        relative_path=rel_path,
-                        file_type="3d",
-                        size_bytes=stat.st_size,
-                        created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
-                        modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                        cover_image=None,
-                        has_cover=False,
-                        metadata={},
-                        job_id=None,
-                    )
-                )
-            except OSError:
-                continue
+    all_outputs.extend(_scan_comfyui_dir())
 
+    # Sort and cache
     all_outputs.sort(key=lambda x: x.created_at, reverse=True)
 
-    # Update cache (thread-safe write)
     with _output_cache_lock:
         _output_cache["files"] = all_outputs
         _output_cache["mtime"] = current_mtime
         _output_cache["timestamp"] = now
 
     return all_outputs
+
+
+def _scan_standard_dirs(output_base: Path) -> list[OutputFile]:
+    """Scan every non-excluded top-level dir under output/ recursively."""
+    outputs: list[OutputFile] = []
+    for dir_path, top_name in _iter_scannable_dirs(output_base):
+        media_stems = _build_media_stem_set(dir_path)
+        for file_path in _iter_media_files(dir_path):
+            out = _scan_file(file_path, top_name, media_stems, output_base)
+            if out is not None:
+                outputs.append(out)
+    return outputs
+
+
+def _scan_additional_dirs(output_base: Path) -> list[OutputFile]:
+    """Scan additional known producer directories."""
+    outputs: list[OutputFile] = []
+    for additional_name in _ADDITIONAL_SCAN_DIRS:
+        additional_path = output_base / additional_name
+        if additional_path.is_dir() and additional_name not in _SCAN_EXCLUDE_DIRS:
+            media_stems = _build_media_stem_set(additional_path)
+            for file_path in _iter_media_files(additional_path):
+                out = _scan_file(file_path, additional_name, media_stems, output_base)
+                if out is not None:
+                    outputs.append(out)
+    return outputs
+
+
+def _scan_root_files(output_base: Path) -> list[OutputFile]:
+    """Scan root-level files in output directory."""
+    outputs: list[OutputFile] = []
+    try:
+        root_files = [f for f in output_base.iterdir() if f.is_file()]
+    except OSError:
+        return outputs
+    for file_path in root_files:
+        out = _scan_file(file_path, "", {}, output_base)
+        if out is not None:
+            outputs.append(out)
+    return outputs
+
+
+def _scan_comfyui_dir() -> list[OutputFile]:
+    """Scan ComfyUI output directory for 3D assets (.glb files)."""
+    outputs: list[OutputFile] = []
+    comfyui_output = comfyui_output_dir()
+    if not comfyui_output.exists():
+        return outputs
+    for glb_file in comfyui_output.rglob("*.glb"):
+        try:
+            stat = glb_file.stat()
+            rel_path = f"comfyui/{glb_file.relative_to(comfyui_output).as_posix()}"
+            outputs.append(
+                OutputFile(
+                    filename=glb_file.name,
+                    path=str(glb_file),
+                    relative_path=rel_path,
+                    file_type="3d",
+                    size_bytes=stat.st_size,
+                    created_at=datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                    modified_at=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    cover_image=None,
+                    has_cover=False,
+                    metadata={},
+                    job_id=None,
+                )
+            )
+        except OSError:
+            continue
+    return outputs
 
 
 def _invalidate_cache() -> None:
