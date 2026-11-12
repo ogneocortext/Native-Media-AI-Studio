@@ -54,6 +54,7 @@ date: 2026-09-30
 - [[organizational-consistency-2026|🧭 Organizational Consistency]] — One source per organizational fact: the 2026-11-06 drift census, canonical task-block/index/frontmatter rules (R1–R6), the area↔category crosswalk, and the checker that enforces them (NEW 2026-11-06)
 
 ### 🛠️ Technical Implementation (Code & Systems)
+- [[prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026|FLUX schnell prompting]] — Prompting guide for local GGUF image models — FLUX.1-schnell and SD3.5 Turbo
 - [[voice-synthesis-api-2026|Voice API]] — Voice Synthesis API
 - [[runtime-models-2026|Runtime Models]] — Runtime Models
 - [[tools-checkpoints-models-2026|Tools Checkpoints Models]] — Tools Checkpoints Models
@@ -215,7 +216,7 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 24 documents |
-|| `#technical/*` | System implementation & code | 40 documents |
+|| `#technical/*` | System implementation & code | 41 documents |
 || `#platform/*` | Platform-specific integrations | 14 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |

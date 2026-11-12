@@ -203,6 +203,7 @@ the encoder swap did not change the memory ceiling.
 
 ## Related
 
+- [[prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026|prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026]] :see-also
 - [[higgsfield-comfyui-challenge-2026|higgsfield-comfyui-challenge-2026]] :see-also
 - [[animatediff-evolved-2026|animatediff-evolved-2026]] :cites
 - [[wangp-local-video-generation-2026|wangp-local-video-generation-2026]] :implements

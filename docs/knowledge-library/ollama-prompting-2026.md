@@ -133,3 +133,7 @@ validated live with exact keys, no regex salvage.
 - Don't disable thinking on thinking-capable models when using `format` —
   reported to silently drop the constraint (we use `think: false` only on
   non-reasoning models ✓).
+
+## Related
+
+- [[prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026]] :see-also — Prompting guide for local GGUF image models — FLUX.1-schnell and SD3.5 Turbo

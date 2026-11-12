@@ -220,3 +220,5 @@ for AI agents.
 
 - Added `docs/knowledge-library/voice-synthesis-api-2026.md` → `#technical`
 
+- Added `docs/knowledge-library/prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026.md` → `#technical`
+

@@ -64,7 +64,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 - ✅ `organizational-consistency-2026.md`  → `#production`, `#documentation`, `#knowledge-library`
 
-### 🛠️ Technical Implementation (39/39 completed) ✅
+### 🛠️ Technical Implementation (40/40 completed) ✅
+- ✅ `prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026.md`  → `#technical`
 - ✅ `voice-synthesis-api-2026.md`  → `#technical`
 - ✅ `runtime-models-2026.md`  → `#technical`
 - ✅ `tools-checkpoints-models-2026.md`  → `#technical`
