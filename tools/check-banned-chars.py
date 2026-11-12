@@ -2,8 +2,8 @@
 """Reject invisible, control, and mojibake characters in tracked text files.
 
 Agents have repeatedly injected characters that are valid UTF-8 but wrong
-for source: C-escape accidents turn 'a' into BEL (\\x07), 'b' into BS
-(\\x08), 'e' into ESC (\\x1b) - decision-log.md carried "\\x07gent_output"
+for source: C-escape accidents turn 'a' into BEL (\x07), 'b' into BS
+(\x08), 'e' into ESC (\x1b) - decision-log.md carried "\x07gent_output"
 for months. Zero-width joiners, soft hyphens, and UTF-8-read-as-Latin1
 mojibake triples break diffs, searches, and Windows consoles.
 
@@ -24,6 +24,7 @@ Run:  python tools/check-banned-chars.py [--verbose]
 Exit 0 = clean, 1 = at least one violation.
 """
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -79,6 +80,10 @@ MOJIBAKE = tuple(
     )
 )
 
+# Compile a single regex for all mojibake patterns - much faster than
+# looping through 50+ substrings per line.
+MOJIBAKE_REGEX = re.compile("|".join(re.escape(mg) for mg in MOJIBAKE))
+
 # Files that legitimately contain a mojibake sample as documentation.
 MOJIBAKE_EXEMPT = {"tools/check-subprocess-encoding.py"}
 
@@ -122,10 +127,10 @@ def check_file(rel):
                 violations.append((lineno, f"invisible char U+{o:04X}"))
                 break
         else:
-            for mg in MOJIBAKE:
-                if mg in line:
-                    violations.append((lineno, f"mojibake {mg!r}"))
-                    break
+            # Single regex pass instead of O(n*m) substring search
+            if MOJIBAKE_REGEX.search(line):
+                violations.append((lineno, "mojibake"))
+                break
     return violations
 
 
