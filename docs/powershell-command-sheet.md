@@ -8,7 +8,9 @@ Use PowerShell 7 cmdlets instead (see the Bash → PowerShell translation table 
 
 If you need to search file contents, use the `grep` tool, not `Select-String` or `grep`. If you need to list files, use `glob` or `filesystem_list_directory`, not `Get-ChildItem`. Only use shell commands for genuine PowerShell 7 operations (git, pwsh scripts, python, etc.).
 
-**This machine runs PowerShell 7.6.9 (LTS, built on .NET 10).** Windows 11 also ships PowerShell 5.1 (built on .NET Framework 4.x) — that version is retired for repo work. The two versions install side-by-side: `pwsh.exe` is v7+, `powershell.exe` is v5.1. Always use `pwsh`.
+**This machine runs PowerShell 7.7 (STS, built on .NET 11).** Windows 11 also ships PowerShell 5.1 (built on .NET Framework 4.x) — that version is retired for repo work. The two versions install side-by-side: `pwsh.exe` is v7+, `powershell.exe` is v5.1. Always use `pwsh`.
+
+**PowerShell 7.7 GA released 2026-11-10.** Key changes: built on .NET 11, `New-Guid` now generates UUID v7 (time-sortable) by default, new `New-TemporaryDirectory` cmdlet, `Join-Path -Extension`, `Format-* -ExcludeProperty`, update notification removed, MSI installer discontinued. See §2 for breaking changes.
 
 Read this before running your first command. Keep it open while working.
 
@@ -82,22 +84,22 @@ only for short, single-quote-safe, single-line operations.
 # Verify you are in PowerShell 7, not 5.1 or cmd
 $PSVersionTable.PSVersion
 
-# Expected: Major = 7 (e.g. 7.6.9), Edition = Core
+# Expected: Major = 7 (e.g. 7.7.x), Edition = Core
 # If Major = 5, you are in the wrong shell. Exit and use pwsh.
 # If Edition = Desktop, you are in Windows PowerShell 5.1 — wrong shell.
 ```
 
-**The project shell is `pwsh` 7.6.x.** Never invoke scripts as `powershell ...` (that's 5.1).
+**The project shell is `pwsh` 7.7+.** Never invoke scripts as `powershell ...` (that's 5.1).
 
 ---
 
-## 2. PowerShell 7.6 vs Windows PowerShell 5.1 — Key Differences
+## 2. PowerShell 7.7 vs Windows PowerShell 5.1 — Key Differences
 
-| Feature | PowerShell 5.1 (retired) | PowerShell 7.6 (use this) |
+| Feature | PowerShell 5.1 (retired) | PowerShell 7.7 (use this) |
 |---------|-------------------------|--------------------------|
 | Executable | `powershell.exe` | `pwsh.exe` |
 | Install location | `$Env:windir\System32\WindowsPowerShell\v1.0` | `$Env:ProgramFiles\PowerShell\7` |
-| .NET base | .NET Framework 4.x | .NET 10 (LTS) |
+| .NET base | .NET Framework 4.x | .NET 11 (STS) |
 | Platform | Windows only | Cross-platform (Windows, macOS, Linux) |
 | Profiles | `Microsoft.PowerShell_profile.ps1` | Separate 7.x profiles |
 | PSModulePath | Separate from 7.x | Separate from 5.1 |
@@ -110,8 +112,29 @@ $PSVersionTable.PSVersion
 | `NO_COLOR` respected | ❌ | ✅ |
 | Hex native exit codes | ❌ | ✅ |
 | `Import-Module -UseWindowsPowerShell` | N/A | ✅ (load 5.1-only modules in 7.x) |
+| `New-TemporaryDirectory` | ❌ | ✅ (creates unique temp dir, works in Constrained Language Mode) |
+| `Join-Path -Extension` | ❌ | ✅ |
+| `Format-* -ExcludeProperty` | ❌ | ✅ |
+| `New-Guid` default | UUID v4 (random) | UUID v7 (time-sortable) — use `[guid]::NewGuid()` for random |
 
 **Side-by-side rule:** PowerShell 7 installs to a separate directory with a separate executable name (`pwsh.exe`). Both versions can run simultaneously. The new name (`pwsh`) makes it easy to support side-by-side execution.
+
+**Breaking changes in 7.7 (review before upgrading production scripts):**
+- **New-Guid** generates version 7 (time-sortable) UUIDs by default instead of version 4. Use `[guid]::NewGuid()` when you need a fully random GUID.
+- **Format-Table, Format-List, Format-Custom** now validate that `-Property` is not null or empty.
+- **Null-or-empty argument validation** now throws `System.ArgumentException` (was `PSArgumentNullException`).
+- **Explicit false values** for `Where-Object` operator switches (e.g., `-EQ:$false`) are now handled correctly.
+- **Export-Csv** no longer accepts `-Append` together with `-NoHeader` (mutually exclusive).
+- **Test-Json** requires `-FetchExternalReference` to resolve external schema references.
+- **Update notification feature** was removed from PowerShell.
+- **MSI installer** discontinued — install via winget, Chocolatey, or direct download.
+
+**Other behavior changes:**
+- `-NoTypeInformation` on CSV cmdlets is now a deprecated no-op; `-IncludeTypeInformation` is on by value.
+- `Get-AuthenticodeSignature` returns new `SubjectAlternativeName` property.
+- `WildcardPattern.ToRegex()` converts PowerShell wildcards to .NET regex.
+- PSReadLine updated to v2.4.5.
+- PSResourceGet updated to v1.3.0-preview2.
 
 ---
 
@@ -181,7 +204,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action
 
 **Important:** Via `-File`, a comma-separated list arrives as ONE string and fails `ValidateSet`. Pass arrays with `-Command`, or one service per `-Services` invocation.
 
-**In 7.6, `New-Item -Target` is treated as literal** (not expanded). Use literal paths for `-Target`.
+**In 7.7, `New-Item -Target` is treated as literal** (not expanded). Use literal paths for `-Target`.
 
 ### Native command exit codes
 
@@ -306,7 +329,7 @@ Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue
 Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue
 ```
 
-**Start-Process improvements in 7.6:** `-Wait` polling is more efficient. Standard handles are explicitly set when using `-NoNewWindow`.
+**Start-Process improvements in 7.7:** `-Wait` polling is more efficient. Standard handles are explicitly set when using `-NoNewWindow`.
 
 ---
 
@@ -356,6 +379,7 @@ $env:NO_COLOR = "1"  # Respected by pwsh 7.6+ for stderr output
 | **Interactive hangs** | `pwsh -File script.ps1` that hits a prompt | Add `-NonInteractive` — prompts fail fast instead of hanging an agent shell forever |
 | **`.cmd`/`.bat` arg passing** | Complex quoted args through `pnpm.cmd`/`npm.cmd`/`npx.cmd` | `$PSNativeCommandArgumentPassing` = `Windows` on this machine (verified): `.cmd`/`.bat` targets always get LEGACY quoting rules. Bare `pnpm`/`npm`/`npx` in pwsh resolve to the `.ps1` shims (standard arg passing) — verified — so prefer bare names or `*.ps1`; only use `.cmd` when a caller explicitly requires it |
 | **Wildcard paths** | `Get-Content 'dir[1]\file.txt'` | `[ ]` are wildcard chars — use `-LiteralPath` for real paths; `-Path` only when wildcards are intended |
+| **`New-Guid` randomness** | `New-Guid` for security tokens/session IDs | Use `[guid]::NewGuid()` — 7.7 `New-Guid` defaults to UUID v7 (time-sortable), not fully random |
 
 ---
 
@@ -383,13 +407,13 @@ Get-ChildItem -Path "packages/frontend/src" -Filter "*.ts" -Recurse
 # Search for text in all .ts files
 Select-String -Path "packages/frontend\src\**\*.ts" -Pattern "useVisualizerState"
 
-# Create a temp dir and cd into it
-New-Item -ItemType Directory -Path "$env:TEMP\nma-scratch" -Force; Set-Location "$env:TEMP\nma-scratch"
+# Create a temp dir and cd into it (7.7+ New-TemporaryDirectory)
+$tempDir = New-TemporaryDirectory -Prefix nma-scratch; Set-Location $tempDir.FullName
 
 # View file tail (like `tail -f`)
 Get-Content -Path "output/logs/backend.log" -Tail 50 -Wait
 
-# Use intrinsic collection methods (PS 4.0+, 7.6 aliases)
+# Use intrinsic collection methods (PS 4.0+, 7.7 aliases)
 $files = Get-ChildItem "packages/frontend/src\*.ts"
 $tsFiles = $files.Where({ $_.Length -gt 1000 })    # alias: PSWhere()
 $names   = $files.ForEach({ $_.Name })              # alias: PSForEach()
@@ -398,6 +422,18 @@ $names   = $files.ForEach({ $_.Name })              # alias: PSForEach()
 Get-ChildItem "packages\frontend\src\*.ts" | ForEach-Object -Parallel {
     Select-String -Path $_.FullName -Pattern "TODO"
 } -ThrottleLimit 5
+
+# Generate random GUID (fully random - use this instead of New-Guid for security)
+[guid]::NewGuid()
+
+# Generate time-sortable GUID (7.7 default New-Guid behavior)
+New-Guid
+
+# Join path with extension (7.7+)
+Join-Path "C:\output" "video" -Extension ".mp4"
+
+# Format table excluding properties (7.7+)
+Get-Process | Format-Table -ExcludeProperty Handles, NPM, PM, WS, CPU, Id, SI
 ```
 
 ---
@@ -462,7 +498,8 @@ Every row below was executed on this machine — these are the commands agents a
 | `hexdump`/`xxd` | `Format-Hex` (verified, pwsh 7 native) |
 | `date +%s` | `[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()` (verified) |
 | `date` | `Get-Date` |
-| `uuidgen` | `[guid]::NewGuid()` (verified) |
+| `uuidgen` | `[guid]::NewGuid()` for random UUID, `New-Guid` for time-sortable UUID v7 (7.7+) |
+| `mktemp -d` | `New-TemporaryDirectory` (7.7+, works in Constrained Language Mode) |
 | `seq 5` | `1..5` (verified) |
 | `shuf` | `Get-Random -InputObject (1..N) -Count K` |
 | `echo $PATH` / `printenv` | `$env:Path` / `Get-ChildItem env:` |
@@ -521,6 +558,8 @@ Every row below was executed on this machine — these are the commands agents a
 | `env` | `Get-ChildItem env:` |
 | `export VAR=val` | `$env:VAR = "val"` |
 | `xargs` | `ForEach-Object` or `ForEach-Object -Parallel` |
+| `mktemp -d` | `New-TemporaryDirectory -Prefix "name"` (7.7+) |
+| `uuidgen` | `[guid]::NewGuid()` for random, `New-Guid` for time-sortable (7.7+) |
 
 ---
 
