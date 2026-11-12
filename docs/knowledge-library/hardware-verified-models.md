@@ -8,15 +8,16 @@ aliases:
   - 8GB VRAM Models
 cssclasses:
   - performance-guide
-date: 2026-09-29
+date: 2026-11-12
 type: entity
 ---
 
 # Hardware-Vetted Model Inventory & Expansion Guide
 
-> **Last Updated:** 2026-09-29
+> **Last Updated:** 2026-11-12
 > **Status:** Active reference for model selection, quantization, and AnimateDiff expansion on the local workstation
 > **Hardware baseline:** GTX 1070 Ti 8 GB VRAM / Ryzen 5 5500 / 32 GB RAM / Windows 11
+> **Repo-local model inventories:** [[stable-diffusion-local-models-2026]]:see-also (4.75 GB), [[tools-checkpoints-models-2026]]:see-also (13.8 GB), [[runtime-models-2026]]:see-also (0.09 GB)
 
 ---
 

@@ -301,9 +301,14 @@ git clone https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved.git
 - `ai-video-trends-2026.md` — Overall AI video trends and model recommendations
 - `local-rag-redesign-2026.md` — RAG system for document search
 - `local-rag-redesign-2026.md` — Standalone RAG system documentation
+- [[stable-diffusion-local-models-2026]]:see-also — Repo-local SD 1.5 + AnimateDiff v3 inventory (4.75 GB)
 
 ---
 
 **Last Updated:** 2026-11-06  
 **Status:** Active Development  
 **Platform:** Windows 11 local development machine, ComfyUI + ComfyUI-AnimateDiff-Evolved
+
+## Related
+
+- [[comfyui-sd3-5-turbo-gguf-on-8gb-vae-triple-text-encoders-and-what-actually-broke-2026]] :see-also — ComfyUI SD3.5 Turbo GGUF on 8GB: VAE, triple text encoders, and what actually broke

@@ -71,4 +71,4 @@ This directory contains small, specialized models used by the runtime inference 
 - [[comfyui-workflows]]:see-also — Main ComfyUI model inventory (131.9 GB)
 - [[tools-checkpoints-models-2026]]:see-also — ACE-Step and embedding models (13.8 GB)
 - [[stable-diffusion-local-models-2026]]:see-also — Standalone SD 1.5 + AnimateDiff (4.75 GB)
-- [[voice-api]]:see-also — Voice API documentation (docs/guides/VOICE_API.md)
+- [[voice-synthesis-api-2026]]:see-also — Voice API documentation (F5-TTS zero-shot cloning)

@@ -25,6 +25,7 @@ type: synthesis
 > [[stem-system-evaluation-2026]] (per-stem pipeline audit),
 > [[audio-reactive-best-practices-2026]] (visual side),
 > [[visualizer-ux-audit-2026-10]] (live findings incl. the P0 stem bug),
+> [[tools-checkpoints-models-2026]]:see-also (ACE-Step models in tools/checkpoints/),
 > D4 (stem stack), D2 (env separation), D7 (8 GB VRAM budget).
 
 ---

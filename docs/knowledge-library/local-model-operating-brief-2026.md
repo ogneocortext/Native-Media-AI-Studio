@@ -164,3 +164,8 @@ LIMITS YOU STATE PLAINLY:
 - [[custom-agent-design]] — agent architecture the briefs plug into
 - `tools/model-reliability/roster.md` — trust tiers: which models
   may hold which lane, brief or no brief
+- [[stable-diffusion-local-models-2026]]:see-also — Repo-local SD 1.5 + AnimateDiff (4.75 GB)
+- [[tools-checkpoints-models-2026]]:see-also — ACE-Step, Qwen3, shared VAE (13.8 GB)
+- [[runtime-models-2026]]:see-also — Text encoder, VAE approx, voice TTS (0.09 GB)
+- [[comfyui-workflows]]:see-also — Main ComfyUI inventory (131.9 GB)
+- [[hardware-verified-models]]:see-also — VRAM tier list for 8 GB GPU
