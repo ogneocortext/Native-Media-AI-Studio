@@ -15,6 +15,7 @@ sections below for everything in here.
 | `analyze_and_sync.py` | Audio analysis + beat-synced JSON generation |
 | `audio_analysis_demo.py` | GPU-accelerated analysis demo (CUDA) |
 | `demos/` | Feature demonstration scripts |
+| `maya_face_composite.py` | CPU cross-fade composite of an inpainted face onto a reference still (bit-exact outside the mask ellipse) |
 | `music-gen/` | ACE-Step music generation service (isolated venv) |
 | `fix-subprocess-encoding.py`, `check-path-references.py`, etc. | Repo hygiene and validation scripts |
 
