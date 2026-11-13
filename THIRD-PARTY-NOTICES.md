@@ -5,7 +5,7 @@ Each item below keeps its own license; nothing here relicenses anyone else's
 work. If a license below conflicts with your use, the license wins.
 
 This repository's own code is MIT licensed — see [LICENSE](./LICENSE)
-(© 2026 Intenext Ventures LLC).
+(© 2026 Internext Ventures LLC).
 
 ## 3D models (Sketchfab, CC-BY-4.0)
 
