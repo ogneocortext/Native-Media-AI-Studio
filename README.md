@@ -86,6 +86,6 @@ locations. Human and external-agent setup (hooks, gates, commit rules):
 
 ## License
 
-MIT — see [LICENSE](./LICENSE) (© 2026 Intenext Ventures LLC). Third-party
+MIT — see [LICENSE](./LICENSE) (© 2026 Internext Ventures LLC). Third-party
 licenses, model credits, and the Remotion/madmom conditions are inventoried in
 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
