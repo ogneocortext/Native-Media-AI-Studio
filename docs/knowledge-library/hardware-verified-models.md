@@ -155,6 +155,7 @@ For structure/pose guidance on AnimateDiff clips:
 | **Tier 3 — Tight**             | 7B LLMs, SD1.5 + AnimateDiff + fp16 ControlNet               | 6–8 GB        | ⚠️ May OOM under load  |
 | **Tier 4 — Infeasible (FP16)** | 9B LLMs unquantized, WAN 14B FP16, LTX 2.3 22B FP16, SDXL AnimateDiff | >8 GB         | ❌ Skip or quantize    |
 | **Tier 4 — GGUF path**         | Wan 2.2 TI2V-5B GGUF Q4/Q5 + CPU T5 offload                  | ~6-8 GB       | ✅ Now feasible on 8GB |
+| **Tier 3 — Extreme-quant GGUF** | 27B-class LLM at ~1-bit GGUF (Bonsai 27B Q1_0)             | ~7.6 GB resident at 8K ctx | ✅ Verified 2026-11-12 — see §8 |
 | **Tier 2 — Workable**          | 4B LLMs, SD1.5 + AnimateDiff + 1× ControlNet LoRA, LTX-2B distilled (768×512, 9f) | 4–6 GB        | ✅ Run now             |
 
 ### 4.3 Recommended daily-driver stack
@@ -251,4 +252,27 @@ For structure/pose guidance on AnimateDiff clips:
 
 ---
 
-_Last updated: 2026-10-21_
+## 8. Bonsai 27B (Q1_0 GGUF) — Verified on the GTX 1070 Ti (2026-11-12)
+
+**What it is:** PrismML's Bonsai 27B — a Qwen 3.6 27B compressed to ~1 bit/weight. Apache 2.0. Thinking + vision. Pulled via Ollama: `hf.co/lmstudio-community/Bonsai-27B-GGUF:Q1_0` (3.80 GB weights + ~931 MB vision projector). Ollama 0.40.16, context pinned at `num_ctx 8192` for all measurements.
+
+**Measured on this hardware (GTX 1070 Ti 8 GB, Pascal):**
+
+| Metric | Result |
+| --- | --- |
+| Eval rate | ~23 tok/s, stable across repeated runs (22.5–23.1) at 8K context |
+| Prompt processing | 80–147 tok/s |
+| Peak VRAM | 7,646 MiB of 8,192 — fits, but only ~550 MiB headroom; nothing else can share the card while the model is resident |
+| Arithmetic verification | Exact against hand-computed expected values, including multi-step average computations with correct rounding (thinking trace self-corrected a 5th-decimal rounding mid-derivation) |
+| Document summarization | Faithful — no invented facts on a structured payout-style document |
+
+**Operating notes:**
+
+- **Thinking-token tax:** the model reasons inline before answering; measured answers carried 1,100–3,300 eval tokens of reasoning for short final answers (5–10× answer length). At ~23 tok/s that is 1–2.5 minutes of wall time per question with thinking on. Disabling thinking (`"think": false`) for simple Q&A is the obvious follow-up test; untested as of this entry.
+- **Envelope update:** this result revises the working assumption behind §1/§4 — the practical ceiling on this card is not native 9B-class. An extremely-quantized 27B runs fully on-GPU at usable speed. The compression cost lands on general-knowledge depth (vendor's own figures), which this test did not measure; arithmetic and document fidelity are what is verified here.
+- **Do not confuse with Bonsai 2** (ternary Qwen3.8-27B): its PQ2_0/PTQ1_0 files require PrismML's llama.cpp fork or xOllama; stock builds reject them or return gibberish on Q2_0.
+- **Lane status:** capability verified; assignment is a separate decision. Speed and the thinking tax suit batch/offline reasoning (e.g., verification passes where arithmetic is the thing being checked), not interactive use. Ollama is localhost-bound, so any integration is rig-side only.
+
+---
+
+_Last updated: 2026-11-12_
