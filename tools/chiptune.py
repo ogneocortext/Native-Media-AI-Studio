@@ -605,16 +605,16 @@ def _render_fm_nuked_opn2(p: Pattern, voice_name: str, cells: list[str],
     # Disable DAC for pure FM
     chip.write_register(0x2B, 0x00)
     chip.write_register(0x22, 0x00)  # LFO off
-    chip.write_register(0x20, 0x07)  # Algorithm 7: all carriers
+    chip.write_register(0xB0, 0x07)  # Algorithm 7: all carriers (reg 0xB0; 0x20 is not an FM register)
 
     # Configure all 4 operators as carriers with default envelope
     for op_base in [0x30, 0x34, 0x38, 0x3C]:
-        chip.write_register(op_base, 0x00)        # MUL=1
+        chip.write_register(op_base, 0x01)        # MUL=1 (value 0 is x0.5 on YM2612 - it dropped every note an octave)
         chip.write_register(op_base + 0x10, 0x00)  # TL=0 (max volume)
         chip.write_register(op_base + 0x20, 0x0F)  # AR=15 (fastest attack)
         chip.write_register(op_base + 0x30, 0x00)  # DR=0
-        chip.write_register(op_base + 0x40, 0x0F)  # SR=0, RR=15
-        chip.write_register(op_base + 0x50, 0x00)  # SL=0
+        chip.write_register(op_base + 0x40, 0x00)  # D2R=0: sustain holds (0x0F decayed every note to silence)
+        chip.write_register(op_base + 0x50, 0x0F)  # SL=0, RR=15 (0x80 register: SL high nibble, RR low)
         chip.write_register(op_base + 0x60, 0x00)  # SSG-EG=0
 
     # Build register write timeline from cells
@@ -625,14 +625,14 @@ def _render_fm_nuked_opn2(p: Pattern, voice_name: str, cells: list[str],
         """Convert frequency to F-Number and Block for YM2612."""
         if freq_hz <= 0:
             return 0, 0
-        master_clock = cpu_clock_hz
-        internal_clock = master_clock / 6.0
-        fnum = int(round(freq_hz * (2**20) / internal_clock))
+        # Measured against Nuked-OPN2: freq = (fnum << block) * (clock/144) / 2^21
+        # (phase advances 2*pg_inc per 24-clock frame at the clock/144 slot rate).
+        scaled = freq_hz * (144.0 * (2**21)) / cpu_clock_hz
         block = 0
-        while fnum >= 0x400 and block < 7:
-            fnum >>= 1
+        while scaled > 0x7FF and block < 7:
+            scaled /= 2.0
             block += 1
-        return min(fnum, 0x3FF), block
+        return min(int(round(scaled)), 0x7FF), block
 
     for i, cell in enumerate(cells):
         start = starts[i]
@@ -672,7 +672,7 @@ def _render_fm_nuked_opn2(p: Pattern, voice_name: str, cells: list[str],
 
         if final_freq > 0:
             fnum, block = freq_to_fnum_block(final_freq)
-            events.extend(((start, 160, fnum & 255), (start, 164, (block & 7) << 3 | fnum >> 8), (start, 40, 240)))  # Key on all operators
+            events.extend(((start, 164, (block & 7) << 3 | fnum >> 8), (start, 160, fnum & 255), (start, 40, 240)))  # 0xA4 before 0xA0: the low write latches the pair; reversed order leaves fnum at the low byte only
         else:
             events.append((start, 0x28, 0x00))
 
@@ -705,7 +705,7 @@ def _render_fm_nuked_opn2(p: Pattern, voice_name: str, cells: list[str],
         prev_time = ev_time
 
     # Generate remaining - use pattern tempo and cells for total duration
-    total_duration = len(starts) * (60.0 / p.tempo / 4.0)  # Fixed: use p.tempo
+    total_duration = len(cells) * cell_sec  # voice timeline length (starts has n+1 entries)
     if prev_time < total_duration:
         duration = total_duration - prev_time
         samples_needed = int(duration * 44100)
@@ -718,6 +718,14 @@ def _render_fm_nuked_opn2(p: Pattern, voice_name: str, cells: list[str],
 
     if output_chunks:
         full_output = np.concatenate(output_chunks)
+        # Match the voice timeline exactly: chunk rounding and the
+        # trailing segment can overshoot by a few samples, and the
+        # caller falls back to behavioral FM on any length mismatch.
+        expected = int(len(cells) * cell_sec * 44100)
+        if len(full_output) > expected:
+            full_output = full_output[:expected]
+        elif len(full_output) < expected:
+            full_output = np.pad(full_output, (0, expected - len(full_output)))
         return full_output.astype(np.float32)
 
     return None
