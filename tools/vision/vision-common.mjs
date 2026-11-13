@@ -36,6 +36,19 @@ export const DEFAULT_VISION_MODEL = process.env.VISION_MODEL || 'gemma4:e2b-it-q
 // your machine has more VRAM.
 export const VISION_FALLBACK_MODEL = process.env.VISION_FALLBACK_MODEL || 'qwen3.5:4b';
 
+// Models that may only serve a call when explicitly requested (--model,
+// VISION_MODEL*, or a mode map that names them). They stay installed but are
+// never auto-selected: moondream is a ~1.8 GB captioner that loops and emits
+// raw bbox coords on compound prompts — measured 2026-11-12/13 returning
+// "[0.23, 0.13, 0.78, 0.45]" for a describe call and repeating "squished
+// eyes" ~70x on a face crop. Opt back in with VISION_MODEL_FAST or an
+// explicit model param.
+export const AUTO_EXCLUDED_VISION_MODELS = new Set(['moondream']);
+
+export function isAutoEligibleVisionModel(name) {
+  return !AUTO_EXCLUDED_VISION_MODELS.has(baseName(name));
+}
+
 /**
  * Resolve the fallback vision model for a call whose primary just failed.
  *   1. env VISION_FALLBACK_MODEL (even if installed — operator override wins);
@@ -47,7 +60,7 @@ export async function pickFallbackModel(activeModel) {
   if (fromEnv) return fromEnv;
   const active = baseName(activeModel);
   const resident = (await residentVisionModels()).filter(
-    (n) => baseName(n) !== active && n !== activeModel
+    (n) => baseName(n) !== active && n !== activeModel && isAutoEligibleVisionModel(n)
   );
   return resident[0] || VISION_FALLBACK_MODEL;
 }
@@ -121,7 +134,7 @@ export async function residentVisionModels() {
  */
 export async function resolveVisionModel(forcedModel) {
   if (forcedModel) return { model: forcedModel, why: 'override' };
-  const resident = await residentVisionModels();
+  const resident = (await residentVisionModels()).filter(isAutoEligibleVisionModel);
   if (resident.length === 0) return { model: DEFAULT_VISION_MODEL, why: 'default' };
   // residentVisionModels sorts local-first; qwen3-vl / minicpm-v family
   // preferences are gone — those models were pruned 2026-10-10.

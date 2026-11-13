@@ -46,16 +46,19 @@ Pick the model for the task, not the biggest one available:
 
 | Tier | Model | Warm latency | Use for | Do NOT use for |
 |------|-------|--------------|---------|----------------|
-| fast iterate | `moondream` (`--mode fast`/`describe`, or `model:"moondream"`) | ~1.5 s | "did it render", gross composition, smoke checks | deformation/detail QA — it hallucinates details (reported a "black suit" on a gray figure) and answers detection prompts with raw bbox coords |
+| fast iterate | `gemma4:e2b-it-qat` (`--mode fast`/`describe`, default) | ~7 s | "did it render", gross composition, smoke checks | — |
 | workhorse | `gemma4:e2b-it-qat` (default, `--mode ui`) | ~7 s | mesh/UI QA, structured findings, OCR-adjacent | — |
 | deep reasoning | `qwen3.5:4b` (`--model qwen3.5:4b`) | ~27 s warm / ~133 s cold | subtle defect hunts (caught thin-limb + disjointed-part issues gemma4 missed) | back-to-back iteration loops |
+| opt-in only | `moondream` (`model:"moondream"` or `VISION_MODEL_FAST=moondream`) | ~1.5 s | trivial caption smoke checks | everything else — auto-routing excludes it (`AUTO_EXCLUDED_VISION_MODELS`): it loops on compound prompts and emits raw bbox coords (measured 2026-11-12/13) |
 
 Routing mechanics: `tools/vision/analyze.mjs` `MODE_MODEL` maps modes
 to models with resident-stickiness; `fast`/`describe` modes resolve to
-`VISION_MODEL_FAST` env or `moondream`. The MCP `vision_describe` tool
-accepts `mode:"fast"|"describe"` or an explicit `model` param
-(forwarded as `--model`, and that model is warmed instead of the
-primary). Override anything with `--model`/`VISION_MODEL`.
+`VISION_MODEL_FAST` env or the default workhorse — moondream is never
+auto-selected (mode-map, resident-sticky, and fallback pools all filter
+`AUTO_EXCLUDED_VISION_MODELS` in `tools/vision/vision-common.mjs`).
+The MCP `vision_describe` tool accepts `mode:"fast"|"describe"` or an
+explicit `model` param (forwarded as `--model`, and that model is warmed
+instead of the primary). Override anything with `--model`/`VISION_MODEL`.
 
 ## Health check
 

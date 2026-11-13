@@ -921,12 +921,12 @@ server.setRequestHandler("tools/list", async () => ({
               "describe",
             ],
             description:
-              "Preset prompt mode. 'ui' = detailed scene/elements. 'responsive' = layout issues. 'regression' = compare vs source. 'ocr' = text extraction. 'table' = markdown table. 'chart' = chart reading. 'fast'/'describe' = rapid iteration tier (small fast VLM, e.g. moondream) for back-to-back look-checks.",
+              "Preset prompt mode. 'ui' = detailed scene/elements. 'responsive' = layout issues. 'regression' = compare vs source. 'ocr' = text extraction. 'table' = markdown table. 'chart' = chart reading. 'fast'/'describe' = rapid look-checks on the default workhorse model (gemma4); moondream is opt-in only via the model param — it is unfit for graded QA.",
           },
           model: {
             type: "string",
             description:
-              "Optional Ollama model override (e.g. 'moondream' for fast iteration, 'gemma4:e2b-it-qat' for detailed audits, 'qwen3.5:4b' for deep reasoning). Overrides mode routing.",
+              "Optional Ollama model override (e.g. 'gemma4:e2b-it-qat' for detailed audits, 'qwen3.5:4b' for deep reasoning, 'moondream' only for trivial smoke checks — it is excluded from auto-routing). Overrides mode routing.",
           },
         },
         required: ["image_path"],

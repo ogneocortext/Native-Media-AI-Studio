@@ -21,7 +21,7 @@ import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import { baseName, encodeImage, probeImageMeta, diffImagesRegion, cropImageToFile, residentVisionModels, pickFallbackModel, getRunningModels, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL } from './vision-common.mjs';
+import { baseName, encodeImage, probeImageMeta, diffImagesRegion, cropImageToFile, residentVisionModels, pickFallbackModel, getRunningModels, isAutoEligibleVisionModel, VISION_MAX_DIM, VISION_QUALITY, VISION_KEEP_ALIVE, VISION_NUM_CTX, DEFAULT_VISION_MODEL } from './vision-common.mjs';
 import { schemaForMode } from './schemas.mjs';
 import { probeVideo, extractFrames, selectKeyframes } from './video-frames.mjs';
 import { buildGemma4Prompt, GEMMA4_SYSTEM, GEMMA4_MODE_PROMPTS } from './prompts/gemma4-ui.mjs';
@@ -84,10 +84,12 @@ const MODE_MODEL = {
   vizmode: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
   depth: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
   consistency: 'unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M',
-  // 'fast'/'describe' = rapid iteration tier (mesh QA loops, quick
-  // look-checks). Override the model with VISION_MODEL_FAST.
-  fast: process.env.VISION_MODEL_FAST || 'moondream',
-  describe: process.env.VISION_MODEL_FAST || 'moondream',
+  // 'fast'/'describe' default to the workhorse model: moondream proved
+  // unfit even for plain describe calls (loops, raw bbox coords — see
+  // AUTO_EXCLUDED_VISION_MODELS in vision-common.mjs). Opt into the fast
+  // tier explicitly with VISION_MODEL_FAST=moondream or --model moondream.
+  fast: process.env.VISION_MODEL_FAST || DEFAULT_VISION_MODEL,
+  describe: process.env.VISION_MODEL_FAST || DEFAULT_VISION_MODEL,
 };
 
 function profileFor(model) {
@@ -109,9 +111,13 @@ async function resolveModel(args, forcedModel, backend = 'auto') {
   }
   const mapped = MODE_MODEL[args.mode];
   if (!mapped) return { model: DEFAULT_VISION_MODEL, why: 'default' };
-  const resident = await residentVisionModels();
+  const residentAll = await residentVisionModels();
+  // The mapped model may itself be auto-excluded (explicit VISION_MODEL_FAST
+  // opt-in) — check residency against the unfiltered list so the opt-in is
+  // honored; only the sticky fallback below is eligibility-filtered.
+  const resident = residentAll.filter(isAutoEligibleVisionModel);
   const mappedBase = baseName(mapped);
-  if (resident.some((r) => baseName(r) === mappedBase || r === mapped)) {
+  if (residentAll.some((r) => baseName(r) === mappedBase || r === mapped)) {
     return { model: mapped, why: 'mode-map+resident' };
   }
   // residentVisionModels() already capability-filters, so any entry here is

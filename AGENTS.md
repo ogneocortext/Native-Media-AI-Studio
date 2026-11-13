@@ -709,13 +709,13 @@ they are not part of this project and should never be invoked for repo tasks.
 
 | Task Category | Primary Model | Fallback | Route | VRAM Budget |
 |---------------|---------------|----------|-------|-------------|
-| **Vision (primary)** | `gemma4:e2b-it-qat` (4.3 GB) | `moondream:latest` (1.7 GB) | Local/Ollama | ~4.5 GB |
-| **Vision (lightweight)** | `moondream:latest` (1.7 GB) | `gemma4:e2b-it-qat` | Local/Ollama | ~2 GB |
+| **Vision (primary)** | `gemma4:e2b-it-qat` (4.3 GB) | `qwen3.5:4b` (3.4 GB) | Local/Ollama | ~4.5 GB |
+| **Vision (lightweight/opt-in)** | `moondream:latest` (1.7 GB) | — | Local/Ollama | ~2 GB |
 | **Embedding (primary)** | `nomic-embed-text:v1.5` (274 MB) | `embeddinggemma-2:270m` | Local/Ollama | ~0.5 GB |
 | **Chat/Reasoning (heavy)** | `llama3.1:8b` (4.9 GB) | `qwen3.5:4b` (3.4 GB) | Local/Ollama | ~5 GB |
 | **Chat/Reasoning (light)** | `qwen3.5:4b` (3.4 GB) | `llama3.2:3b` (2.0 GB) | Local/Ollama | ~3.5 GB |
 | **Embedding (fallback)** | `embeddinggemma-2:270m` (303 MB) | `nomic-embed-text:latest` | Local/Ollama | ~0.5 GB |
-| **Vision (lightweight/alt)** | `moondream:latest` (1.7 GB) | — | Local/Ollama | ~2 GB |
+| **Vision (lightweight/alt)** | `moondream:latest` (1.7 GB) — opt-in only, never auto-routed | — | Local/Ollama | ~2 GB |
 | **Chat (Atomic Chat)** | `unsloth/Qwen3_5-4B-GGUF` | — | Atomic Chat (port 1337) | CPU/GPU |
 
 **Route Selection Rules:**
