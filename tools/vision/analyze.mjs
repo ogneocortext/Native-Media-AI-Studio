@@ -821,7 +821,7 @@ async function main() {
       // NOTE: residentVisionModels() reads /api/tags = INSTALLED models, not
       // loaded ones — the actually-running check must go through /api/ps or
       // the abort is skipped even when every vision model is cold.
-      const resident = await residentVisionModels();
+      const resident = (await residentVisionModels()).filter(isAutoEligibleVisionModel);
       const running = await getRunningModels();
       const modelAlreadyResident = resident.some((r) =>
         running.some((w) => baseName(w) === baseName(r))
@@ -1018,7 +1018,7 @@ async function main() {
     let atomicFallbackModel = null;
     const resolveOllamaFallback = async () => {
       if (!atomicFallbackModel) {
-        atomicFallbackModel = (await residentVisionModels())[0] || DEFAULT_VISION_MODEL;
+        atomicFallbackModel = (await residentVisionModels()).filter(isAutoEligibleVisionModel)[0] || DEFAULT_VISION_MODEL;
       }
       return atomicFallbackModel;
     };
