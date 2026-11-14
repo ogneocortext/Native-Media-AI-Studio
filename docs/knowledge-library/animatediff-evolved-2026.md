@@ -310,5 +310,6 @@ git clone https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved.git
 **Platform:** Windows 11 local development machine, ComfyUI + ComfyUI-AnimateDiff-Evolved
 
 ## Related
+- [[defect-analysis-for-ai-generated-images-multi-pass-vision-qa-2026]] :see-also — Defect Analysis for AI-Generated Images: Multi-Pass Vision QA
 
 - [[comfyui-sd3-5-turbo-gguf-on-8gb-vae-triple-text-encoders-and-what-actually-broke-2026]] :see-also — ComfyUI SD3.5 Turbo GGUF on 8GB: VAE, triple text encoders, and what actually broke

@@ -165,7 +165,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `unsloth-triton-windows-fixes-2026.md`  → `#performance`, `#hardware-pascal`
 - ✅ `video-model-test-protocol-2026.md`  → `#performance`, `#hardware-8gb`, `#hardware-pascal`, `#testing`
 
-### 🤖 AI & ML (23/23 completed) ✅
+### 🤖 AI & ML (24/24 completed) ✅
+- ✅ `defect-analysis-for-ai-generated-images-multi-pass-vision-qa-2026.md`  → `#ai`
 - ✅ `owner-judgment-pack-for-small-models-2026.md`  → `#ai`
 - ✅ `musetalk-quality-and-stylized-lip-sync-options-2026.md`  → `#ai`
 

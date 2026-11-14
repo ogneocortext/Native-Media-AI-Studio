@@ -221,4 +221,6 @@ for AI agents.
 - Added `docs/knowledge-library/voice-synthesis-api-2026.md` → `#technical`
 
 - Added `docs/knowledge-library/prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026.md` → `#technical`
+## 2026-11-14 — Knowledge library additions
+- Added `docs/knowledge-library/defect-analysis-for-ai-generated-images-multi-pass-vision-qa-2026.md` → `#ai`
 
