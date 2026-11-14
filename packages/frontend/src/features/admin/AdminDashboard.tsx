@@ -29,6 +29,7 @@ import { Card } from "../../components/common";
 import { NavLink, useLocation, useSearchParams, useNavigate } from "react-router-dom";
 import { CommandPalette } from "./CommandPalette";
 import { useGlobalShortcuts } from "../../hooks/useKeyboardShortcuts";
+import { fetchPortConfig, type PortConfig } from "../../services/portConfig";
 
 interface DashboardTab {
   id: string;
@@ -389,22 +390,22 @@ function BackendTab() {
   );
 }
 
-function ServicesTab() {
+function ServicesTab({ portConfig }: { portConfig: PortConfig | null }) {
   const coreServices = [
-    { name: "FastAPI Backend", port: 8000, type: "REST + SSE", status: "running", health: "GET /api/health", badge: "service" },
-    { name: "Vite + React Frontend", port: 5173, type: "SPA + HMR", status: "running", health: "GET /", badge: "ui" },
+    { name: "FastAPI Backend", port: portConfig?.backend_port ?? 8000, type: "REST + SSE", status: "running", health: "GET /api/health", badge: "service" },
+    { name: "Vite + React Frontend", port: portConfig?.frontend_port ?? 5173, type: "SPA + HMR", status: "running", health: "GET /", badge: "ui" },
     { name: "Queue Worker", port: "—", type: "Background", status: "running", health: "Internal", badge: "worker" },
-    { name: "Ollama LLM Server", port: 11434, type: "Local Inference", status: "running", health: "GET /api/tags", badge: "ai" },
-    { name: "Atomic Chat (Qwen GGUF)", port: 1337, type: "Chat Fallback", status: "running", health: "GET /health", badge: "ai" },
-    { name: "ComfyUI", port: 8188, type: "Optional", status: "optional", health: "GET /system_stats", badge: "ext" },
+    { name: "Ollama LLM Server", port: portConfig?.ollama_port ?? 11434, type: "Local Inference", status: "running", health: "GET /api/tags", badge: "ai" },
+    { name: "Atomic Chat (Qwen GGUF)", port: portConfig?.atomic_chat_port ?? 1337, type: "Chat Fallback", status: "running", health: "GET /health", badge: "ai" },
+    { name: "ComfyUI", port: portConfig?.comfyui_port ?? 8188, type: "Optional", status: "optional", health: "GET /system_stats", badge: "ext" },
     { name: "Blender", port: "—", type: "MCP Bridge", status: "optional", health: "MCP stdio", badge: "ext" },
     { name: "Unity Visualizer", port: "—", type: "MCP Bridge", status: "optional", health: "MCP stdio", badge: "ext" },
   ];
 
   const goSidecars = [
-    { name: "Go Dashboard", port: 9000, purpose: "Metrics UI", endpoints: ["/metrics", "/health"] },
-    { name: "Go Media", port: 9001, purpose: "Media processing", endpoints: ["/api/media/*", "/health"] },
-    { name: "Go Worker", port: 9002, purpose: "Job execution", endpoints: ["/api/worker/*", "/health"] },
+    { name: "Go Dashboard", port: portConfig?.go_dashboard_port ?? 3847, purpose: "SSE + service health", endpoints: ["/metrics", "/health"] },
+    { name: "Go Media", port: portConfig?.go_media_port ?? 3848, purpose: "FFmpeg media processing", endpoints: ["/api/media/*", "/health"] },
+    { name: "Go Worker", port: portConfig?.go_worker_port ?? 3849, purpose: "Async job + sidecar I/O", endpoints: ["/api/worker/*", "/health"] },
   ];
 
   const apiRouters = [
@@ -420,7 +421,7 @@ function ServicesTab() {
   ];
 
   const mcpBridges = [
-    { name: "ComfyUI", type: "Port 8188 (REST)", detail: "Workflows: txt2img, wan2.1, LTX, AnimateDiff", badge: "ext" },
+    { name: "ComfyUI", type: `Port ${portConfig?.comfyui_port ?? 8188} (REST)`, detail: "Workflows: txt2img, wan2.1, LTX, AnimateDiff", badge: "ext" },
     { name: "Blender", type: "MCP stdio bridge", detail: "bpy scripts: mesh, material, rig, scene", badge: "ext" },
     { name: "Unity", type: "MCP stdio bridge", detail: "Scene creation, GameObject, animation", badge: "ext" },
     { name: "Remotion", type: "MCP stdio bridge", detail: "Composition, render, preview", badge: "ext" },
@@ -458,7 +459,7 @@ function ServicesTab() {
       </Card>
 
       <Card>
-        <h3 className="font-semibold mb-4 flex items-center gap-2"><Cpu size={20} /> Go Sidecars (Port 9000-9002)</h3>
+        <h3 className="font-semibold mb-4 flex items-center gap-2"><Cpu size={20} /> Go Sidecars (ports from config)</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -610,20 +611,20 @@ function AudioTab() {
   );
 }
 
-function ConfigTab() {
+function ConfigTab({ portConfig }: { portConfig: PortConfig | null }) {
   const ports = [
-    { service: "FastAPI Backend", port: 8000, key: "backend_port", protocol: "HTTP + SSE", notes: "Primary API, dynamic via manage-servers.ps1", badge: "port" },
-    { service: "Vite Frontend", port: 5173, key: "frontend_port", protocol: "HTTP + HMR", notes: "Dev server, proxies /api → 8000", badge: "port" },
-    { service: "WebSocket Events", port: 8000, key: "ws_port", protocol: "WS", notes: "Same as backend (SSE fallback)", badge: "port" },
-    { service: "Dashboard Events", port: 3847, key: "dashboard_port", protocol: "HTTP + SSE", notes: "events_url, sse_url", badge: "port" },
-    { service: "Atomic Chat", port: 1337, key: "atomic_chat_port", protocol: "HTTP", notes: "atomic_chat_url, GGUF fallback", badge: "port" },
-    { service: "Ollama", port: 11434, key: "ollama_port", protocol: "HTTP", notes: "Local inference, embeddings", badge: "port" },
-    { service: "ComfyUI", port: 8188, key: "comfyui_port", protocol: "HTTP", notes: "Optional, workflow execution", badge: "port" },
-    { service: "Go Dashboard", port: 9000, key: "go_dashboard_port", protocol: "HTTP", notes: "Metrics UI", badge: "port" },
-    { service: "Go Media", port: 9001, key: "go_media_port", protocol: "HTTP", notes: "Media processing", badge: "port" },
-    { service: "Go Worker", port: 9002, key: "go_worker_port", protocol: "HTTP", notes: "Job execution", badge: "port" },
-    { service: "Go Gateway", port: 9003, key: "go_gateway_port", protocol: "HTTP", notes: "API gateway", badge: "port" },
-    { service: "Go Ports", port: 9004, key: "go_ports_port", protocol: "HTTP", notes: "Port management", badge: "port" },
+    { service: "FastAPI Backend", port: portConfig?.backend_port ?? 8000, key: "backend_port", protocol: "HTTP + SSE", notes: "Primary API, dynamic via manage-servers.ps1", badge: "port" },
+    { service: "Vite Frontend", port: portConfig?.frontend_port ?? 5173, key: "frontend_port", protocol: "HTTP + HMR", notes: "Dev server, proxies /api to backend", badge: "port" },
+    { service: "WebSocket Events", port: portConfig?.ws_port ?? portConfig?.backend_port ?? 8000, key: "ws_port", protocol: "WS", notes: "Same as backend (SSE fallback)", badge: "port" },
+    { service: "Dashboard Events", port: portConfig?.dashboard_port ?? 3847, key: "dashboard_port", protocol: "HTTP + SSE", notes: "events_url, sse_url", badge: "port" },
+    { service: "Atomic Chat", port: portConfig?.atomic_chat_port ?? 1337, key: "atomic_chat_port", protocol: "HTTP", notes: "atomic_chat_url, GGUF fallback", badge: "port" },
+    { service: "Ollama", port: portConfig?.ollama_port ?? 11434, key: "ollama_port", protocol: "HTTP", notes: "Local inference, embeddings", badge: "port" },
+    { service: "ComfyUI", port: portConfig?.comfyui_port ?? 8188, key: "comfyui_port", protocol: "HTTP", notes: "Optional, workflow execution", badge: "port" },
+    { service: "Go Dashboard", port: portConfig?.go_dashboard_port ?? 3847, key: "go_dashboard_port", protocol: "HTTP", notes: "Metrics UI", badge: "port" },
+    { service: "Go Media", port: portConfig?.go_media_port ?? 3848, key: "go_media_port", protocol: "HTTP", notes: "Media processing", badge: "port" },
+    { service: "Go Worker", port: portConfig?.go_worker_port ?? 3849, key: "go_worker_port", protocol: "HTTP", notes: "Job execution", badge: "port" },
+    { service: "Go Gateway", port: portConfig?.go_gateway_port ?? 3850, key: "go_gateway_port", protocol: "HTTP", notes: "API gateway", badge: "port" },
+    { service: "Go Ports", port: portConfig?.go_ports_port ?? 3851, key: "go_ports_port", protocol: "HTTP", notes: "Port management", badge: "port" },
   ];
 
   const models = [
@@ -631,7 +632,7 @@ function ConfigTab() {
     { model: "embeddinggemma-2:270m", role: "Fallback Embedding", size: "~290 MB", dim: "768 (MRL)", status: "active", useCase: "Auto-fallback if nomic fails, truncatable", badge: "embed" },
     { model: "BAAI/bge-reranker-v2-m3", role: "Cross-Encoder Rerank", size: "568 MB", dim: "—", status: "lazy", useCase: "HF Transformers, cached at huggingface_cache/", badge: "rerank" },
     { model: "gemma4:e2b-it-qat", role: "Vision + Chat", size: "~4 GB", dim: "—", status: "active", useCase: "Vision analysis, tool calling, chat fallback", badge: "chat" },
-    { model: "qwen3.5:4b", role: "Atomic Chat (Qwen)", size: "~2.5 GB", dim: "—", status: "active", useCase: "Atomic Chat on port 1337, GGUF Q4_K_M", badge: "chat" },
+    { model: "qwen3.5:4b", role: "Atomic Chat (Qwen)", size: "~2.5 GB", dim: "—", status: "active", useCase: `Atomic Chat on port ${portConfig?.atomic_chat_port ?? 1337}, GGUF Q4_K_M`, badge: "chat" },
   ];
 
   const pythonEnvs = [
@@ -1198,7 +1199,18 @@ export function AdminDashboard() {
   const [filter, setFilter] = useState("");
   const [searchParams, setSearchParams] = useSearchParams();
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+  const [portConfig, setPortConfig] = useState<PortConfig | null>(null);
   const navigate = useNavigate();
+
+  // Load the resolved ports from config/ports.json (via the backend) so the
+  // Services and Config tabs never show stale hardcoded values.
+  useEffect(() => {
+    let cancelled = false;
+    fetchPortConfig()
+      .then((cfg) => { if (!cancelled) setPortConfig(cfg); })
+      .catch(() => { /* keep null; tabs fall back to static defaults */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // Keyboard shortcuts
   useGlobalShortcuts((path) => {
@@ -1317,9 +1329,9 @@ export function AdminDashboard() {
             {activeTab === "tests" && <TestsTab />}
             {activeTab === "test-analytics" && <TestAnalyticsTab />}
             {activeTab === "backend" && <BackendTab />}
-            {activeTab === "services" && <ServicesTab />}
+            {activeTab === "services" && <ServicesTab portConfig={portConfig} />}
             {activeTab === "audio" && <AudioTab />}
-            {activeTab === "config" && <ConfigTab />}
+            {activeTab === "config" && <ConfigTab portConfig={portConfig} />}
           </>
         )}
       </div>

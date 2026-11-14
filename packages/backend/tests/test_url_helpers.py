@@ -17,7 +17,13 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from app.core.config import config  # noqa: E402
 from app.core.port_manager import PortManager  # noqa: E402
-from app.core.urls import backend_events_url, backend_url, backend_ws_url  # noqa: E402
+from app.core.urls import (  # noqa: E402
+    backend_events_url,
+    backend_url,
+    backend_ws_url,
+    go_dashboard_url,
+    port_from_url,
+)
 from app.services.generation_estimator import estimate_generation_time  # noqa: E402
 
 
@@ -47,6 +53,21 @@ def test_resolved_config_uses_resolved_backend_port():
     assert resolved["backend_url"] == "http://127.0.0.1:8001"
     assert resolved["ws_url"] == "ws://127.0.0.1:8001/ws"
     assert resolved["backend_events_url"] == "http://127.0.0.1:8001/api/events"
+
+
+def test_port_from_url_extracts_port_and_falls_back():
+    assert port_from_url("http://127.0.0.1:3847", 3847) == 3847
+    assert port_from_url("http://127.0.0.1:9999/path", 3847) == 9999
+    assert port_from_url("not a url", 3847) == 3847
+
+
+def test_resolved_config_dashboard_port_matches_go_dashboard_url():
+    """dashboard_port must come from config/ports.json, not a hardcoded 3847."""
+    manager = PortManager()
+    resolved = manager._build_resolved_config(8001)
+
+    assert resolved["dashboard_port"] == port_from_url(go_dashboard_url(), 3847)
+    assert resolved["dashboard_url"] == go_dashboard_url()
 
 
 def test_estimate_generation_time_reports_frames_and_model_factor():

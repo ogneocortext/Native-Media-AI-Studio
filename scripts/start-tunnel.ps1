@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
     Expose the running local services through a public tunnel so an AI agent
-    in a sandbox VM can reach them.  Primary backend is http://127.0.0.1:8000
-    and frontend is http://127.0.0.1:5173.
+    in a sandbox VM can reach them. Ports are read from config/ports.json
+    (defaults: backend 8000, frontend 5173).
 
 .DESCRIPTION
     Creates public HTTPS endpoints that forward to localhost:
@@ -16,7 +16,7 @@
 
     The script:
       1. Detects which tunnel binary is available.
-      2. Starts tunnels for backend (8000) and frontend (5173).
+      2. Starts tunnels for the configured backend and frontend ports.
       3. Captures the public URLs from tunnel output.
       4. Records the URLs in the state file for downstream automation
          (agents, tests, Playwright) and exports PUBLIC_ORIGIN for this
@@ -43,6 +43,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'shared-utils.ps1')
+$Ports = Get-PortsConfig -ProjectRoot $ProjectRoot
+$BackendPort = $Ports.backend_port
+$FrontendPort = $Ports.frontend_port
 $UtilityDir  = Join-Path $ProjectRoot 'scripts\utility'
 $TunnelStateFile = Join-Path $UtilityDir 'tunnel-urls.json'
 $LogFile = Join-Path $UtilityDir 'tunnel.log'
@@ -170,24 +174,24 @@ $backendOk = $false
 $frontendOk = $false
 
 try {
-    $r = Invoke-WebRequest -Uri 'http://127.0.0.1:8000/api/health' -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue
+    $r = Invoke-WebRequest -Uri "http://127.0.0.1:$BackendPort/api/health" -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue
     if ($r.StatusCode -eq 200) { $backendOk = $true }
 } catch {
     Write-Verbose "backend health probe failed: $($_.Exception.Message)"
 }
 
 try {
-    $r = Invoke-WebRequest -Uri 'http://127.0.0.1:5173' -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue
+    $r = Invoke-WebRequest -Uri "http://127.0.0.1:$FrontendPort" -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue
     if ($r.StatusCode -eq 200) { $frontendOk = $true }
 } catch {
     Write-Verbose "frontend health probe failed: $($_.Exception.Message)"
 }
 
 if (-not $backendOk) {
-    Write-Warning "Backend not responding at http://127.0.0.1:8000. Start it before tunnelling."
+    Write-Warning "Backend not responding at http://127.0.0.1:$BackendPort. Start it before tunnelling."
 }
 if (-not $frontendOk) {
-    Write-Warning "Frontend not responding at http://127.0.0.1:5173. Start it before tunnelling."
+    Write-Warning "Frontend not responding at http://127.0.0.1:$FrontendPort. Start it before tunnelling."
 }
 
 Write-Host "`nStarting $Provider tunnels..." -ForegroundColor Cyan
@@ -196,7 +200,7 @@ Write-Host "`nStarting $Provider tunnels..." -ForegroundColor Cyan
 # Start tunnels
 # ---------------------------------------------------------------------------
 # -Target frontend (default) publishes ONLY the Vite dev server. It proxies
-# /api, /output and /ws to 127.0.0.1:8000, so a single public endpoint reaches
+# /api, /output and /ws to the configured backend, so a single public endpoint reaches
 # both the UI and the API. This is what fits a free ngrok account, which serves
 # one endpoint at a time (ERR_NGROK_334 on the second).
 #
@@ -204,12 +208,12 @@ Write-Host "`nStarting $Provider tunnels..." -ForegroundColor Cyan
 # agent calls the API from a non-browser client and you would rather not depend
 # on the Vite proxy, but it consumes the account's single endpoint.
 $startFrontend = {
-    if ($Provider -eq 'ngrok') { Start-NgrokTunnel -Port 5173 -Label 'frontend' }
-    else { Start-LocaltunnelTunnel -Port 5173 -Label 'frontend' }
+    if ($Provider -eq 'ngrok') { Start-NgrokTunnel -Port $FrontendPort -Label 'frontend' }
+    else { Start-LocaltunnelTunnel -Port $FrontendPort -Label 'frontend' }
 }
 $startBackend = {
-    if ($Provider -eq 'ngrok') { Start-NgrokTunnel -Port 8000 -Label 'backend' }
-    else { Start-LocaltunnelTunnel -Port 8000 -Label 'backend' }
+    if ($Provider -eq 'ngrok') { Start-NgrokTunnel -Port $BackendPort -Label 'backend' }
+    else { Start-LocaltunnelTunnel -Port $BackendPort -Label 'backend' }
 }
 
 $backendTunnel = $null
@@ -229,7 +233,7 @@ if ($Target -eq 'frontend') {
         Write-Log "frontend tunnel failed: $frontendError"
         Write-Log "Falling back to localtunnel for the frontend."
         try {
-            $frontendTunnel = Start-LocaltunnelTunnel -Port 5173 -Label 'frontend'
+            $frontendTunnel = Start-LocaltunnelTunnel -Port $FrontendPort -Label 'frontend'
         } catch {
             Write-Warning "Frontend tunnel unavailable; the backend tunnel is still live."
         }

@@ -24,6 +24,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from ..core.config import PROJECT_ROOT
+from ..core.urls import backend_url
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ if _SKILLS_DIR is None:
 
 logger.info("MCP Skills directory: %s (exists: %s)", _SKILLS_DIR, _SKILLS_DIR.exists())
 
-BACKEND_BASE = "http://127.0.0.1:8000"
+BACKEND_BASE = backend_url()
 
 
 class SkillInfo(BaseModel):
@@ -863,7 +864,7 @@ async def execute_tool(request: ExecuteToolRequest) -> ExecuteToolResponse:
         return await handler(args)
     except httpx.ConnectError:
         return ExecuteToolResponse(
-            success=False, error="Backend not reachable at http://127.0.0.1:8000"
+            success=False, error=f"Backend not reachable at {BACKEND_BASE}"
         )
     except Exception as exc:  # noqa: BLE001
         return ExecuteToolResponse(success=False, error=str(exc))

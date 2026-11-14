@@ -17,6 +17,8 @@
 import { fetchWithTimeout } from "./fetchWithTimeout";
 import type { PortConfig } from "@shared/types";
 
+export type { PortConfig };
+
 // Port defaults below match config/ports.json (single source of truth).
 // Do not edit these literals without updating config/ports.json.
 
@@ -34,6 +36,15 @@ function isTunnelMode(): boolean {
     getEnvVar("VITE_PUBLIC_FRONTEND_URL", "") ||
     getEnvVar("VITE_PUBLIC_ORIGIN", "")
   );
+}
+
+/** Extract the port from a service URL, falling back to a default. */
+function portFromUrl(url: unknown, fallback: number): number {
+  if (typeof url === "string") {
+    const match = /:(\d+)(?:\/|$)/.exec(url);
+    if (match) return parseInt(match[1], 10);
+  }
+  return fallback;
 }
 
 /**
@@ -81,8 +92,22 @@ function normalizePortConfig(raw: Record<string, unknown>): PortConfig {
     video_editor_port: (raw.video_editor_port as number) || undefined,
     comfyui_port: (raw.comfyui_port as number) || undefined,
     comfyui_url: (raw.comfyui_url as string) || undefined,
+    ollama_port: (raw.ollama_port as number) || portFromUrl(raw.ollama_url, 11434),
+    ollama_url: (raw.ollama_url as string) || undefined,
+    atomic_chat_port: (raw.atomic_chat_port as number) || portFromUrl(raw.atomic_chat_url, 1337),
+    atomic_chat_url: (raw.atomic_chat_url as string) || undefined,
     dashboard_port: dashboardPort,
     dashboard_url: dashboardUrl,
+    go_dashboard_port: (raw.go_dashboard_port as number) || portFromUrl(raw.go_dashboard_url, 3847),
+    go_media_port: (raw.go_media_port as number) || portFromUrl(raw.go_media_url, 3848),
+    go_worker_port: (raw.go_worker_port as number) || portFromUrl(raw.go_worker_url, 3849),
+    go_gateway_port: (raw.go_gateway_port as number) || portFromUrl(raw.go_gateway_url, 3850),
+    go_ports_port: (raw.go_ports_port as number) || portFromUrl(raw.go_ports_url, 3851),
+    go_dashboard_url: (raw.go_dashboard_url as string) || undefined,
+    go_media_url: (raw.go_media_url as string) || undefined,
+    go_worker_url: (raw.go_worker_url as string) || undefined,
+    go_gateway_url: (raw.go_gateway_url as string) || undefined,
+    go_ports_url: (raw.go_ports_url as string) || undefined,
   };
 }
 

@@ -25,6 +25,7 @@ from .urls import (
     go_media_url,
     go_ports_url,
     go_worker_url,
+    port_from_url,
 )
 
 if TYPE_CHECKING:
@@ -365,7 +366,7 @@ class PortManager:
             "events_url": go_dashboard_url("/events"),
             "sse_url": go_dashboard_url("/events"),
             "backend_events_url": backend_events_url(port=backend_port),
-            "dashboard_port": 3847,
+            "dashboard_port": port_from_url(go_dashboard_url(), 3847),
             "dashboard_url": go_dashboard_url(),
             "go_dashboard_url": go_dashboard_url(),
             "go_media_url": go_media_url(),

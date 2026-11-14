@@ -27,6 +27,7 @@ from app.agents.resilience import (
     make_idempotency_key,
     retry_with_backoff,
 )
+from app.core.urls import backend_url
 
 
 class NMAApiClient:
@@ -38,8 +39,8 @@ class NMAApiClient:
     Uses httpx.AsyncClient for connection pooling and async I/O.
     """
 
-    def __init__(self, base_url: str = "http://127.0.0.1:8000", timeout: float = 30.0) -> None:
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, base_url: str | None = None, timeout: float = 30.0) -> None:
+        self.base_url = (base_url or backend_url()).rstrip("/")
         self.timeout = timeout
         self._client: httpx.AsyncClient | None = None
 

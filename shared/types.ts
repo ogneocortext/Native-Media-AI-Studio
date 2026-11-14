@@ -248,12 +248,27 @@ export interface PortConfig {
   video_editor_port?: number;
   comfyui_port?: number;
   comfyui_url?: string;
+  ollama_port?: number;
+  ollama_url?: string;
+  atomic_chat_port?: number;
+  atomic_chat_url?: string;
   events_url: string;
   sse_url: string;
   ws_port: number;
   ws_url: string;
   dashboard_port: number;
   dashboard_url: string;
+  // Go sidecars (ports.json stores these as *_url; the port is derived).
+  go_dashboard_port?: number;
+  go_media_port?: number;
+  go_worker_port?: number;
+  go_gateway_port?: number;
+  go_ports_port?: number;
+  go_dashboard_url?: string;
+  go_media_url?: string;
+  go_worker_url?: string;
+  go_gateway_url?: string;
+  go_ports_url?: string;
 }
 
 // ============================================================================

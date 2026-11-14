@@ -12,6 +12,9 @@
 [CmdletBinding()]
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'shared-utils.ps1')
+$Ports = Get-PortsConfig -ProjectRoot $ProjectRoot
+$TunnelPortPattern = "$($Ports.backend_port)|$($Ports.frontend_port)"
 $TunnelStateFile = Join-Path $ProjectRoot 'scripts\utility\tunnel-urls.json'
 $LogFile = Join-Path $ProjectRoot 'scripts\utility\tunnel.log'
 
@@ -66,7 +69,7 @@ foreach ($proc in (Get-CimInstance Win32_Process -ErrorAction SilentlyContinue))
     # Scope the sweep to THIS project's ports: an unscoped ngrok.exe kill
     # would take down tunnels belonging to other projects on the same machine.
     if ($cl -match 'localtunnel' -or $proc.Name -eq 'ngrok.exe') {
-        if ($cl -match '--port (8000|5173)' -or ($proc.Name -eq 'ngrok.exe' -and $cl -match ':(8000|5173)(\s|$)')) {
+        if ($cl -match "--port ($TunnelPortPattern)" -or ($proc.Name -eq 'ngrok.exe' -and $cl -match ":($TunnelPortPattern)(\s|$)")) {
             # -ErrorAction SilentlyContinue already swallows a process
             # that raced us to exit; no try/catch needed around the kill.
             Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue

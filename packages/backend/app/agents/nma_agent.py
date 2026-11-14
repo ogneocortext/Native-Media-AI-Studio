@@ -61,7 +61,7 @@ class NMAAgent:
     All state is persisted to output/agent-state/ for agent handoffs.
     """
 
-    def __init__(self, session_id: str | None = None, api_base: str = "http://127.0.0.1:8000"):
+    def __init__(self, session_id: str | None = None, api_base: str | None = None):
         self.session_id = session_id or (f"nma-agent-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}")
         self.trace_id = uuid.uuid4().hex[:16]
         self.state = AgentState(self.session_id).load()

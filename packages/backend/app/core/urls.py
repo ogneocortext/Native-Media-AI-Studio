@@ -8,7 +8,24 @@ Centralizes all service URL construction so callers never hardcode
 
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 from .config import config
+
+
+def port_from_url(url: str, default: int) -> int:
+    """Extract the numeric port from *url*, falling back to *default*.
+
+    Several ports are only expressed as URLs in config/ports.json
+    (``go_*_url``, ``ollama_url``, ``atomic_chat_url``); callers that need
+    the number derive it here instead of hardcoding it, so a port change in
+    ports.json propagates everywhere.
+    """
+    try:
+        port = urlparse(url).port
+    except ValueError:
+        port = None
+    return port if port is not None else default
 
 
 def backend_url(path: str = "", port: int | None = None) -> str:

@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from ..adapters.registry import adapter_registry
 from ..core.config import PROJECT_ROOT, config
-from ..core.urls import backend_events_url, backend_ws_url, go_dashboard_url
+from ..core.urls import backend_events_url, backend_ws_url, go_dashboard_url, port_from_url
 
 logger = logging.getLogger(__name__)
 
@@ -627,6 +627,6 @@ async def get_ports_config() -> dict:
         "ws_url": backend_ws_url(),
         "events_url": backend_events_url(),
         "sse_url": backend_events_url(),
-        "dashboard_port": 3847,
+        "dashboard_port": port_from_url(go_dashboard_url(), 3847),
         "dashboard_url": go_dashboard_url(),
     }
