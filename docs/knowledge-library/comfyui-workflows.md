@@ -78,6 +78,33 @@ type: entity
 > 3. Restart ComfyUI or refresh model list
 > 4. Verify in ComfyUI web UI
 
+### Test Coverage Matrix (2026-12 audit)
+
+Per-model QA status on the GTX 1070 Ti rig. "Documented" means generation
+results + gemma4 vision QA recorded in the knowledge library — not just an
+inventory row.
+
+| Model | Image/Video/3D | Tested on rig | QA doc |
+|-------|---------------|---------------|--------|
+| `animagine-xl-4.0` | Image (SDXL anime, uncensored) | ✅ SFW→explicit, cel + soft-shaded stacks, 8-pose matrix | [[animagine-xl-4-0-tag-reference-order-rating-score-and-temporal-tags-2026]], [[danbooru-the-tag-vocabulary-behind-anime-diffusion-models-2026]] |
+| `sd3.5_large_turbo` GGUF | Image | ✅ Smoke + img2img/inpaint | [[comfyui-sd3-5-turbo-gguf-on-8gb-vae-triple-text-encoders-and-what-actually-broke-2026]], [[prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026]] |
+| `flux1-dev` / `flux1-schnell` GGUF | Image | ✅ Smoke + laugh-cycle inpaint | [[prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026]] |
+| Wan 2.1 1.3B / Wan 2.2 TI2V-5B GGUF | Video | ⚠️ Workflow verified, no per-model QA pass | [[video-model-test-protocol-2026]], [[video-generation-vram-2026]] |
+| LTXV-2B distilled fp8 | Video | ⚠️ Installed, untested | — |
+| Kandinsky 5 Lite I2V | Video | ⚠️ Installed, untested | — |
+| AnimateDiff-Evolved (mm_sd15_v3 etc.) | Video | ✅ Motion LoRAs tested | [[animatediff-evolved-2026]] |
+| Hunyuan3D-2mini / 3.0 | 3D | ✅ Mesh gen verified | [[hunyuan3d-setup]] |
+| triposr.ckpt | 3D reconstruction | ✅ | [[text-to-3d-options-2026]] |
+| `sd_xl_base_1.0` | Image (SDXL) | ❌ Never generated | — redundant vs Animagine XL |
+| `v1-5-pruned-emaonly` | Image (SD1.5) | ❌ No txt2img QA — kept only as AnimateDiff v3 base | [[stable-diffusion-local-models-2026]] |
+| `4x-UltraSharp` / `4x-ClearRealityV1` | Upscale | ⚠️ Installed, awaiting first QA pass | — |
+
+**Deletion guidance:** `sd_xl_base_1.0.safetensors` (6.46 GB) is safe to
+remove — Animagine XL covers the SDXL slot. Do NOT remove
+`v1-5-pruned-emaonly.safetensors` — AnimateDiff v3 motion modules are
+SD1.5-based and need it as the base checkpoint (also hardlinked to the
+legacy `stable-diffusion/` copy).
+
 ---
 
 ## Workflow Types
