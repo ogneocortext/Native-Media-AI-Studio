@@ -310,6 +310,7 @@ git clone https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved.git
 **Platform:** Windows 11 local development machine, ComfyUI + ComfyUI-AnimateDiff-Evolved
 
 ## Related
+- [[danbooru-the-tag-vocabulary-behind-anime-diffusion-models-2026]] :see-also — Danbooru: The Tag Vocabulary Behind Anime Diffusion Models
 - [[animagine-xl-4-0-tag-reference-order-rating-score-and-temporal-tags-2026]] :see-also — Animagine XL 4.0 Tag Reference: Order, Rating, Score and Temporal Tags
 - [[defect-analysis-for-ai-generated-images-multi-pass-vision-qa-2026]] :see-also — Defect Analysis for AI-Generated Images: Multi-Pass Vision QA
 

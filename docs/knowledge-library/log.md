@@ -226,3 +226,5 @@ for AI agents.
 
 - Added `docs/knowledge-library/animagine-xl-4-0-tag-reference-order-rating-score-and-temporal-tags-2026.md` → `#ai`
 
+- Added `docs/knowledge-library/danbooru-the-tag-vocabulary-behind-anime-diffusion-models-2026.md` → `#ai`
+

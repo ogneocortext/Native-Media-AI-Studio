@@ -171,6 +171,7 @@ composition):
   setting→light→composition frame; negatives dead at CFG 1.
 
 ## Related
+- [[danbooru-the-tag-vocabulary-behind-anime-diffusion-models-2026]] :see-also — Danbooru: The Tag Vocabulary Behind Anime Diffusion Models
 - [[animagine-xl-4-0-tag-reference-order-rating-score-and-temporal-tags-2026]] :see-also — Animagine XL 4.0 Tag Reference: Order, Rating, Score and Temporal Tags
 
 - [[ollama-prompting-2026|ollama-prompting-2026]] :see-also

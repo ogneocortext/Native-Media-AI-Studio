@@ -200,6 +200,7 @@ image into prompt vocabulary.
   rating ladder, explicit2 nude escalation)
 
 ## Related
+- [[danbooru-the-tag-vocabulary-behind-anime-diffusion-models-2026]] :see-also — Danbooru: The Tag Vocabulary Behind Anime Diffusion Models
 
 - [[prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026|prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026]] :see-also
 - [[animatediff-evolved-2026|animatediff-evolved-2026]] :see-also
