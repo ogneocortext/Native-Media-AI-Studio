@@ -532,7 +532,7 @@ function AudioTab() {
     { num: 3, badge: "remix", title: "Remix / Mashup", detail: "Layer stems from DIFFERENT tracks with per-layer: gain (dB), key shift (semitones), source start bar, lowpass, brightness. Time-stretches to target BPM (drums-probed). Output: output/remixes/{name}/" },
     { num: 4, badge: "enhance", title: "Enhance (Suno Chain)", detail: "Highpass → EQ → Vocal balance → Limiter. POST /api/audio/remix/{name}/enhance (NOT /api/audio/enhance-stems). Target peak -1 dBFS, ceiling -1 dBFS." },
     { num: 5, badge: "visual", title: "Visualize", detail: "Unity MCP / Three.js Studio / LRC Visualizer. Section-aware storyboard from beats. AutoCapture: 360 frames @ 24fps = 15s." },
-    { num: 6, badge: "output", title: "Output (Remotion)", detail: "Frame sequence + mastered audio → MP4. output/videos/{id}.mp4. GPU encoding optional (NVENC)." },
+    { num: 6, badge: "output", title: "Output (Remotion)", detail: "Frame sequence + mastered audio → MP4. output/video/{id}.mp4. GPU encoding optional (NVENC)." },
   ];
 
   const modules = [
