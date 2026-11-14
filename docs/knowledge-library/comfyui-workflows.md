@@ -95,9 +95,9 @@ inventory row.
 | AnimateDiff-Evolved (mm_sd15_v3 etc.) | Video | ✅ Motion LoRAs tested | [[animatediff-evolved-2026]] |
 | Hunyuan3D-2mini / 3.0 | 3D | ✅ Mesh gen verified | [[hunyuan3d-setup]] |
 | triposr.ckpt | 3D reconstruction | ✅ | [[text-to-3d-options-2026]] |
-| `sd_xl_base_1.0` | Image (SDXL) | ❌ Never generated | — redundant vs Animagine XL |
-| `v1-5-pruned-emaonly` | Image (SD1.5) | ❌ No txt2img QA — kept only as AnimateDiff v3 base | [[stable-diffusion-local-models-2026]] |
-| `4x-UltraSharp` / `4x-ClearRealityV1` | Upscale | ⚠️ Installed, awaiting first QA pass | — |
+| `sd_xl_base_1.0` | Image (SDXL) | ✅ Smoke tested — natural-language prompts work; anime-style output but prompt drift (added unrequested vest). Redundant vs Animagine XL. | this section |
+| `v1-5-pruned-emaonly` | Image (SD1.5) | ✅ Smoke tested (512×768, euler) — heavy prompt drift: ignored `anime style`, produced photoreal cardigan/bookshelf scene. Usable only as AnimateDiff v3 base. | this section |
+| `4x-UltraSharp` / `4x-ClearRealityV1` | Upscale | ✅ Both tested 4× on Animagine output (832×1216→3328×4864). UltraSharp: clean, slight waxy skin — best for anime. ClearReality: stronger detail hallucination but waxy skin + repeated-texture artifacts in hair/bedding — better for photo-style sources. | this section |
 
 **Deletion guidance:** `sd_xl_base_1.0.safetensors` (6.46 GB) is safe to
 remove — Animagine XL covers the SDXL slot. Do NOT remove
