@@ -149,6 +149,76 @@ Practical tag sources: Danbooru tag lists / search, WD14-style auto-taggers
 (e.g. via ComfyUI Impact Pack or online taggers) to caption a reference
 image into prompt vocabulary.
 
+## Pose vocabulary (Danbooru pose tags)
+
+Pose is expressed through general tags, often combined with a prop for
+reliability. Verified on this rig 2026-11-13/14 (explicit cel-shaded set,
+832×1216, 32 steps, cfg 6.0):
+
+**Landed reliably:** `standing` (+ `hands on hips`, `from behind`,
+`looking back`), `sitting` (+ `legs apart`, `legs crossed`, `on bed edge`),
+`lying on back` (+ `arms up`, `arms behind head`), `lying on side`
+(`fetal position`).
+
+**Context-dependent:** `kneeling`/`on knees` — alone it failed once
+(produced lying); pairs better with `hands on thighs` + furniture.
+`squatting`, `leaning against wall`, `bent over` (+ `ass`, `looking back`)
+— need prop/context tags to anchor.
+
+**Prone to substitution:** `all fours` — even with `on all fours, looking
+back`, the model substituted a simpler lying pose. Danbooru alternatives:
+`doggystyle`, `top-down bottom-up` (more explicit-semined, higher hit rate
+per community reports but they imply sexual context).
+
+**Pose matrix results (2026-11-14, 8-pose explicit cel batch, seeds
+2000–2007, nude enforced via `completely nude` + clothing negatives):**
+
+| Pose tags | Result |
+|---|---|
+| `kneeling, on knees, hands on thighs` | LANDED — nude kneel variant |
+| `squatting, knees apart, hands on knees` | LANDED |
+| `lying on side, fetal position` | LANDED |
+| `leaning against wall, arms above head` | PARTIAL — standing arms-up, wall not interacted with |
+| `bent over, ass, looking back` | LANDED — read as arched against vertical surface |
+| `standing, from behind, looking back, ass` | LANDED — clean rear view |
+| `sitting, legs crossed, hands on lap` | DOUBLE MISS — legs spread not crossed AND a bodysuit appeared despite clothing negatives (outfit drift) |
+| `all fours, on all fours, looking back` | MISS — substituted standing rear three-quarter view |
+
+Score: 5/8 clean lands, 1 partial, 2 misses. Failure mode is pose
+*substitution* (model picks a simpler known pose), not anatomy collapse.
+`all fours` failed twice with different tag phrasings — treat as
+unsupported without `doggystyle`/`top-down bottom-up` context or img2img.
+
+**Rule learned:** context-anchored poses beat free poses — give the pose a
+prop (`on bed`, `against wall`, `on chair`) rather than more synonyms.
+When a pose misses, change the *context tags*, not the pose wording.
+Even strong negatives can leak clothing on unusual poses (`legs crossed`
+produced a bodysuit) — verify nudity per-output, don't assume.
+
+**NSFW pose tags that exist:** `spread legs`, `m legs`, `legs up`,
+`legs behind head`, `straddling`, `cowgirl position`, `missionary`,
+`doggystyle`, `presenting`, `bent over`, `against wall`.
+
+**Camera-as-pose tags** (often more reliable than body poses):
+`from below`, `from above`, `from side`, `from behind`, `dutch angle`,
+`cowboy shot`, `full body`, `upper body`, `portrait`, `close-up`,
+`looking at viewer`, `looking away`, `looking back`, `looking up`.
+
+## Proven style stacks (verified on this rig)
+
+**Cel shading** (2026-11-13, SFW + explicit):
+`cel shading, flat colors, clean lineart, crisp lineart, sharp lineart,
+hard shadow edges, no gradient, minimal shading` — negatives add
+`soft shading, gradient, painterly, realistic, photo`. gemma4 confirmed
+"flat cel-shading, solid color blocks, hard shadow edges, crisp dark
+lineart" across 5 generations and multiple poses. Steps 32 / cfg 6.0.
+
+**Rating enforcement:** `explicit` + `completely nude, no clothes, no
+shirt, no bra, nipples, pussy` positive AND `clothes, shirt, bra, panties,
+sheets, blanket` negative — the negative clothing/fabric terms are what
+made nudity consistent (bare `explicit` left shirts on; `explicit` alone
+left sheets on bed poses).
+
 ## Known weaknesses (official + observed)
 
 - **Hands/anatomy** — improved in Opt but still the #1 defect class;
