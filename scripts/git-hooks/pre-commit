@@ -99,7 +99,6 @@ staged=$(git diff --cached --name-only)
 need_lib=0
 need_map=0
 need_layout=0
-need_encoding=0
 for f in $staged; do
     case "$f" in
         docs/knowledge-library/*) need_lib=1 ;;

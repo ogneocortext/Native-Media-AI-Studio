@@ -16,8 +16,8 @@ bash scripts/install-git-hooks.sh   # REQUIRED — installs pre-commit,
 
 There is no CI: these hooks are the only automated guard. The pre-push
 hook finds `python3` automatically and runs the fast gates
-(docs hygiene, ruff, frontend type-check/lint, fast vitest) plus the
-commit-attribution check on every push.
+(docs hygiene, ruff, frontend type-check/lint, fast vitest, and the
+tools' own unit tests) plus the commit-attribution check on every push.
 
 ## 2. Backend
 

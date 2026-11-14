@@ -102,9 +102,10 @@ body.
 git push
 ```
 
-The pre-push hook runs `docs ruff type lint unit` (~11s) and deliberately skips
-pytest (~40s) and Playwright (~30s). Run `python tools/run-gates.py --e2e`
-yourself before pushing if the change touches the browser.
+The pre-push hook runs `docs ruff type lint unit tools-pytest` (~15s) and
+deliberately skips pytest (~40s) and Playwright (~30s). Run
+`python tools/run-gates.py --e2e` yourself before pushing if the change touches
+the browser.
 
 ## Rules
 

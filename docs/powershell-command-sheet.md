@@ -25,14 +25,18 @@ Read this before running your first command. Keep it open while working.
 > text and bit-shifts pass), non-pwsh shells (`bash`, `sh`, `cmd`, `wsl`),
 > `powershell.exe`, unix-only utilities in command position (`find`,
 > `grep`, `xargs`, `env`, `export`, `chmod`, `wget`, … — use pwsh
-> cmdlets), multi-line `git commit -m` / `python -c` / `node -e` payloads,
-> expandable here-strings (`@"..."@` … `"@`), and destructive git ops
-> (`push --force`, `reset --hard`, `clean -fd`, `checkout --`,
-> `restore .`, `restore --staged .` — override via
-> `.devin/.allow-destructive`). Each block reason carries the correct
+> cmdlets), multi-line `git commit -m` / `git commit --message` /
+> `python -c` / `node -e` payloads, expandable here-strings (`@"..."@` …
+> `"@`), and destructive git ops (`push --force`, `reset --hard`,
+> `clean -fd`, `checkout --`, `restore .`, `restore --staged .` — override
+> via `.devin/.allow-destructive`). Each block reason carries the correct
 > pattern. Do not test whether the hook is active — it is. Write
 > file-based commands from the start. Regression tests:
-> `tools/hooks/test-check-exec-command.py`.
+> `tools/hooks/test-check-exec-command.py` (standalone) and
+> `tools/tests/unit/test_exec_guard.py` (run by the `tools-pytest` gate, so
+> the guard cannot silently regress). `python tools/check-hooks-installed.py`
+> reports whether the guard is registered in `.claude/settings.json` and
+> `.devin/hooks.v1.json`.
 
 **The decision rule: if a command contains a newline, a backtick, `$`, or both
 single AND double quotes — do NOT inline it. Write it to a file with the `write`

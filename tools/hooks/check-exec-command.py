@@ -26,8 +26,9 @@ Blocked patterns (all verified recurring failures on this machine):
     use pwsh cmdlets or the dedicated file/search tools.
   - powershell.exe / bare `powershell` — Windows PowerShell 5.1, retired.
     The project shell is pwsh 7+.
-  - Multi-line `git commit -m` — an -m quote left open across a newline is
-    the classic mangled-commit-message failure; use `git commit -F <file>`.
+  - Multi-line `git commit -m` / `git commit --message` — an -m quote left
+    open across a newline is the classic mangled-commit-message failure; use
+    `git commit -F <file>`.
   - Multi-line `python -c` / `node -e` — inline scripts with newlines get
     parsed as multiple pwsh statements; write a scratch file instead.
   - Expandable here-strings (@"..."@ ... "@) — backtick expansion corrupts
@@ -71,10 +72,13 @@ UNIX_UTIL_RE = re.compile(
 PS51_RE = re.compile(r"\bpowershell\.exe\b|\bpowershell\s+-", re.IGNORECASE)
 
 GIT_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
-# `-m "...` or `-m '...` opened and NOT closed before a newline — the
-# mangled multi-line message case. A closed quote before the newline
-# (separate statements) does not match.
-COMMIT_M_MULTILINE_RE = re.compile(r"""-m\s+["'][^"'\n]*\n""")
+# `-m "...` or `--message "..."` (or `--message="..."`) opened and NOT closed
+# before a newline — the mangled multi-line message case. A closed quote before
+# the newline (separate statements) does not match. `--message` is the long form
+# of `-m` and gets mangled identically, so it is covered too.
+COMMIT_M_MULTILINE_RE = re.compile(
+    r"""(?:-m|--message)(?:\s+|=)\s*["'][^"'\n]*\n"""
+)
 INLINE_SCRIPT_RE = re.compile(r"\b(?:python3?|node)\s+(?:-c|-e)\b")
 
 # Expandable here-string: `@"` as a standalone token at end-of-line AND a
@@ -221,33 +225,68 @@ def _has_heredoc(command: str) -> bool:
     return False
 
 
+def decide(
+    command: str,
+    *,
+    is_windows: bool,
+    destructive_allowed: bool = False,
+) -> "str | None":
+    """Return the block reason key for a command, or None when it may run.
+
+    Pure and side-effect free (no stdin, no filesystem) so the regression suite
+    can call it directly and quickly. ``is_windows`` selects the Windows-only
+    shell rules; ``destructive_allowed`` mirrors the presence of
+    .devin/.allow-destructive.
+
+    Checked in order, first match wins, matching the historical priority:
+    heredoc, powershell.exe (5.1), foreign shell, unix utility, multi-line
+    commit message, multi-line inline script, expandable here-string, and
+    finally destructive git (which applies on every platform).
+    """
+    if not isinstance(command, str) or not command:
+        return None
+
+    has_newline = "\n" in command or "\r" in command
+
+    if is_windows and _has_heredoc(command):
+        return "heredoc"
+    if is_windows and PS51_RE.search(command):
+        return "ps51"
+    if is_windows and FOREIGN_SHELL_RE.search(command):
+        return "foreign-shell"
+    if is_windows and UNIX_UTIL_RE.search(command):
+        return "unix-util"
+    if is_windows and GIT_COMMIT_RE.search(command) and COMMIT_M_MULTILINE_RE.search(command):
+        return "commit-msg"
+    if is_windows and has_newline and INLINE_SCRIPT_RE.search(command):
+        return "inline-script"
+    if is_windows and HERESTRING_OPEN_RE.search(command) and HERESTRING_CLOSE_RE.search(command):
+        return "expandable-herestring"
+    if not destructive_allowed and any(r.search(command) for r in DESTRUCTIVE_RES):
+        return "destructive"
+    return None
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
     except Exception:
         return 0
-    command = (payload.get("tool_input") or {}).get("command") or ""
-    if not isinstance(command, str) or not command:
-        return 0
+    # Accept the documented {"tool_input": {"command": ...}} shape plus the
+    # camelCase variant and a top-level "command", so a client rename does not
+    # silently disable the guard.
+    tool_input = payload.get("tool_input") or payload.get("toolInput") or {}
+    if not isinstance(tool_input, dict):
+        tool_input = {}
+    command = tool_input.get("command") or payload.get("command") or ""
 
-    has_newline = "\n" in command or "\r" in command
-
-    if IS_WINDOWS and _has_heredoc(command):
-        block("heredoc")
-    elif IS_WINDOWS and PS51_RE.search(command):
-        block("ps51")
-    elif IS_WINDOWS and FOREIGN_SHELL_RE.search(command):
-        block("foreign-shell")
-    elif IS_WINDOWS and UNIX_UTIL_RE.search(command):
-        block("unix-util")
-    elif IS_WINDOWS and GIT_COMMIT_RE.search(command) and COMMIT_M_MULTILINE_RE.search(command):
-        block("commit-msg")
-    elif IS_WINDOWS and has_newline and INLINE_SCRIPT_RE.search(command):
-        block("inline-script")
-    elif IS_WINDOWS and HERESTRING_OPEN_RE.search(command) and HERESTRING_CLOSE_RE.search(command):
-        block("expandable-herestring")
-    elif not os.path.exists(DESTRUCTIVE_FLAG) and any(r.search(command) for r in DESTRUCTIVE_RES):
-        block("destructive")
+    reason = decide(
+        command,
+        is_windows=IS_WINDOWS,
+        destructive_allowed=os.path.exists(DESTRUCTIVE_FLAG),
+    )
+    if reason:
+        block(reason)
     return 0
 
 

@@ -42,6 +42,9 @@ CASES = [
     ('git commit -m "line1\nline2"', "commit-msg"),
     ("git commit -m 'subject\nbody'", "commit-msg"),
     ('git commit -m "subject" -m "body\nmore"', "commit-msg"),
+    ('git commit --message "line1\nline2"', "commit-msg"),
+    ('git commit --message="line1\nline2"', "commit-msg"),
+    ('git commit --message "subject" --message "body\nmore"', "commit-msg"),
     ('python -c "print(1)\nprint(2)"', "inline-script"),
     ('node -e "const a=1\nconsole.log(a)"', "inline-script"),
     ('Set-Content f.md @"\n# Title\n"@', "expandable-herestring"),
@@ -58,6 +61,8 @@ CASES = [
     # --- must PASS ---
     ("git status", None),
     ("git commit -m \"subject\" -m \"Co-authored-by: Devin\"", None),
+    ("git commit --message \"subject\"", None),
+    ("git commit --message=\"subject\"", None),
     ("git commit -F $env:TEMP\\msg.txt", None),
     ("git commit -m \"subject\"\ngit push origin main", None),
     ("git log --oneline -5", None),

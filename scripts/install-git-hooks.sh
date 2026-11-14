@@ -44,23 +44,28 @@ for hook in "$src_dir"/*; do
         fi
 
         backup="$dest.backup"
-        if [ -e "$backup" ]; then
-            rm -f "$backup"
-        fi
-        mv "$dest" "$backup"
-        echo "  backed up existing $name -> $name.backup"
-        if grep -q 'install-git-hooks.sh' "$backup" 2>/dev/null; then
-            echo "    (that was a previous copy of ours; nothing of yours was lost)"
-            # Our own previous copy: discard it, it is being replaced.
-            rm -f "$backup"
-        else
-            # Someone else's hook must keep running. The hook itself calls
-            # pre-commit.backup at each exit point, so preserving the file is
-            # all that is needed - but the new hook still has to be copied in,
-            # so no early continue here.
-            if [ "$name" = "pre-commit" ] && [ -f "$backup" ]; then
-                echo "  backed-up pre-commit will still be called by the new hook"
+        if grep -q 'install-git-hooks.sh' "$dest" 2>/dev/null; then
+            # The file being replaced is a previous copy of ours. Replace it in
+            # place and leave a genuine .backup untouched: a pre-existing hook
+            # saved on the FIRST install must survive every later re-install,
+            # not just the first. (Deleting it here is what silently dropped
+            # Git LFS's pre-push hook on 2026-11-14.)
+            rm -f "$dest"
+            if [ -e "$backup" ] && grep -q 'install-git-hooks.sh' "$backup" 2>/dev/null; then
+                rm -f "$backup"  # stale copy of ours, no genuine hook to keep
             fi
+            echo "  replacing previous copy of $name"
+        elif [ -e "$backup" ] && ! grep -q 'install-git-hooks.sh' "$backup" 2>/dev/null; then
+            # A genuine pre-existing hook is already preserved; never clobber
+            # it with a newer displaced copy.
+            echo "  $name.backup already preserves a pre-existing hook"
+            rm -f "$dest"
+        else
+            mv "$dest" "$backup"
+            echo "  backed up existing $name -> $name.backup"
+        fi
+        if [ -e "$backup" ] && ! grep -q 'install-git-hooks.sh' "$backup" 2>/dev/null; then
+            echo "  the preserved $name.backup will still be called by the new hook"
         fi
     fi
 

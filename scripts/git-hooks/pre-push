@@ -7,10 +7,12 @@
 # Re-install with:  bash scripts/install-git-hooks.sh
 #
 # Scope is deliberate. This runs what is cheap enough to run on every push:
-# documentation/repo hygiene, backend lint, frontend type-check and lint, and
-# the fast vitest unit suite. It does NOT run pytest (~40 s) or Playwright
-# (~30 s) - those are what `python tools/run-gates.py --e2e` is for, and a push
-# hook that takes 90 s gets bypassed, which is worse than no hook.
+# documentation/repo hygiene, backend lint, frontend type-check and lint, the
+# fast vitest unit suite, and the tools' own unit tests (~4 s -- includes the
+# exec-guard regression matrix, which protects every shell command). It does
+# NOT run pytest (~40 s) or Playwright (~30 s) - those are what
+# `python tools/run-gates.py --e2e` is for, and a push hook that takes 90 s gets
+# bypassed, which is worse than no hook.
 #
 # The work happens in Python (tools/run-gates.py) rather than inline shell or
 # PowerShell, for the reasons in AGENTS.md: a .ps1 wrapper can report exit 1
@@ -60,13 +62,13 @@ if [ -z "$PYTHON" ]; then
     exit 0
 fi
 
-# The unit gate is ~1.5 s; the rest are a few seconds each. pytest and Playwright
-# are excluded on purpose (see the header).
+# The unit gate is ~1.5 s; tools-pytest is ~4 s; the rest are a few seconds each.
+# pytest and Playwright are excluded on purpose (see the header).
 # Changed files are detected inside run-gates.py via bare `--changed`
 # (`git diff --name-only origin/main..HEAD`), so gates that cannot be
 # affected by the unpushed batch are skipped. This avoids shell-quoting
 # issues with spaced paths and keeps the hook thin.
-if ! "$PYTHON" tools/run-gates.py --only docs ruff type lint unit --changed; then
+if ! "$PYTHON" tools/run-gates.py --only docs ruff type lint unit tools-pytest --changed; then
     echo >&2
     echo "pre-push: fast gates failed (see above)." >&2
     echo "          Fix and push again, or bypass once with --no-verify." >&2

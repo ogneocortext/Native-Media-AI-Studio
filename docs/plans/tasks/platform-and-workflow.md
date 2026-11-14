@@ -1588,6 +1588,38 @@ Rules: `docs/plans/tasks/README.md`
   every legit near-miss, fails open on bad input.
 - **Last session:** Devin, 2026-11-08 — test+review+fix cycle complete.
 
+### T-HOOK-02 — Hook effectiveness pass: exec-guard gap, gated matrix, installer backup fix
+- **Status:** done
+- **Goal:** Make both hook families work more effectively: close a real
+  exec-guard gap, put the guard's regression matrix under a gate, verify the
+  git hooks end-to-end, and fix an installer bug that destroyed a preserved
+  pre-existing hook.
+- **Changes:** exec guard refactored so the decision logic is a pure
+  `decide(command, *, is_windows, destructive_allowed)` (no stdin/filesystem),
+  which the new `tools/tests/unit/test_exec_guard.py` calls directly; the
+  multi-line commit-message block now covers `git commit --message` /
+  `--message=` as well as `-m`; `main()` also accepts `toolInput`/top-level
+  `command` payload shapes; the case matrix grew to 90; pre-push now runs the
+  tools' own unit tests (`tools-pytest`, ~4 s) so the guard is tested before a
+  push; `install-git-hooks.sh` no longer deletes a genuine `.backup` when
+  replacing its own previous copy (the old flow silently dropped Git LFS's
+  `pre-push` hook on every re-install — the live backup was restored);
+  `check-hooks-installed.py` now also reports whether the exec guard is
+  registered in `.claude/settings.json` and `.devin/hooks.v1.json`.
+- **Files:** tools/hooks/check-exec-command.py,
+  tools/hooks/test-check-exec-command.py,
+  tools/tests/unit/test_exec_guard.py (new),
+  tools/check-hooks-installed.py, scripts/install-git-hooks.sh,
+  scripts/git-hooks/pre-push, docs/powershell-command-sheet.md, tools/README.md
+- **Acceptance:** `git commit --message "a\nb"` blocks (was a gap);
+  `python -m pytest tools/tests/unit/test_exec_guard.py` = 92 passed;
+  `python tools/hooks/test-check-exec-command.py` = 90/90; commit-msg E2E in a
+  temp repo = 12/12; installer backup-preservation E2E = 4/4;
+  `python tools/check-all.py` all checks pass;
+  `python tools/run-gates.py --only docs ruff tools-pytest` all gates pass.
+- **Last session:** Kilo, 2026-11-14 — all four changes landed and verified;
+  commit pending.
+
 ### T-CLONE-01 — Linux-VM clone friendliness (Muse agent workflow)
 - **Status:** done
 - **Goal:** A second agent (Meta Muse) clones into a Linux VM, works

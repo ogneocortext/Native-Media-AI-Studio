@@ -187,12 +187,17 @@ sources are versioned under `../scripts/git-hooks/`; installed hooks live in
 assuming hooks are active in a fresh clone.
 
 `../scripts/git-hooks/pre-commit` runs applicable docs/repo checks;
-`../scripts/git-hooks/pre-push` runs the fast project gates and checks agent
-attribution. Hook installation is local to each clone; see `../AGENTS.md` and
-`check-hooks-installed.py` for the Windows workflow and current state.
+`../scripts/git-hooks/pre-push` runs the fast project gates (docs, ruff, type,
+lint, vitest, and the tools' own unit tests — including the exec-guard matrix)
+and checks agent attribution. Hook installation is local to each clone; see
+`../AGENTS.md` and `check-hooks-installed.py` for the Windows workflow and
+current state. `check-hooks-installed.py` also reports whether the PreToolUse
+exec guard (`hooks/check-exec-command.py`) is registered in
+`.claude/settings.json` and `.devin/hooks.v1.json`.
 The installer (`../scripts/install-git-hooks.sh`) is idempotent, backs up any
-hook it replaces, and preserves a pre-existing `pre-commit`. Do not run bare
-`bash` in PowerShell on this machine; it resolves to the WSL launcher.
+hook it replaces, preserves a pre-existing hook across re-installs, and preserves
+a pre-existing `pre-commit`. Do not run bare `bash` in PowerShell on this
+machine; it resolves to the WSL launcher.
 - Bypass for a deliberate one-off: `git commit --no-verify`.
 
 > [!note] Git LFS hooks
