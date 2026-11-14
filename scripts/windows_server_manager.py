@@ -18,6 +18,7 @@ Features:
 - Structured logging with rotation
 """
 
+import json
 import logging
 import os
 import signal
@@ -33,6 +34,10 @@ from typing import ClassVar
 import psutil
 import requests
 
+# logs/ is gitignored, so a fresh clone has no logs/ directory and the
+# FileHandler below would raise at import time. Create it first.
+os.makedirs("logs", exist_ok=True)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +48,23 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+def _load_backend_port(project_root: Path) -> int:
+    """Read backend_port from config/ports.json (the single source of truth).
+
+    ports.json is authoritative for every service port (see its ``_about``
+    block); the hardcoded 8004 here used to drift from it. Fall back to 8004
+    only when the file is missing or unparseable so a broken config never
+    crashes the manager.
+    """
+    ports_file = project_root / "config" / "ports.json"
+    try:
+        with open(ports_file, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return int(data.get("backend_port", 8004))
+    except (OSError, ValueError, TypeError):
+        return 8004
 
 
 class ServerType(Enum):
@@ -139,8 +161,10 @@ class HybridServerManager:
         self._restart_count: int = 0
         self._last_restart_time: float = 0
 
-        # Health check
-        self.health_endpoint = f"http://127.0.0.1:{self.config.get('port', 8004)}/api/health"
+        # Health check. Resolve the port from config/ports.json (single source
+        # of truth); an explicit config["port"] (CLI --port) still wins.
+        self.port = int(self.config.get("port") or _load_backend_port(project_root))
+        self.health_endpoint = f"http://127.0.0.1:{self.port}/api/health"
         self.health_check_interval = 30
 
         # Paths — keep the project_root passed to __init__; do not override
@@ -237,7 +261,7 @@ class HybridServerManager:
         base = self.server_configs.get(server_type, {}).copy()
         base.update({
             "host": self.config.get("host", "127.0.0.1"),
-            "port": self.config.get("port", 8004),
+            "port": self.port,
             "workers": self.config.get("workers", 1),
             "reload": self.config.get("reload", False),
             "app_module": self.config.get("app_module", "app.main:app"),
@@ -364,7 +388,7 @@ class HybridServerManager:
     def test_endpoint(self, endpoint: str = "/api/health", timeout: int = 5) -> bool:
         """Test if the server endpoint is responding"""
         try:
-            response = requests.get(f"http://127.0.0.1:8004{endpoint}", timeout=5)
+            response = requests.get(f"http://127.0.0.1:{self.port}{endpoint}", timeout=timeout)
             return response.status_code == 200
         except Exception:
             return False
@@ -372,7 +396,7 @@ class HybridServerManager:
     def check_health(self) -> bool:
         """Check health endpoint"""
         try:
-            response = requests.get("http://127.0.0.1:8004/api/health", timeout=5)
+            response = requests.get(f"http://127.0.0.1:{self.port}/api/health", timeout=5)
             return response.status_code == 200 and response.json().get("backend") == "online"
         except Exception:
             return False
@@ -573,7 +597,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Dynamic Hybrid ASGI Server Manager")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind")
-    parser.add_argument("--port", type=int, default=8004, help="Port to bind")
+    parser.add_argument("--port", type=int, default=None, help="Port to bind (default: config/ports.json backend_port)")
     parser.add_argument("--workers", type=int, default=1, help="Number of workers")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     parser.add_argument("--app", default="app.main:app", help="App module")
@@ -582,9 +606,10 @@ def main():
 
     args = parser.parse_args()
 
+    port = args.port if args.port is not None else _load_backend_port(Path.cwd())
     config = {
         "host": args.host,
-        "port": args.port,
+        "port": port,
         "workers": args.workers,
         "reload": args.reload,
         "app_module": args.app,
