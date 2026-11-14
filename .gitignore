@@ -262,6 +262,14 @@ docs/scratch/*.yml
 docs/scratch/*.bat
 docs/scratch/.pytest-tmp/
 
+# Animagine workflow JSONs and ComfyUI outputs contain explicit prompt text
+# and generated images — keep all of it local, never on remote.
+docs/scratch/animagine_*.json
+docs/scratch/*pose*.json
+docs/scratch/detail_*.json
+docs/scratch/celpose_*.json
+docs/scratch/comfy_out/
+
 # ComfyUI backup bundles (never part of the app)
 .comfyui-backups/
 
