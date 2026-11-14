@@ -224,3 +224,5 @@ for AI agents.
 ## 2026-11-14 — Knowledge library additions
 - Added `docs/knowledge-library/defect-analysis-for-ai-generated-images-multi-pass-vision-qa-2026.md` → `#ai`
 
+- Added `docs/knowledge-library/animagine-xl-4-0-tag-reference-order-rating-score-and-temporal-tags-2026.md` → `#ai`
+

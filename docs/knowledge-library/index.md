@@ -151,6 +151,7 @@ date: 2026-09-30
 - [[stack-extensions-2026|🔧 Stack Extensions 2026]] — Optional languages (CUDA C++, Rust/PyO3, WGSL, **Go**) + high-value Python tools for audio/video/3D (core-flux, madmom-infer, sonara, MovieLite, essentia, audiofeat, videopython, BeatSync Engine, gsplat) — benchmark-first adoption
 
 ### 🤖 AI & ML (Models & Training)
+- [[animagine-xl-4-0-tag-reference-order-rating-score-and-temporal-tags-2026|Animagine XL Tag Guide]] — Animagine XL 4.0 Tag Reference: Order, Rating, Score and Temporal Tags
 - [[defect-analysis-for-ai-generated-images-multi-pass-vision-qa-2026|AI Image Defect Analysis]] — Defect Analysis for AI-Generated Images: Multi-Pass Vision QA
 - [[owner-judgment-pack-for-small-models-2026|Owner Judgment Pack for Small Models]] — Owner Judgment Pack for Small Models
 - [[musetalk-quality-and-stylized-lip-sync-options-2026|MuseTalk lip sync quality]] — MuseTalk Quality and Stylized Lip-Sync Options 2026
@@ -221,7 +222,7 @@ date: 2026-09-30
 || `#platform/*` | Platform-specific integrations | 14 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
-|| `#ai/*` | AI models, training & ML | 24 documents |
+|| `#ai/*` | AI models, training & ML | 25 documents |
 || `#research/*` | Industry trends & analysis | 25 documents |
 
 ### Cross-Cutting Tags

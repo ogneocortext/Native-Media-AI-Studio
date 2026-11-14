@@ -171,6 +171,7 @@ composition):
   setting→light→composition frame; negatives dead at CFG 1.
 
 ## Related
+- [[animagine-xl-4-0-tag-reference-order-rating-score-and-temporal-tags-2026]] :see-also — Animagine XL 4.0 Tag Reference: Order, Rating, Score and Temporal Tags
 
 - [[ollama-prompting-2026|ollama-prompting-2026]] :see-also
 - [[comfyui-sd3-5-turbo-gguf-on-8gb-vae-triple-text-encoders-and-what-actually-broke-2026|comfyui-sd3-5-turbo-gguf-on-8gb-vae-triple-text-encoders-and-what-actually-broke-2026]] :see-also
