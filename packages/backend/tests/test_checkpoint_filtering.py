@@ -13,7 +13,11 @@ import asyncio
 
 import pytest
 
-from app.adapters.comfyui import ComfyUIAdapter, is_image_checkpoint
+from app.adapters.comfyui import (
+    ComfyUIAdapter,
+    is_image_checkpoint,
+    is_txt2img_checkpoint,
+)
 
 
 class TestIsImageCheckpoint:
@@ -46,6 +50,39 @@ class TestIsImageCheckpoint:
         # The exact placeholder filenames found in the audit must be caught.
         for junk in ("triposr.safetensors", "stable-fast-3d.safetensors"):
             assert not is_image_checkpoint(junk)
+
+
+class TestIsTxt2imgCheckpoint:
+    """SD1.5 checkpoints stay valid for AnimateDiff but are excluded from
+    general txt2img selection (heavy prompt drift -- model sweep 2026-12)."""
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "animagine-xl-4.0.safetensors",
+            "sd_xl_base_1.0.safetensors",
+            "realisticVision_v60.safetensors",
+        ],
+    )
+    def test_accepts_txt2img_models(self, name: str):
+        assert is_txt2img_checkpoint(name)
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "v1-5-pruned-emaonly.safetensors",  # AnimateDiff base only
+            "v1-5-pruned-emaonly.ckpt",
+            "sd_v1-5.ckpt",
+        ],
+    )
+    def test_rejects_animatediff_base(self, name: str):
+        # Still an SD-family checkpoint for the AnimateDiff validator...
+        assert is_image_checkpoint(name)
+        # ...but never offered for general image generation.
+        assert not is_txt2img_checkpoint(name)
+
+    def test_rejects_non_sd(self):
+        assert not is_txt2img_checkpoint("kandinsky5lite_i2v_5s.safetensors")
 
 
 class TestAnimateDiffCheckpointValidation:

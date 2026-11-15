@@ -46,9 +46,17 @@ type: entity
 > **Video:** Wan2.1 1.3B fp16 + `wan_2.1_vae` + `umt5_xxl` encoders ✅; Wan2.2 TI2V-5B `Q4_K_M.gguf` + `wan2.2_vae` ✅; AnimateDiff-Evolved `mm_sd_v15_v2`/`mm-Stabilized_high`/`mm_sd15_v3` + 8 camera LoRAs ✅
 > **3D:** Hunyuan3D-2mini complete (DiT fast/turbo/base + VAE, `checkpoints/hunyuan3d-dit-v2-mini.safetensors` is now a hardlink to the `diffusion_models` copy) ✅; Kijai Hy3D wrapper deps installed (xatlas/pymeshlab/pygltflib/skimage/sklearn) ✅; `custom_rasterizer` wheel is cp312-only (env is py3.11) — texture baking unavailable, mesh gen unaffected
 > **Upscale:** `4x-ClearRealityV1.safetensors` + `4x-UltraSharp.pth` in `models/upscale_models/` ✅ (were missing; service silently fell back to FFmpeg lanczos)
-> **Kandinsky 5 Lite I2V:** checkpoint + native nodes + hunyuan_video VAE ✅; `qwen_2.5_vl_7b_fp8_scaled.safetensors` (9.4GB) text encoder downloaded to `models/text_encoders/` ✅
-> **Non-image checkpoints in `checkpoints/`:** `triposr.ckpt` (1.6 GB, 3D reconstruction) and `kandinsky5lite_i2v_5s.safetensors` (4.5 GB, video i2v) live in `checkpoints/` because backend code references them by exact path (`gen3d_service.py` looks for `checkpoints/triposr.ckpt`; the video-models endpoint scans `checkpoints/` for video models). They are excluded from the image-generation selector via the `is_image_checkpoint()` keyword filter (`triposr`, `kandinsky` keywords) — they never appear as SD txt2img options.
+> **Kandinsky 5 Lite I2V:** 🗑️ **Removed 2026-12** — checkpoint deleted, `custom_nodes/kandinsky` disabled. Not viable on 8 GB (see coverage matrix). `qwen_2.5_vl_7b_fp8_scaled.safetensors` text encoder remains in `models/text_encoders/` unused (~8.7 GB reclaimable if desired).
+> **Non-image checkpoints in `checkpoints/`:** `triposr.ckpt` (1.6 GB, 3D reconstruction) lives in `checkpoints/` because `gen3d_service.py` references it by exact path. Excluded from the image-generation selector via the `is_image_checkpoint()` keyword filter.
 > **Deduped via hardlinks (8.9GB saved):** hunyuan3d DiT (3.8GB), legacy `stable-diffusion/` v1-5 (4.3GB) + mm_sd15_v3 (0.8GB).
+>
+> **2026-12 model sweep cleanup** (evidence: coverage matrix below): deleted `sd_xl_base_1.0` (6.46 GB), `kandinsky5lite_i2v_5s` (4.26 GB), `wan2.1_t2v_1.3B_fp16` (2.64 GB), `wan_2.1_vae` (0.24 GB) — **~10.7 GB freed** (D: free 321.4→332.1 GB). `umt5_xxl_fp16.safetensors` (10.6 GB) was evaluated and KEPT: `adapters/comfyui.py` prefers it as the Wan2.2/LTXV text encoder.
+>
+> **Settled lanes (do not re-litigate):**
+> - **Image:** Animagine XL 4.0 = primary (anime + explicit-capable). FLUX dev/schnell GGUF = general quality. SD3.5 Turbo GGUF = fast drafts.
+> - **Upscale:** `4x-UltraSharp` = anime lane; `4x-ClearRealityV1` = photo-real lane only.
+> - **Video:** Wan2.2 TI2V-5B GGUF = quality (~10 min/clip); LTXV-2B fp8 = speed (~90 s/clip). Video is auxiliary — primary pipeline is generated frames assembled stop-motion style.
+> - **AnimateDiff:** `v1-5-pruned-emaonly` is its SD1.5 base ONLY — excluded from txt2img via `is_txt2img_checkpoint()`.
 
 ### Installed Models
 
@@ -89,15 +97,15 @@ inventory row.
 | `animagine-xl-4.0` | Image (SDXL anime, uncensored) | ✅ SFW→explicit, cel + soft-shaded stacks, 8-pose matrix | [[animagine-xl-4-0-tag-reference-order-rating-score-and-temporal-tags-2026]], [[danbooru-the-tag-vocabulary-behind-anime-diffusion-models-2026]] |
 | `sd3.5_large_turbo` GGUF | Image | ✅ Smoke + img2img/inpaint | [[comfyui-sd3-5-turbo-gguf-on-8gb-vae-triple-text-encoders-and-what-actually-broke-2026]], [[prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026]] |
 | `flux1-dev` / `flux1-schnell` GGUF | Image | ✅ Smoke + laugh-cycle inpaint | [[prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026]] |
-| Wan 2.1 1.3B fp16 | Video | ✅ Smoke tested 2026-12 — 832×480×33f/30 steps succeeded but took ~25 min and prompt adherence was poor (underwater-disco shrimp prompt → unrelated cartoon scene). Impractical for iteration on this card. | this section |
+| Wan 2.1 1.3B fp16 | Video | 🗑️ **Deleted 2026-12 cleanup** — smoke test took ~25 min for 2 s with poor prompt adherence; superseded by Wan2.2 GGUF (quality) and LTXV (speed). `wan_2.1_vae` deleted with it. | this section |
 | Wan 2.2 TI2V-5B GGUF | Video | ✅ Verified 2026-09-20 — 81f @ 832×480, ~6.5 GB VRAM, ~10 min, prompt-coherent | Wan 2.2 troubleshooting callout below |
 | LTXV-2B distilled fp8 | Video | ✅ Benchmarked — 512×512 24f: 165 s; 832×480 24f: 90 s, both success | `docs/knowledge-library/benchmarks/video-model-8gb-2026.json` |
-| Kandinsky 5 Lite I2V | Video | ⛔ Not viable on 8 GB — researched 2026-12: official minimum is ~10–12 GB VRAM *with* offloading + NF4-quantized Qwen (DeepWiki memory table; repo claims "works on 12 GB GPUs"). No 8 GB or Pascal reports exist. Our custom-node path is worse: `Kandinsky5LoadTextEmbedders`/`Kandinsky5Generate` hard-load DiT + Qwen to `cuda:0` with no offload machinery, precision choices are fp16/bf16 only (Pascal has no bf16, fp8/NF4 paths unused), and the qwen fp8 file alone is 8.7 GB. Missing pieces also real: `hunyuan_video_vae_bf16` absent from `vae/` (clip_l.safetensors IS present in text_encoders — that part's covered), DiT sits in `checkpoints/` not `diffusion_models/`. Verdict: don't provision; Wan2.2 GGUF is the 8 GB video lane. | — |
+| Kandinsky 5 Lite I2V | Video | 🗑️ **Deleted 2026-12 cleanup** — checkpoint removed, `custom_nodes/kandinsky` renamed to `kandinsky.disabled` (pointer left in `DISABLED.txt`). Not viable: ~10–12 GB VRAM floor even with offload+NF4, zero 8 GB reports, nodes hard-load to `cuda:0` with no offload path, no bf16 on Pascal. | this section |
 | AnimateDiff-Evolved (mm_sd15_v3 etc.) | Video | ✅ Motion LoRAs tested | [[animatediff-evolved-2026]] |
 | Hunyuan3D-2mini / 3.0 | 3D | ✅ Mesh gen verified | [[hunyuan3d-setup]] |
 | triposr.ckpt | 3D reconstruction | ✅ | [[text-to-3d-options-2026]] |
-| `sd_xl_base_1.0` | Image (SDXL) | ✅ Smoke tested — natural-language prompts work; anime-style output but prompt drift (added unrequested vest). Redundant vs Animagine XL. | this section |
-| `v1-5-pruned-emaonly` | Image (SD1.5) | ✅ Smoke tested (512×768, euler) — heavy prompt drift: ignored `anime style`, produced photoreal cardigan/bookshelf scene. Usable only as AnimateDiff v3 base. | this section |
+| `sd_xl_base_1.0` | Image (SDXL) | 🗑️ **Deleted 2026-12 cleanup** — smoke tested, prompt-drifted; Animagine XL covers the SDXL slot | this section |
+| `v1-5-pruned-emaonly` | Image (SD1.5) | ⚠️ **AnimateDiff base ONLY** — kept on disk but excluded from txt2img: `is_txt2img_checkpoint()` in `adapters/comfyui.py` + frontend filter + generate-endpoint validation all reject it. Heavy prompt drift verified. | [[stable-diffusion-local-models-2026]] |
 | `4x-UltraSharp` / `4x-ClearRealityV1` | Upscale | ✅ Both tested 4× on Animagine output (832×1216→3328×4864). UltraSharp: clean, slight waxy skin — best for anime. ClearReality: stronger detail hallucination but waxy skin + repeated-texture artifacts in hair/bedding — better for photo-style sources. | this section |
 
 **Deletion guidance:** `sd_xl_base_1.0.safetensors` (6.46 GB) is safe to

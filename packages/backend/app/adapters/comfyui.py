@@ -122,11 +122,29 @@ NON_IMAGE_CHECKPOINT_KEYWORDS = (
     "ltx",
 )
 
+# SD1.5-era checkpoints kept on disk solely as the AnimateDiff base. They
+# satisfy is_image_checkpoint() but prompt-drift heavily on modern txt2img
+# work (verified 2026-12 smoke test), so they are never auto-selected or
+# accepted for general image generation.
+TXT2IMG_EXCLUDED_CHECKPOINT_KEYWORDS = ("v1-5-pruned", "sd_v1-5", "sd1.5")
+
 
 def is_image_checkpoint(name: str) -> bool:
     """True if a checkpoint filename is usable for SD txt2img generation."""
     name_lower = str(name).lower()
     return not any(kw in name_lower for kw in NON_IMAGE_CHECKPOINT_KEYWORDS)
+
+
+def is_txt2img_checkpoint(name: str) -> bool:
+    """True if a checkpoint may drive general text-to-image generation.
+
+    Stricter than is_image_checkpoint(): also rejects SD1.5 checkpoints
+    that are retained only as the AnimateDiff base model.
+    """
+    name_lower = str(name).lower()
+    return is_image_checkpoint(name) and not any(
+        kw in name_lower for kw in TXT2IMG_EXCLUDED_CHECKPOINT_KEYWORDS
+    )
 
 
 MAX_SEED = 2**32 - 1
@@ -247,13 +265,10 @@ class ComfyUIAdapter(BaseAdapter):
 
     def _get_available_checkpoint(self) -> str:
         """Get the best available checkpoint for image generation."""
-        # Prefer SD 1.5/SDXL models for image generation
+        # Prefer modern image checkpoints for txt2img; SD1.5 checkpoints are
+        # excluded (AnimateDiff base only -- see TXT2IMG_EXCLUDED keywords).
         preferred_checkpoints = [
-            "v1-5-pruned-emaonly.safetensors",
-            "v1-5-pruned-emaonly.ckpt",
-            "v1-5-pruned.ckpt",
-            "sd_v1-5.ckpt",
-            "sd_xl_base_1.0.safetensors",
+            "animagine-xl-4.0.safetensors",
         ]
 
         # Check if any preferred checkpoint is available
@@ -261,11 +276,11 @@ class ComfyUIAdapter(BaseAdapter):
             for preferred in preferred_checkpoints:
                 if preferred in self._available_checkpoints:
                     return preferred
-            # Return first available that's not a 3D/video model
+            # Return first available that's usable for txt2img
             # (kandinsky/triposr/stable-fast are not SD-family either --
             # never auto-select them for txt2img)
             for cp in self._available_checkpoints:
-                if is_image_checkpoint(cp):
+                if is_txt2img_checkpoint(cp):
                     return cp
 
         # Fallback to default

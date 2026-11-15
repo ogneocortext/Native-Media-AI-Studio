@@ -386,7 +386,8 @@ export function ImageGeneration() {
               !baseName.includes("hunyuan") &&
               !baseName.includes("3d") &&
               !baseName.includes("kandinsky") &&
-              !baseName.includes("triposr")
+              !baseName.includes("triposr") &&
+              !baseName.includes("v1-5") // SD1.5 kept for AnimateDiff base only
             ); // Kandinsky/TripoSR are not SD image models
           });
           // If no models found, show all (fallback)

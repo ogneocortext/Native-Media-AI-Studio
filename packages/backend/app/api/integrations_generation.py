@@ -277,9 +277,9 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         params = request.to_adapter_params()
         # Validate checkpoint - don't allow 3D/video models for image generation
         if request.ckpt_name:
-            from ..adapters.comfyui import is_image_checkpoint
+            from ..adapters.comfyui import is_txt2img_checkpoint
 
-            if not is_image_checkpoint(request.ckpt_name):
+            if not is_txt2img_checkpoint(request.ckpt_name):
                 logger.warning(
                     f"Checkpoint '{request.ckpt_name}' is not suitable for image generation, ignoring"
                 )
