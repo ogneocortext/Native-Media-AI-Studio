@@ -18,6 +18,7 @@ from ..adapters.ollama import OllamaAdapter
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job
 from ..services.go_worker_client import write_sidecar as go_write_sidecar
+from .storyboard_sung_diff import diff_sung_sections, not_sung_section_names
 
 OUTPUT_DIR = PROJECT_ROOT / "output" / "storyboards"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -216,6 +217,30 @@ def _prepare_grid(params: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _prepare_sung_filter(params: dict[str, Any]) -> dict[str, Any] | None:
+    """Diff the lyric sheet against the transcript (R2), or None if incomplete.
+
+    Both a Whisper-shaped ``transcript`` and a resolvable ``track_lyrics_id``
+    are required. When either is missing the caller keeps the post-S1 behavior
+    untouched: no filtering, no crash.
+    """
+    transcript = params.get("transcript")
+    if not isinstance(transcript, dict):
+        return None
+    entry = load_track_lyrics(params.get("track_lyrics_id"))
+    if entry is None:
+        return None
+    library_sections = entry.get("sections")
+    if not isinstance(library_sections, list) or not library_sections:
+        return None
+    results = diff_sung_sections(library_sections, transcript)
+    return {
+        "results": results,
+        "status_by_name": {item["name"]: item["status"] for item in results},
+        "not_sung": not_sung_section_names(results),
+    }
+
+
 def _merge_grid_scenes(
     scenes: list[dict[str, Any]], sections: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -257,6 +282,7 @@ class StoryboardGeneratorHandler:
         model = params.get("model", self.adapter.get_default_model())
 
         grid = _prepare_grid(params)
+        sung = _prepare_sung_filter(params)
         prompt = theme
         if grid:
             names = [str(section.get("name") or "") for section in grid["sections"]]
@@ -289,6 +315,23 @@ class StoryboardGeneratorHandler:
             result["sections"] = grid["sections"]
             if grid["sections"]:
                 result["estimated_duration_seconds"] = grid["sections"][-1]["end_sec"]
+
+        if sung:
+            # R2: a section that was written but not sung earns no scene.
+            if grid:
+                for section in result["sections"]:
+                    section["status"] = sung["status_by_name"].get(section.get("name"), "sung")
+            else:
+                result["sections"] = sung["results"]
+            result["scenes"] = [
+                scene
+                for scene in result.get("scenes") or []
+                if sung["status_by_name"].get(scene.get("section"), "sung") == "sung"
+            ]
+            result["total_scenes"] = len(result["scenes"])
+            result["sections_not_sung"] = sung["not_sung"]
+            if grid and result["scenes"]:
+                result["estimated_duration_seconds"] = result["scenes"][-1]["end_sec"]
 
         output_files = await self.save_storyboard(job, result)
 
@@ -335,6 +378,12 @@ class StoryboardGeneratorHandler:
             storyboard_data["beat_times"] = result.get("beat_times", [])
             storyboard_data["downbeats"] = result.get("downbeats", [])
             storyboard_data["sections"] = result.get("sections", [])
+
+        # S2 boards add sung-truth data; absent inputs leave it out entirely.
+        if "sections" in result and "sections" not in storyboard_data:
+            storyboard_data["sections"] = result["sections"]
+        if "sections_not_sung" in result:
+            storyboard_data["sections_not_sung"] = result["sections_not_sung"]
 
         # Persist through go-worker when available; fall back to direct write.
         worker_result = await go_write_sidecar(job.id, storyboard_data, filename=filename)
