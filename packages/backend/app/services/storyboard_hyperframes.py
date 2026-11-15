@@ -23,51 +23,132 @@ def _slug(value: str) -> str:
     return slug[:80] or "storyboard"
 
 
+_PASSTHROUGH_SCENE_FIELDS = (
+    "section",
+    "lyric_lines",
+    "start_beat",
+    "end_beat",
+    "start_sec",
+    "end_sec",
+    "framing",
+    "source_aspect",
+    "character_ref",
+    "accent",
+)
+
+_PASSTHROUGH_BOARD_FIELDS = (
+    "bpm",
+    "bpm_conflict",
+    "grid_source",
+    "beat_times",
+    "downbeats",
+    "sections",
+    "sections_not_sung",
+    "characters",
+    "place_theme",
+    "enrichment_report",
+)
+
+
+def _beat_index(value: Any, length: int) -> bool:
+    """True when ``value`` is an integer index into a sequence of ``length``."""
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value < length
+
+
+def _grid_scene_times(
+    raw: dict[str, Any], beat_times: list[float] | None
+) -> tuple[float, float] | None:
+    """Absolute ``(start, end)`` from the scene's beat indexes, or None."""
+    if not beat_times:
+        return None
+    start_beat = raw.get("start_beat")
+    end_beat = raw.get("end_beat")
+    if not (_beat_index(start_beat, len(beat_times)) and _beat_index(end_beat, len(beat_times))):
+        return None
+    if end_beat <= start_beat:
+        return None
+    return beat_times[start_beat], beat_times[end_beat]
+
+
+def _legacy_scene_times(raw: dict[str, Any], previous_end: float, index: int) -> tuple[float, float]:
+    """Pre-grid timing: explicit start/end, then duration_seconds, then time_range."""
+    if "start" in raw or "end" in raw:
+        return float(raw["start"]), float(raw["end"])
+    if "duration_seconds" in raw:
+        return previous_end, previous_end + float(raw["duration_seconds"])
+    timing = raw.get("time_range", [0, 0])
+    if isinstance(timing, list) and len(timing) == 2:
+        return float(timing[0]), float(timing[1])
+    raise ValueError(f"scene {index} has no start/end or duration_seconds")
+
+
 def _scenes(data: dict[str, Any]) -> list[dict[str, Any]]:
     raw_scenes = data.get("scenes") or data.get("beats")
     if not isinstance(raw_scenes, list) or not raw_scenes:
         raise ValueError("storyboard must contain a non-empty scenes or beats list")
+
+    beat_times: list[float] | None = None
+    raw_beats = data.get("beat_times")
+    if isinstance(raw_beats, list):
+        try:
+            beat_times = [float(value) for value in raw_beats]
+        except (TypeError, ValueError):
+            beat_times = None
+
     scenes: list[dict[str, Any]] = []
+    grid_timed: list[bool] = []
     previous_end = 0.0
     for index, raw in enumerate(raw_scenes):
         if not isinstance(raw, dict):
             raise ValueError(f"scene {index} must be an object")
-        timing = raw.get("time_range", [0, 0])
-        if "start" in raw or "end" in raw:
-            start = float(raw["start"])
-            end = float(raw["end"])
-        elif "duration_seconds" in raw:
-            start = previous_end
-            end = start + float(raw["duration_seconds"])
-        elif isinstance(timing, list) and len(timing) == 2:
-            start = float(timing[0])
-            end = float(timing[1])
+
+        # R1/R6: when the scene carries beat indexes and the board carries the
+        # measured grid, absolute times come from the grid and win over any
+        # duration_seconds or estimated start/end on the scene.
+        grid_times = _grid_scene_times(raw, beat_times)
+        if grid_times is None:
+            start, end = _legacy_scene_times(raw, previous_end, index)
+            used_grid = False
         else:
-            raise ValueError(f"scene {index} has no start/end or duration_seconds")
+            start, end = grid_times
+            used_grid = True
+
         if start < 0 or end <= start or start < previous_end - 0.001:
             raise ValueError(f"scene {index} has invalid or overlapping timing")
         previous_end = end
-        scenes.append(
-            {
-                "id": str(raw.get("id") or f"scene-{index + 1}"),
-                "title": str(
-                    raw.get("title")
-                    or raw.get("actTitle")
-                    or raw.get("section")
-                    or f"Scene {index + 1}"
-                ),
-                "description": str(
-                    raw.get("description") or raw.get("visual") or raw.get("hook") or ""
-                ),
-                "start": start,
-                "end": end,
-                "palette": raw.get("palette") if isinstance(raw.get("palette"), dict) else {},
-                "camera": raw.get("camera") if isinstance(raw.get("camera"), dict) else {},
-            }
-        )
+
+        scene = {
+            "id": str(raw.get("id") or f"scene-{index + 1}"),
+            "title": str(
+                raw.get("title")
+                or raw.get("actTitle")
+                or raw.get("section")
+                or f"Scene {index + 1}"
+            ),
+            "description": str(
+                raw.get("description") or raw.get("visual") or raw.get("hook") or ""
+            ),
+            "start": start,
+            "end": end,
+            "palette": raw.get("palette") if isinstance(raw.get("palette"), dict) else {},
+            "camera": raw.get("camera") if isinstance(raw.get("camera"), dict) else {},
+        }
+        # S3 fields pass through only when present: a legacy payload's manifest
+        # gains no keys.
+        for field in _PASSTHROUGH_SCENE_FIELDS:
+            if field in raw:
+                scene[field] = raw[field]
+        scenes.append(scene)
+        grid_timed.append(used_grid)
+
     if scenes:
-        scenes[0]["start"] = 0.0
+        # Legacy scenes are normalized to a contiguous timeline. Grid-timed
+        # scenes keep their measured boundaries.
+        if not grid_timed[0]:
+            scenes[0]["start"] = 0.0
         for index in range(len(scenes) - 1):
+            if grid_timed[index]:
+                continue
             scenes[index]["end"] = max(scenes[index]["end"], scenes[index + 1]["start"])
     return scenes
 
@@ -193,6 +274,11 @@ def compile_storyboard(
         "scene_count": len(scenes),
         "scenes": scenes,
     }
+    # Grid/sung-truth/schema board data rides along when present; a legacy
+    # payload keeps exactly the six keys above.
+    for field in _PASSTHROUGH_BOARD_FIELDS:
+        if field in storyboard:
+            manifest[field] = storyboard[field]
     resolved_audio = audio_path
     if audio_path:
         source = Path(audio_path)

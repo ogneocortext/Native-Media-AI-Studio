@@ -327,14 +327,18 @@ notes; the two additions to `/api/audio/*` (`preview-audio`,
 
 ### Step 5 — Storyboard enrichment (from track-production practice)
 
-**Status 2026-10-22: proposed, not started.** Owner-requested
-exploration; design source is
+**Status 2026-11-15: S1-S3 landed.** S1 (measured-grid input, R1) in
+`cadf6d9b`, S2 (sung-truth diff, R2) in `9afdd988`, S3 (scene schema +
+grid-absolute compiler times, R3/R4/R6) in the commit with subject
+`feat(storyboard): scene schema and grid-absolute compiler times (Step 5
+S3)` (hash in the session report). **S4 and S5(b) remain open.** Original
+proposal: owner-requested exploration; design source is
 `docs/knowledge-library/storyboard-enrichment-from-track-practice-2026.md`
 (rules R1–R6 with the production evidence behind each). Goal: the
 storyboard generator stops taking only `theme + num_scenes` and starts
 consuming the track data the owner already has — the track-lyrics
-library (6 tracks, 216 lines), measured beat grids, Whisper
-transcripts, and character references.
+library, measured beat grids, Whisper transcripts, and character
+references.
 
 - **S1 — Measured-grid input (R1).** Storyboard jobs accept a measured
   BPM + beat grid + section boundaries; when library/metadata BPM

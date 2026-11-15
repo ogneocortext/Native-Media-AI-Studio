@@ -311,3 +311,162 @@ async def test_invalid_grid_fails_the_job_with_the_named_check(isolated_output: 
     with pytest.raises(ValueError, match="monotonically increasing"):
         await handler.process_job(job)
     assert not list(isolated_output.glob("*.json"))
+
+
+# ---------------------------------------------------------------------------
+# S3: scene schema + characters + place_theme
+# ---------------------------------------------------------------------------
+
+
+def _valley_analysis() -> dict[str, Any]:
+    entry = storyboard_generator.load_track_lyrics("unproductive-valley-phonk")
+    assert entry is not None
+    sections = entry["sections"]
+    return {
+        "bpm": 120.0,
+        "beat_times": [index * 0.5 for index in range(64)],
+        "downbeats": [],
+        "sections": [
+            {"name": section["name"], "start": index * 4.0, "end": (index + 1) * 4.0}
+            for index, section in enumerate(sections)
+        ],
+        "source": "studio-tracker",
+    }
+
+
+async def test_lyric_lines_are_derived_from_library_sections(isolated_output: Path) -> None:
+    handler = StoryboardGeneratorHandler(adapter=FakeAdapter())
+    job = _job(
+        {
+            "theme": "unproductive",
+            "track_lyrics_id": "unproductive-valley-phonk",
+            "analysis": _valley_analysis(),
+        }
+    )
+
+    await handler.process_job(job)
+    board = _read_board(isolated_output)
+
+    verse1 = next(scene for scene in board["scenes"] if scene["section"] == "Verse 1")
+    assert len(verse1["lyric_lines"]) == 7
+    assert verse1["lyric_lines"][0] == {"section": "Verse 1", "index": 0}
+    assert verse1["lyric_lines"][-1] == {"section": "Verse 1", "index": 6}
+    assert board["enrichment_report"]["lyric_lines_attached"] == 32
+
+
+async def test_character_ref_attaches_to_a_named_scene(isolated_output: Path) -> None:
+    handler = StoryboardGeneratorHandler(
+        adapter=FakeAdapter(
+            scenes=[{"title": "Sol in the monsoon", "description": "Sol walks the wet street"}]
+        )
+    )
+    job = _job(
+        {
+            "theme": "Sol",
+            "characters": [
+                {
+                    "name": "Sol",
+                    "asset": "characters/sol.png",
+                    "identity_checklist": ["freckles", "sunglasses", "hoop earring"],
+                    "off_axis": True,
+                }
+            ],
+        }
+    )
+
+    await handler.process_job(job)
+    board = _read_board(isolated_output)
+
+    assert board["characters"][0]["asset"] == "characters/sol.png"
+    ref = board["scenes"][0]["character_ref"]
+    assert ref == {
+        "asset": "characters/sol.png",
+        "identity_checklist": ["freckles", "sunglasses", "hoop earring"],
+        "off_axis": True,
+    }
+    assert board["enrichment_report"]["character_refs_attached"] == 1
+
+
+async def test_llm_character_ref_is_overwritten_by_the_roster(isolated_output: Path) -> None:
+    handler = StoryboardGeneratorHandler(
+        adapter=FakeAdapter(
+            scenes=[
+                {
+                    "title": "Sol close",
+                    "description": "Sol looks away",
+                    "character_ref": {"asset": "invented.png"},
+                }
+            ]
+        )
+    )
+    job = _job(
+        {
+            "theme": "x",
+            "characters": [
+                {"name": "Sol", "asset": "sol.png", "identity_checklist": [], "off_axis": False}
+            ],
+        }
+    )
+
+    await handler.process_job(job)
+    board = _read_board(isolated_output)
+    assert board["scenes"][0]["character_ref"]["asset"] == "sol.png"
+
+
+async def test_unmatched_character_stays_absent_and_is_counted(isolated_output: Path) -> None:
+    handler = StoryboardGeneratorHandler(
+        adapter=FakeAdapter(
+            scenes=[{"title": "A wide desert", "description": "Empty highway at dusk"}]
+        )
+    )
+    job = _job(
+        {
+            "theme": "x",
+            "characters": [
+                {"name": "Sol", "asset": "sol.png", "identity_checklist": [], "off_axis": True},
+                {"name": "Mae", "asset": "mae.png", "identity_checklist": [], "off_axis": False},
+            ],
+        }
+    )
+
+    await handler.process_job(job)
+    board = _read_board(isolated_output)
+    assert "character_ref" not in board["scenes"][0]
+    assert board["enrichment_report"]["character_refs_unmatched"] == 1
+
+
+async def test_place_theme_reaches_the_prompt_and_board(isolated_output: Path) -> None:
+    adapter = FakeAdapter()
+    handler = StoryboardGeneratorHandler(adapter=adapter)
+    job = _job({"theme": "night drive", "place_theme": "Route 66 at night"})
+
+    await handler.process_job(job)
+    board = _read_board(isolated_output)
+
+    assert board["place_theme"] == "Route 66 at night"
+    assert "Route 66 at night" in adapter.calls[0]["prompt"]
+
+
+async def test_underivable_schema_fields_stay_absent(isolated_output: Path) -> None:
+    handler = StoryboardGeneratorHandler(adapter=FakeAdapter())
+    job = _job(
+        {
+            "theme": "x",
+            "analysis": {
+                "bpm": 120.0,
+                "beat_times": _beat_grid(120.0),
+                "downbeats": [],
+                "sections": [{"name": "Intro", "start": 0.0, "end": 1.0}],
+                "source": "studio-tracker",
+            },
+        }
+    )
+
+    await handler.process_job(job)
+    board = _read_board(isolated_output)
+    scene = board["scenes"][0]
+    assert "character_ref" not in scene
+    assert "lyric_lines" not in scene
+    assert "framing" not in scene
+    assert "source_aspect" not in scene
+    assert "accent" not in scene

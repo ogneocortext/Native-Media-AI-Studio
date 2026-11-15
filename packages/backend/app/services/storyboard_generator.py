@@ -10,8 +10,10 @@ Jobs without ``analysis`` keep the original theme-driven behavior.
 
 import bisect
 import json
+import re
 import statistics
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from ..adapters.ollama import OllamaAdapter
@@ -27,6 +29,26 @@ TRACK_LYRICS_DIR = PROJECT_ROOT / "packages" / "frontend" / "public" / "track-ly
 
 # R1: a stated BPM and the grid's implied BPM may differ by at most this much.
 DEFAULT_BPM_TOLERANCE = 2.0
+
+# S3: scene schema normalization (R3/R4). These are the only framings the
+# schema accepts; anything else is dropped rather than guessed.
+VALID_FRAMINGS = frozenset({"wide", "medium", "close"})
+
+_FRAMING_ALIASES = {
+    "wide": "wide",
+    "wide shot": "wide",
+    "long shot": "wide",
+    "establishing": "wide",
+    "medium": "medium",
+    "medium shot": "medium",
+    "mid": "medium",
+    "close": "close",
+    "close-up": "close",
+    "close up": "close",
+    "close_up": "close",
+    "closeup": "close",
+    "cu": "close",
+}
 
 
 def load_track_lyrics(track_lyrics_id: str | None) -> dict[str, Any] | None:
@@ -268,6 +290,174 @@ def _merge_grid_scenes(
     return merged
 
 
+def _character_entries(raw_characters: Any) -> list[dict[str, Any]]:
+    """Normalize the ``characters[]`` job param into board character data.
+
+    Each entry needs an ``asset``; ``name`` falls back to the asset's file
+    stem so a scene can name a character. ``identity_checklist`` and
+    ``off_axis`` are carried through with validated types.
+    """
+    entries: list[dict[str, Any]] = []
+    if not isinstance(raw_characters, list):
+        return entries
+    for item in raw_characters:
+        if not isinstance(item, dict):
+            continue
+        asset = item.get("asset")
+        if not isinstance(asset, str) or not asset.strip():
+            continue
+        raw_name = item.get("name")
+        name = raw_name.strip() if isinstance(raw_name, str) and raw_name.strip() else Path(asset).stem
+        checklist = item.get("identity_checklist")
+        if not isinstance(checklist, list):
+            checklist = []
+        entries.append(
+            {
+                "name": name,
+                "asset": asset,
+                "identity_checklist": [str(value) for value in checklist if str(value).strip()],
+                "off_axis": bool(item.get("off_axis", False)),
+            }
+        )
+    return entries
+
+
+def _scene_names_character(text: str, name: str) -> bool:
+    if not name:
+        return False
+    return re.search(rf"\b{re.escape(name)}\b", text, re.IGNORECASE) is not None
+
+
+def _normalize_framing(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return _FRAMING_ALIASES.get(value.strip().lower())
+
+
+def _character_ref_for_scene(
+    scene: dict[str, Any], characters: list[dict[str, Any]]
+) -> tuple[dict[str, Any] | None, str]:
+    """Derive a scene's ``character_ref`` from the board's character roster.
+
+    Returns ``(ref, reason)``. A single-character board attaches its character
+    to every character scene (a scene that names the character, or a
+    medium/close coverage shot). With several characters, the scene must name
+    exactly one; otherwise no ref is invented and the miss is counted.
+    """
+    if not characters:
+        return None, "no-characters"
+    text = f"{scene.get('title', '')} {scene.get('description', '')}"
+    mentioned = [entry for entry in characters if _scene_names_character(text, entry["name"])]
+
+    def as_ref(entry: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "asset": entry["asset"],
+            "identity_checklist": entry["identity_checklist"],
+            "off_axis": entry["off_axis"],
+        }
+
+    if len(characters) == 1:
+        framing = _normalize_framing(scene.get("framing"))
+        if mentioned:
+            return as_ref(characters[0]), "named"
+        if framing in {"medium", "close"}:
+            return as_ref(characters[0]), "single-character-framing"
+        return None, "single-character-not-a-character-scene"
+    if len(mentioned) == 1:
+        return as_ref(mentioned[0]), "named"
+    if len(mentioned) > 1:
+        return None, "ambiguous-character"
+    return None, "unmatched-character"
+
+
+def _library_section_plan(entry: dict[str, Any] | None) -> dict[tuple[str, int], dict[str, Any]]:
+    """Map ``(section name, occurrence)`` to a library section.
+
+    Duplicate names are real (Valley Phonk has three Hooks); the Nth scene of
+    a given name maps to the Nth library section of that name.
+    """
+    plan: dict[tuple[str, int], dict[str, Any]] = {}
+    if entry is None:
+        return plan
+    seen: dict[str, int] = {}
+    for section in entry.get("sections") or []:
+        if not isinstance(section, dict):
+            continue
+        name = str(section.get("name") or "")
+        occurrence = seen.get(name, 0)
+        plan[(name, occurrence)] = section
+        seen[name] = occurrence + 1
+    return plan
+
+
+def _apply_scene_schema(
+    scenes: list[dict[str, Any]],
+    library_entry: dict[str, Any] | None,
+    characters: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Stamp derivable schema fields onto scenes; never trust the LLM's values.
+
+    Derived: ``lyric_lines`` from the library section mapping, ``character_ref``
+    from ``characters[]``. Normalized: ``framing`` to the schema vocabulary.
+    Left absent when underivable: ``source_aspect``, ``accent``. The report
+    counts what happened so a missing field is visible, not silent.
+    """
+    plan = _library_section_plan(library_entry)
+    seen: dict[str, int] = {}
+    attached = 0
+    unmatched = 0
+    lyric_line_refs = 0
+
+    for scene in scenes:
+        if not isinstance(scene, dict):
+            continue
+        # Never keep an LLM-supplied character_ref or lyric_lines: both are
+        # derivable and therefore owned by this step.
+        scene.pop("character_ref", None)
+        scene.pop("lyric_lines", None)
+
+        name = str(scene.get("section") or "")
+        occurrence = seen.get(name, 0)
+        seen[name] = occurrence + 1
+        library_section = plan.get((name, occurrence))
+        if library_section is not None:
+            lines = library_section.get("lines") or []
+            if lines:
+                scene["lyric_lines"] = [
+                    {"section": name, "index": index} for index in range(len(lines))
+                ]
+                lyric_line_refs += len(lines)
+
+        ref, reason = _character_ref_for_scene(scene, characters)
+        if ref is not None:
+            scene["character_ref"] = ref
+            attached += 1
+        elif reason in {"ambiguous-character", "unmatched-character"}:
+            unmatched += 1
+
+        framing = _normalize_framing(scene.get("framing"))
+        if framing is None:
+            scene.pop("framing", None)
+        else:
+            scene["framing"] = framing
+
+        source_aspect = scene.get("source_aspect")
+        if not isinstance(source_aspect, str) or not source_aspect.strip():
+            scene.pop("source_aspect", None)
+
+        accent = scene.get("accent")
+        if not isinstance(accent, dict) or not accent.get("type"):
+            scene.pop("accent", None)
+
+    report = {
+        "scenes": len(scenes),
+        "character_refs_attached": attached,
+        "character_refs_unmatched": unmatched,
+        "lyric_lines_attached": lyric_line_refs,
+    }
+    return scenes, report
+
+
 class StoryboardGeneratorHandler:
     """Handler for storyboard generation jobs using Ollama LLM."""
 
@@ -283,7 +473,13 @@ class StoryboardGeneratorHandler:
 
         grid = _prepare_grid(params)
         sung = _prepare_sung_filter(params)
+        characters = _character_entries(params.get("characters"))
+        raw_place_theme = params.get("place_theme")
+        place_theme = raw_place_theme.strip() if isinstance(raw_place_theme, str) else None
+        place_theme = place_theme or None
         prompt = theme
+        if place_theme:
+            prompt = f"{theme}\n\nPlace/conformance theme: {place_theme}"
         if grid:
             names = [str(section.get("name") or "") for section in grid["sections"]]
             prompt = (
@@ -332,6 +528,19 @@ class StoryboardGeneratorHandler:
             result["sections_not_sung"] = sung["not_sung"]
             if grid and result["scenes"]:
                 result["estimated_duration_seconds"] = result["scenes"][-1]["end_sec"]
+
+        # S3: deterministic schema pass. The LLM's scene fields are never
+        # trusted where the board can derive them itself.
+        library_entry = load_track_lyrics(params.get("track_lyrics_id"))
+        if characters or library_entry is not None:
+            result["scenes"], report = _apply_scene_schema(
+                result.get("scenes") or [], library_entry, characters
+            )
+            result["enrichment_report"] = report
+        if characters:
+            result["characters"] = characters
+        if place_theme:
+            result["place_theme"] = place_theme
 
         output_files = await self.save_storyboard(job, result)
 
@@ -384,6 +593,14 @@ class StoryboardGeneratorHandler:
             storyboard_data["sections"] = result["sections"]
         if "sections_not_sung" in result:
             storyboard_data["sections_not_sung"] = result["sections_not_sung"]
+
+        # S3 scene-schema data is additive and only present when derivable.
+        if "characters" in result:
+            storyboard_data["characters"] = result["characters"]
+        if "place_theme" in result:
+            storyboard_data["place_theme"] = result["place_theme"]
+        if "enrichment_report" in result:
+            storyboard_data["enrichment_report"] = result["enrichment_report"]
 
         # Persist through go-worker when available; fall back to direct write.
         worker_result = await go_write_sidecar(job.id, storyboard_data, filename=filename)
