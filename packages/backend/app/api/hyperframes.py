@@ -133,7 +133,7 @@ async def compile_storyboard_endpoint(request: CompileStoryboardRequest) -> dict
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {
+    response: dict[str, Any] = {
         "success": True,
         "composition": str(result.composition_path),
         "manifest": str(result.manifest_path),
@@ -141,6 +141,13 @@ async def compile_storyboard_endpoint(request: CompileStoryboardRequest) -> dict
         "duration_seconds": result.duration_seconds,
         "message": "Storyboard compiled; render it with POST /api/hyperframes/render.",
     }
+    # S1 boards carry a measured BPM and an R1 conflict flag; surface them so
+    # the storyboard view can show the measured tempo without re-deriving it.
+    board_bpm = request.storyboard.get("bpm")
+    if isinstance(board_bpm, (int, float)) and not isinstance(board_bpm, bool):
+        response["bpm"] = float(board_bpm)
+        response["bpm_conflict"] = bool(request.storyboard.get("bpm_conflict", False))
+    return response
 
 
 @router.get("/status")

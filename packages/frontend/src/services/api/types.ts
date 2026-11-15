@@ -1648,6 +1648,10 @@ export interface CompileStoryboardResponse {
   scene_count: number;
   duration_seconds: number;
   message: string;
+  /** Measured BPM from an S1 grid board, when the storyboard carries one. */
+  bpm?: number;
+  /** True when library/metadata BPM disagrees with the measured grid (R1). */
+  bpm_conflict?: boolean;
 }
 
 export interface HyperFramesAudioPayload {

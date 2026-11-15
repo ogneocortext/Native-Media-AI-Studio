@@ -998,6 +998,16 @@ function StoryboardDetail({
           <p className="mt-3 text-xs text-emerald-400">
             Compiled {compileResult.scene_count} scenes · {compileResult.duration_seconds}s. Use
             HyperFrames render to produce the final video.
+            {typeof compileResult.bpm === "number" && (
+              <span className="ml-2 text-gray-300">
+                · {Math.round(compileResult.bpm)} BPM measured
+              </span>
+            )}
+            {compileResult.bpm_conflict && (
+              <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                BPM conflict - grid wins
+              </span>
+            )}
           </p>
         )}
         <div className="p-6 max-w-4xl">
