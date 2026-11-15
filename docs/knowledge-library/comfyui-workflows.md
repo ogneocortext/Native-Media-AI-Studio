@@ -89,9 +89,10 @@ inventory row.
 | `animagine-xl-4.0` | Image (SDXL anime, uncensored) | ✅ SFW→explicit, cel + soft-shaded stacks, 8-pose matrix | [[animagine-xl-4-0-tag-reference-order-rating-score-and-temporal-tags-2026]], [[danbooru-the-tag-vocabulary-behind-anime-diffusion-models-2026]] |
 | `sd3.5_large_turbo` GGUF | Image | ✅ Smoke + img2img/inpaint | [[comfyui-sd3-5-turbo-gguf-on-8gb-vae-triple-text-encoders-and-what-actually-broke-2026]], [[prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026]] |
 | `flux1-dev` / `flux1-schnell` GGUF | Image | ✅ Smoke + laugh-cycle inpaint | [[prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026]] |
-| Wan 2.1 1.3B / Wan 2.2 TI2V-5B GGUF | Video | ⚠️ Workflow verified, no per-model QA pass | [[video-model-test-protocol-2026]], [[video-generation-vram-2026]] |
-| LTXV-2B distilled fp8 | Video | ⚠️ Installed, untested | — |
-| Kandinsky 5 Lite I2V | Video | ⚠️ Installed, untested | — |
+| Wan 2.1 1.3B fp16 | Video | ✅ Smoke tested 2026-12 — 832×480×33f/30 steps succeeded but took ~25 min and prompt adherence was poor (underwater-disco shrimp prompt → unrelated cartoon scene). Impractical for iteration on this card. | this section |
+| Wan 2.2 TI2V-5B GGUF | Video | ✅ Verified 2026-09-20 — 81f @ 832×480, ~6.5 GB VRAM, ~10 min, prompt-coherent | Wan 2.2 troubleshooting callout below |
+| LTXV-2B distilled fp8 | Video | ✅ Benchmarked — 512×512 24f: 165 s; 832×480 24f: 90 s, both success | `docs/knowledge-library/benchmarks/video-model-8gb-2026.json` |
+| Kandinsky 5 Lite I2V | Video | ⛔ Blocked — checkpoint present but ComfyUI graph can't run: `Kandinsky5LoadTextEmbedders` needs a `clip` text encoder absent from `models/text_encoders/` (only qwen_2.5_vl fp8 present), and `hunyuan_vae` is missing from `models/vae/`. DiT also sits in `checkpoints/` while the loader scans `diffusion_models/`. Needs ~2 GB encoder + VAE downloads before first test. | — |
 | AnimateDiff-Evolved (mm_sd15_v3 etc.) | Video | ✅ Motion LoRAs tested | [[animatediff-evolved-2026]] |
 | Hunyuan3D-2mini / 3.0 | 3D | ✅ Mesh gen verified | [[hunyuan3d-setup]] |
 | triposr.ckpt | 3D reconstruction | ✅ | [[text-to-3d-options-2026]] |
