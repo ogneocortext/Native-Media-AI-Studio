@@ -628,6 +628,21 @@ class StoryboardGeneratorHandler:
             if conformance_errors:
                 result["conformance_errors"] = conformance_errors
 
+        # S5(b): record which track-lyrics entry this board was built from.
+        # An unresolvable id never fails the job; it is recorded as unresolved.
+        raw_track_lyrics_id = params.get("track_lyrics_id")
+        if isinstance(raw_track_lyrics_id, str) and raw_track_lyrics_id.strip():
+            entry = load_track_lyrics(raw_track_lyrics_id)
+            result["track_lyrics_id"] = raw_track_lyrics_id
+            result["track_lyrics_resolved"] = entry is not None
+            if entry is not None:
+                title = entry.get("title")
+                if isinstance(title, str) and title.strip():
+                    result["track_title"] = title
+                library_bpm = _library_bpm(raw_track_lyrics_id)
+                if library_bpm is not None:
+                    result["library_bpm"] = library_bpm
+
         output_files = await self.save_storyboard(job, result)
 
         response: dict[str, Any] = {
@@ -647,6 +662,9 @@ class StoryboardGeneratorHandler:
         if conformance_ran:
             response["panels_accepted"] = panels_accepted
             response["panels_rejected"] = panels_rejected
+        if "track_lyrics_id" in result:
+            response["track_lyrics_id"] = result["track_lyrics_id"]
+            response["track_lyrics_resolved"] = result["track_lyrics_resolved"]
         return response
 
     async def save_storyboard(self, job: Job, result: dict[str, Any]) -> dict[str, str]:
@@ -698,6 +716,16 @@ class StoryboardGeneratorHandler:
             storyboard_data["panel_images_unmatched"] = result["panel_images_unmatched"]
         if "conformance_errors" in result:
             storyboard_data["conformance_errors"] = result["conformance_errors"]
+
+        # S5(b) provenance: present only when a track_lyrics_id was supplied.
+        for field in (
+            "track_lyrics_id",
+            "track_lyrics_resolved",
+            "track_title",
+            "library_bpm",
+        ):
+            if field in result:
+                storyboard_data[field] = result[field]
 
         # Persist through go-worker when available; fall back to direct write.
         worker_result = await go_write_sidecar(job.id, storyboard_data, filename=filename)

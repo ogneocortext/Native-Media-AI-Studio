@@ -522,3 +522,81 @@ async def test_panel_images_mark_matching_scenes_generated(isolated_output: Path
     assert "panel_image" not in board["scenes"][1]
     assert board["panel_images_unmatched"] == 1
     assert response["panels_generated"] == 1
+
+
+# ---------------------------------------------------------------------------
+# S5(b): track_lyrics_id provenance
+# ---------------------------------------------------------------------------
+
+
+async def test_resolved_track_lyrics_id_records_provenance(isolated_output: Path) -> None:
+    handler = StoryboardGeneratorHandler(adapter=FakeAdapter())
+    job = _job(
+        {"theme": "unproductive", "track_lyrics_id": "unproductive-valley-phonk"}
+    )
+
+    response = await handler.process_job(job)
+    board = _read_board(isolated_output)
+
+    assert board["track_lyrics_id"] == "unproductive-valley-phonk"
+    assert board["track_lyrics_resolved"] is True
+    assert board["library_bpm"] == 136
+    assert board["track_title"] == "Unproductive (Valley Phonk)"
+    assert response["track_lyrics_id"] == "unproductive-valley-phonk"
+    assert response["track_lyrics_resolved"] is True
+
+
+async def test_unresolvable_track_lyrics_id_is_recorded_not_fatal(
+    isolated_output: Path,
+) -> None:
+    handler = StoryboardGeneratorHandler(adapter=FakeAdapter())
+    job = _job({"theme": "x", "track_lyrics_id": "no-such-track"})
+
+    response = await handler.process_job(job)
+    board = _read_board(isolated_output)
+
+    assert response["track_lyrics_id"] == "no-such-track"
+    assert response["track_lyrics_resolved"] is False
+    assert board["track_lyrics_id"] == "no-such-track"
+    assert board["track_lyrics_resolved"] is False
+    assert "library_bpm" not in board
+    # Same no-library path as before: no schema pass, planned scenes.
+    assert "enrichment_report" not in board
+    assert all(scene["state"] == "planned" for scene in board["scenes"])
+
+
+async def test_no_track_lyrics_id_keeps_the_legacy_shape(isolated_output: Path) -> None:
+    handler = StoryboardGeneratorHandler(adapter=FakeAdapter())
+    job = _job({"theme": "x"})
+
+    response = await handler.process_job(job)
+    board = _read_board(isolated_output)
+
+    assert "track_lyrics_id" not in response
+    assert "track_lyrics_resolved" not in response
+    assert "track_lyrics_id" not in board
+    assert "track_lyrics_resolved" not in board
+    assert "library_bpm" not in board
+    assert "track_title" not in board
+
+
+async def test_entry_without_numeric_bpm_has_no_library_bpm(
+    isolated_output: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    entry = storyboard_generator.load_track_lyrics("unproductive-valley-phonk")
+    assert entry is not None
+    without_bpm = dict(entry)
+    without_bpm.pop("bpm", None)
+    monkeypatch.setattr(storyboard_generator, "load_track_lyrics", lambda _id: without_bpm)
+
+    handler = StoryboardGeneratorHandler(adapter=FakeAdapter())
+    job = _job(
+        {"theme": "x", "track_lyrics_id": "unproductive-valley-phonk"}
+    )
+
+    await handler.process_job(job)
+    board = _read_board(isolated_output)
+
+    assert board["track_lyrics_resolved"] is True
+    assert "library_bpm" not in board
+    assert board["track_title"] == "Unproductive (Valley Phonk)"

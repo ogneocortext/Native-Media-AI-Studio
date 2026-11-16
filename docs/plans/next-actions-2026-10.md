@@ -327,13 +327,14 @@ notes; the two additions to `/api/audio/*` (`preview-audio`,
 
 ### Step 5 — Storyboard enrichment (from track-production practice)
 
-**Status 2026-11-16: S1-S4 landed; S5(b) is the only Step 5 item still
-open.** S1 (measured-grid input, R1) in `cadf6d9b`, S2 (sung-truth diff,
-R2) in `9afdd988`, S3 (scene schema + grid-absolute compiler times,
-R3/R4/R6) in `53459768`, S4 (panel lifecycle + place/theme conformance,
-R5) in `83468df2` and the commit with subject `feat(storyboard):
-place/theme conformance check via local VLM (Step 5 S4)` (hash in the
-session report). Original proposal: owner-requested exploration; design
+**Status 2026-11-16: Step 5 complete (S1-S5).** S1 (measured-grid input,
+R1) in `cadf6d9b`, S2 (sung-truth diff, R2) in `9afdd988`, S3 (scene
+schema + grid-absolute compiler times, R3/R4/R6) in `53459768`, S4 (panel
+lifecycle + place/theme conformance, R5) in `83468df2` and `f64d5c74`,
+S5(a) library capture on 2026-10-22, S5(b) track_lyrics_id provenance in
+the commit with subject `feat(storyboard): surface track_lyrics_id
+provenance on boards (Step 5 S5b)` (hash in the session report). No Step 5
+items remain open. Original proposal: owner-requested exploration; design
 source is `docs/knowledge-library/storyboard-enrichment-from-track-practice-2026.md`
 (rules R1–R6 with the production evidence behind each). Goal: the
 storyboard generator stops taking only `theme + num_scenes` and starts
