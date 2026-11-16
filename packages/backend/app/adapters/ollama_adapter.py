@@ -286,7 +286,7 @@ Generate 3-8 scenes based on the input theme or concept."""
 
     async def chat(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         model: str | None = None,
         tools: list[dict[str, Any]] | None = None,
         *,

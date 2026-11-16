@@ -9,6 +9,7 @@ Jobs without ``analysis`` keep the original theme-driven behavior.
 """
 
 import bisect
+import inspect
 import json
 import re
 import statistics
@@ -20,7 +21,7 @@ from ..adapters.ollama import OllamaAdapter
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job
 from ..services.go_worker_client import write_sidecar as go_write_sidecar
-from .storyboard_panels import mark_generated, stamp_planned
+from .storyboard_panels import apply_verdict, mark_generated, stamp_planned
 from .storyboard_sung_diff import diff_sung_sections, not_sung_section_names
 
 OUTPUT_DIR = PROJECT_ROOT / "output" / "storyboards"
@@ -488,8 +489,10 @@ def _apply_panel_images(
 class StoryboardGeneratorHandler:
     """Handler for storyboard generation jobs using Ollama LLM."""
 
-    def __init__(self, adapter: OllamaAdapter | None = None):
+    def __init__(self, adapter: OllamaAdapter | None = None, conformance_checker: Any = None):
         self.adapter = adapter or OllamaAdapter()
+        # None means no conformance pass: generated panels stay generated.
+        self.conformance_checker = conformance_checker
 
     async def process_job(self, job: Job) -> dict[str, Any]:
         """Process a storyboard generation job."""
@@ -582,6 +585,49 @@ class StoryboardGeneratorHandler:
             if unmatched:
                 result["panel_images_unmatched"] = unmatched
 
+        # S4 Commit 2: place/theme conformance. Only generated panels with an
+        # image and a board place_theme are checked; None is not a verdict.
+        conformance_ran = False
+        panels_accepted = 0
+        panels_rejected = 0
+        conformance_errors = 0
+        has_panel_images = panel_images_supplied and bool(params.get("panel_images"))
+        if self.conformance_checker is not None and has_panel_images and place_theme:
+            conformance_ran = True
+            checked: list[dict[str, Any]] = []
+            for scene in result["scenes"]:
+                if scene.get("state") != "generated":
+                    checked.append(scene)
+                    continue
+                verdict = self.conformance_checker.check(
+                    str(scene.get("panel_image") or ""), place_theme, scene
+                )
+                if inspect.isawaitable(verdict):
+                    verdict = await verdict
+                if verdict is None:
+                    scene = dict(scene)
+                    scene["conformance_error"] = "check could not be performed"
+                    conformance_errors += 1
+                    checked.append(scene)
+                    continue
+                accepted = isinstance(verdict, dict) and verdict.get("accepted") is True
+                reason = verdict.get("reason") if isinstance(verdict, dict) else None
+                if accepted:
+                    scene = apply_verdict(scene, accepted=True, reason=None)
+                    panels_accepted += 1
+                elif isinstance(reason, str) and reason.strip():
+                    scene = apply_verdict(scene, accepted=False, reason=reason)
+                    panels_rejected += 1
+                else:
+                    # A malformed verdict is a failed check, not an auto-reject.
+                    scene = dict(scene)
+                    scene["conformance_error"] = "check could not be performed"
+                    conformance_errors += 1
+                checked.append(scene)
+            result["scenes"] = checked
+            if conformance_errors:
+                result["conformance_errors"] = conformance_errors
+
         output_files = await self.save_storyboard(job, result)
 
         response: dict[str, Any] = {
@@ -598,6 +644,9 @@ class StoryboardGeneratorHandler:
             response["grid_source"] = grid["grid_source"]
         if panel_images_supplied:
             response["panels_generated"] = result.get("panels_generated", 0)
+        if conformance_ran:
+            response["panels_accepted"] = panels_accepted
+            response["panels_rejected"] = panels_rejected
         return response
 
     async def save_storyboard(self, job: Job, result: dict[str, Any]) -> dict[str, str]:
@@ -647,6 +696,8 @@ class StoryboardGeneratorHandler:
         # S4 lifecycle: unmatched image ids are data, not a silent drop.
         if "panel_images_unmatched" in result:
             storyboard_data["panel_images_unmatched"] = result["panel_images_unmatched"]
+        if "conformance_errors" in result:
+            storyboard_data["conformance_errors"] = result["conformance_errors"]
 
         # Persist through go-worker when available; fall back to direct write.
         worker_result = await go_write_sidecar(job.id, storyboard_data, filename=filename)

@@ -147,6 +147,16 @@ async def compile_storyboard_endpoint(request: CompileStoryboardRequest) -> dict
     if isinstance(board_bpm, (int, float)) and not isinstance(board_bpm, bool):
         response["bpm"] = float(board_bpm)
         response["bpm_conflict"] = bool(request.storyboard.get("bpm_conflict", False))
+    # S4: panel state counts ride along when the board carries lifecycle state.
+    panel_states: dict[str, int] = {}
+    for scene in request.storyboard.get("scenes") or []:
+        if not isinstance(scene, dict):
+            continue
+        state = scene.get("state")
+        if isinstance(state, str) and state:
+            panel_states[state] = panel_states.get(state, 0) + 1
+    if panel_states:
+        response["panel_states"] = panel_states
     return response
 
 

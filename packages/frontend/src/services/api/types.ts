@@ -1652,6 +1652,8 @@ export interface CompileStoryboardResponse {
   bpm?: number;
   /** True when library/metadata BPM disagrees with the measured grid (R1). */
   bpm_conflict?: boolean;
+  /** Panel lifecycle counts (planned/generated/accepted/rejected), when present. */
+  panel_states?: Record<string, number>;
 }
 
 export interface HyperFramesAudioPayload {

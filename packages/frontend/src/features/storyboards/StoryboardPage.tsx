@@ -1008,6 +1008,18 @@ function StoryboardDetail({
                 BPM conflict - grid wins
               </span>
             )}
+            {compileResult.panel_states && (
+              <span className="ml-2 text-gray-400">
+                ·{" "}
+                {(["accepted", "generated", "rejected", "planned"] as const)
+                  .filter((state) => (compileResult.panel_states?.[state] ?? 0) > 0)
+                  .map(
+                    (state) =>
+                      `${compileResult.panel_states?.[state] ?? 0} ${state}`,
+                  )
+                  .join(" · ")}
+              </span>
+            )}
           </p>
         )}
         <div className="p-6 max-w-4xl">
