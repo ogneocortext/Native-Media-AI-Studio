@@ -20,6 +20,7 @@ from ..adapters.ollama import OllamaAdapter
 from ..core.config import PROJECT_ROOT
 from ..models.job import Job
 from ..services.go_worker_client import write_sidecar as go_write_sidecar
+from .storyboard_panels import mark_generated, stamp_planned
 from .storyboard_sung_diff import diff_sung_sections, not_sung_section_names
 
 OUTPUT_DIR = PROJECT_ROOT / "output" / "storyboards"
@@ -458,6 +459,32 @@ def _apply_scene_schema(
     return scenes, report
 
 
+def _apply_panel_images(
+    scenes: list[dict[str, Any]], panel_images: dict[str, Any]
+) -> tuple[list[dict[str, Any]], int, int]:
+    """Move scenes whose id appears in ``panel_images`` to ``generated``.
+
+    Returns ``(scenes, generated_count, unmatched_count)``. Unknown ids and
+    empty refs are counted, never silently dropped.
+    """
+    scene_ids = {
+        str(scene.get("id") or f"scene-{index + 1}") for index, scene in enumerate(scenes)
+    }
+    unmatched = sum(1 for key in panel_images if str(key) not in scene_ids)
+    generated = 0
+    updated: list[dict[str, Any]] = []
+    for index, scene in enumerate(scenes):
+        scene_id = str(scene.get("id") or f"scene-{index + 1}")
+        if scene_id in panel_images:
+            try:
+                scene = mark_generated(scene, panel_images[scene_id])
+                generated += 1
+            except ValueError:
+                unmatched += 1
+        updated.append(scene)
+    return updated, generated, unmatched
+
+
 class StoryboardGeneratorHandler:
     """Handler for storyboard generation jobs using Ollama LLM."""
 
@@ -542,6 +569,19 @@ class StoryboardGeneratorHandler:
         if place_theme:
             result["place_theme"] = place_theme
 
+        # S4: panel lifecycle. Every board is stamped; panel_images move
+        # matching scenes to generated. The LLM never owns lifecycle state.
+        result["scenes"] = stamp_planned(result.get("scenes") or [])
+        panel_images_supplied = isinstance(params.get("panel_images"), dict)
+        if panel_images_supplied:
+            scenes, generated, unmatched = _apply_panel_images(
+                result["scenes"], params.get("panel_images") or {}
+            )
+            result["scenes"] = scenes
+            result["panels_generated"] = generated
+            if unmatched:
+                result["panel_images_unmatched"] = unmatched
+
         output_files = await self.save_storyboard(job, result)
 
         response: dict[str, Any] = {
@@ -556,6 +596,8 @@ class StoryboardGeneratorHandler:
             response["bpm"] = grid["bpm"]
             response["bpm_conflict"] = grid["bpm_conflict"]
             response["grid_source"] = grid["grid_source"]
+        if panel_images_supplied:
+            response["panels_generated"] = result.get("panels_generated", 0)
         return response
 
     async def save_storyboard(self, job: Job, result: dict[str, Any]) -> dict[str, str]:
@@ -601,6 +643,10 @@ class StoryboardGeneratorHandler:
             storyboard_data["place_theme"] = result["place_theme"]
         if "enrichment_report" in result:
             storyboard_data["enrichment_report"] = result["enrichment_report"]
+
+        # S4 lifecycle: unmatched image ids are data, not a silent drop.
+        if "panel_images_unmatched" in result:
+            storyboard_data["panel_images_unmatched"] = result["panel_images_unmatched"]
 
         # Persist through go-worker when available; fall back to direct write.
         worker_result = await go_write_sidecar(job.id, storyboard_data, filename=filename)

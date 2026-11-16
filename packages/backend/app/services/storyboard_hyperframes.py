@@ -34,6 +34,9 @@ _PASSTHROUGH_SCENE_FIELDS = (
     "source_aspect",
     "character_ref",
     "accent",
+    "state",
+    "reject_reason",
+    "panel_image",
 )
 
 _PASSTHROUGH_BOARD_FIELDS = (
@@ -101,6 +104,10 @@ def _scenes(data: dict[str, Any]) -> list[dict[str, Any]]:
     for index, raw in enumerate(raw_scenes):
         if not isinstance(raw, dict):
             raise ValueError(f"scene {index} must be an object")
+        # R5: a rejected panel is normal data and earns no frame. Survivors
+        # keep their absolute (grid) times; a gap is not stretched closed.
+        if raw.get("state") == "rejected":
+            continue
 
         # R1/R6: when the scene carries beat indexes and the board carries the
         # measured grid, absolute times come from the grid and win over any
@@ -140,6 +147,11 @@ def _scenes(data: dict[str, Any]) -> list[dict[str, Any]]:
                 scene[field] = raw[field]
         scenes.append(scene)
         grid_timed.append(used_grid)
+
+    if not scenes:
+        # The generic empty-list check above cannot see this case: the list
+        # had entries, every one of them a rejected panel.
+        raise ValueError("all panels rejected: no scenes remain to compile")
 
     if scenes:
         # Legacy scenes are normalized to a contiguous timeline. Grid-timed

@@ -251,3 +251,68 @@ def test_grid_scene_keeps_its_boundaries_across_a_removed_section(tmp_path: Path
     assert manifest["scenes"][0]["end"] == 2.0
     assert manifest["scenes"][1]["start"] == 6.0
     assert manifest["scenes"][1]["end"] == 8.0
+
+
+# ---------------------------------------------------------------------------
+# S4: panel lifecycle + compiler exclusion
+# ---------------------------------------------------------------------------
+
+
+def test_rejected_panel_is_excluded_and_grid_times_hold(tmp_path: Path) -> None:
+    result = compile_storyboard(
+        {
+            "duration": 6,
+            "beat_times": [0, 1, 2, 3, 4, 5, 6],
+            "scenes": [
+                {"id": "a", "start_beat": 0, "end_beat": 2, "state": "accepted"},
+                {
+                    "id": "b",
+                    "start_beat": 2,
+                    "end_beat": 4,
+                    "state": "rejected",
+                    "reject_reason": "generic Chinatown streetscape, wrong place",
+                },
+                {
+                    "id": "c",
+                    "start_beat": 4,
+                    "end_beat": 6,
+                    "state": "generated",
+                    "panel_image": "panels/c.png",
+                },
+            ],
+        },
+        tmp_path,
+        name="rejected",
+    )
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+
+    assert [scene["id"] for scene in manifest["scenes"]] == ["a", "c"]
+    assert manifest["scenes"][0]["start"] == 0.0
+    assert manifest["scenes"][0]["end"] == 2.0
+    assert manifest["scenes"][0]["state"] == "accepted"
+    assert manifest["scenes"][1]["start"] == 4.0
+    assert manifest["scenes"][1]["end"] == 6.0
+    assert manifest["scenes"][1]["state"] == "generated"
+    assert manifest["scenes"][1]["panel_image"] == "panels/c.png"
+    # The rejected scene's reason is data on the board, not on a surviving scene.
+    assert all("reject_reason" not in scene for scene in manifest["scenes"])
+
+
+def test_all_rejected_board_raises_the_named_error(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="all panels rejected"):
+        compile_storyboard(
+            {
+                "duration": 4,
+                "scenes": [
+                    {
+                        "id": "a",
+                        "start": 0,
+                        "end": 4,
+                        "state": "rejected",
+                        "reject_reason": "wrong place",
+                    }
+                ],
+            },
+            tmp_path,
+            name="all-rejected",
+        )

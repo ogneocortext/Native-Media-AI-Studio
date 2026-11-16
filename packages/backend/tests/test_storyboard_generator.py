@@ -288,8 +288,13 @@ async def test_legacy_job_keeps_the_pre_s1_board_shape(isolated_output: Path) ->
     assert set(board) == LEGACY_BOARD_KEYS
     assert "bpm" not in response
     assert "bpm_conflict" not in response
-    # LLM scenes pass through untouched: no grid fields, no injected start/end.
-    assert board["scenes"][0] == {"title": "Opening", "description": "A wide desert"}
+    assert "panels_generated" not in response
+    # LLM scenes pass through with lifecycle state stamped (S4); no grid fields.
+    assert board["scenes"][0] == {
+        "title": "Opening",
+        "description": "A wide desert",
+        "state": "planned",
+    }
     assert "start_beat" not in board["scenes"][0]
     assert "start" not in board["scenes"][0]
 
@@ -470,3 +475,50 @@ async def test_underivable_schema_fields_stay_absent(isolated_output: Path) -> N
     assert "framing" not in scene
     assert "source_aspect" not in scene
     assert "accent" not in scene
+
+
+# ---------------------------------------------------------------------------
+# S4: panel lifecycle
+# ---------------------------------------------------------------------------
+
+
+async def test_llm_supplied_lifecycle_state_is_discarded(isolated_output: Path) -> None:
+    handler = StoryboardGeneratorHandler(
+        adapter=FakeAdapter(
+            scenes=[
+                {
+                    "title": "Opening",
+                    "description": "A wide desert",
+                    "state": "accepted",
+                    "reject_reason": "LLM invented this",
+                }
+            ]
+        )
+    )
+    job = _job({"theme": "x"})
+
+    await handler.process_job(job)
+    board = _read_board(isolated_output)
+
+    assert board["scenes"][0]["state"] == "planned"
+    assert "reject_reason" not in board["scenes"][0]
+
+
+async def test_panel_images_mark_matching_scenes_generated(isolated_output: Path) -> None:
+    handler = StoryboardGeneratorHandler(adapter=FakeAdapter())
+    job = _job(
+        {
+            "theme": "x",
+            "panel_images": {"scene-1": "panels/one.png", "scene-9": "panels/missing.png"},
+        }
+    )
+
+    response = await handler.process_job(job)
+    board = _read_board(isolated_output)
+
+    assert board["scenes"][0]["state"] == "generated"
+    assert board["scenes"][0]["panel_image"] == "panels/one.png"
+    assert board["scenes"][1]["state"] == "planned"
+    assert "panel_image" not in board["scenes"][1]
+    assert board["panel_images_unmatched"] == 1
+    assert response["panels_generated"] == 1
