@@ -55,7 +55,9 @@ def gates(*, fix: bool = False, verbose: bool = False) -> list[Gate]:
                  else [PNPM, "exec", "eslint", "--format=stylish", "src"])
     return [
         Gate("docs", [PY, "tools/check-all.py"] + docs_extra, ROOT,
-             desc="documentation and repo hygiene (7 checks via check-all.py)"),
+             # No check count here: it lived in this string and went stale the
+             # first time a check was added. check-all.py prints the real count.
+             desc="documentation and repo hygiene (tools/check-all.py)"),
         Gate("ruff", ruff_argv, ROOT,
              desc="Python lint with ruff (imports, style, bugs)"),
         Gate("arch", [PY, "tools/check-import-cycles.py"], ROOT,

@@ -66,6 +66,11 @@ ROOT = Path(__file__).resolve().parent.parent
 # [SKIP] rather than [PASS] so nobody mistakes "not run" for "ran clean".
 CHECKS = [
     ("docs map", "check-docs-map.py", [], False),
+    # The decision log is ~190 KB, so AGENTS.md and the log header route agents
+    # to its 98-line Quick index instead. That index is only useful while it
+    # lists every entry, and nothing else would notice a decision added without
+    # its line — the exact drift the index exists to prevent.
+    ("decision index", "check-decision-index.py", [], False),
     ("text encoding", "check-text-encoding.py", [], False),
     ("subprocess encoding", "check-subprocess-encoding.py", [], False),
     # Control/invisible/mojibake characters: C-escape accidents (BEL for 'a',

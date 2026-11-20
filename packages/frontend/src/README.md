@@ -51,6 +51,6 @@ This directory groups the React + Vite + TypeScript UI by **responsibility domai
 
 - `packages/README.md` — package-level layout and entry points
 - `../AGENTS.md` — project agent rules, shell rules, Python environment notes
-- `docs/architecture/decision-log.md` — architecture decisions (D1–D54), do not re-litigate
+- `docs/architecture/decision-log.md` — architecture decisions (D1–D79), do not re-litigate
 - `docs/README.md` — documentation map
 - `features/README.md` — feature module overview
