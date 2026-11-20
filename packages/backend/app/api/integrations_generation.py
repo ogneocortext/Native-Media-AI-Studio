@@ -687,7 +687,14 @@ async def upload_image_to_comfyui(request: Request) -> dict:
 
     try:
         base_url = config.comfyui_url
-        result = await _cu.upload_image(base_url, tmp_path)
+        try:
+            result = await _cu.upload_image(base_url, tmp_path)
+        except Exception as exc:
+            # ComfyUI offline or upload rejected — plain 503, no stack trace.
+            raise HTTPException(
+                status_code=503,
+                detail=f"ComfyUI upload unavailable: {exc}",
+            ) from exc
         return {
             "success": True,
             "filename": result.get("name", filename),
@@ -721,7 +728,13 @@ async def upload_audio_to_comfyui(request: Request) -> dict:
 
     try:
         base_url = config.comfyui_url
-        result = await _cu.upload_audio(base_url, tmp_path)
+        try:
+            result = await _cu.upload_audio(base_url, tmp_path)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"ComfyUI upload unavailable: {exc}",
+            ) from exc
         return {
             "success": True,
             "filename": result.get("name", filename),
@@ -755,7 +768,13 @@ async def upload_video_to_comfyui(request: Request) -> dict:
 
     try:
         base_url = config.comfyui_url
-        result = await _cu.upload_video(base_url, tmp_path)
+        try:
+            result = await _cu.upload_video(base_url, tmp_path)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"ComfyUI upload unavailable: {exc}",
+            ) from exc
         return {
             "success": True,
             "filename": result.get("name", filename),
