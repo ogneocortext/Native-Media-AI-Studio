@@ -75,20 +75,18 @@ logs `getBoundingClientRect()`/`elementFromPoint()` for the chrome zones —
 transient geometry collisions are deterministic DOM facts, not something
 to ask the VLM to squint at.
 
-Save captures to a scratch dir outside the repo (e.g. `%TEMP%\kilo\`) or
+Save captures to a scratch dir outside the repo (e.g. `%TEMP%\`) or
 `packages/frontend/tests/browser/out/` (gitignored).
 
-> **⚠️ Service management: Use `background_process` for dev server/backend.**
-> ```python
-> # Start services before capturing
-> background_process(
->     action="start",
->     command="pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1 -Action start -Services all",
->     description="Start all services for visual QA",
->     ready={"pattern": "All requested services started"}
-> )
-> ```
-> The `bash` tool leaks wrapper noise when starting services. Use `background_process` for service lifecycle.
+> **⚠️ Service management: start the dev server/backend via your host's
+> background-process tool** (Kilo: `background_process`; Devin: a detached
+> `exec`/`Start-Process` shell) running
+> `pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all`.
+> Ports come from `config/ports.json` (backend 8004, frontend 5173). Never
+> plain `bash` — it leaks wrapper noise. If `manage-servers.ps1` reports the
+> port "occupied" by a non-responding process, check whether the listener is
+> `tailscaled.exe` on the tailnet bind; if so, launch uvicorn directly on
+> `127.0.0.1:<backend_port>` (see `gates-commit-push` step 0).
 
 For a plain web page, `await page.screenshot({ path, fullPage: true })`.
 
