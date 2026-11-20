@@ -67,6 +67,16 @@ async def get_presence() -> dict:
     return compute_presence()
 
 
+@router.get("/presence/journal", response_model=dict)
+async def get_presence_journal(
+    limit: int = Query(5, ge=1, le=50),
+) -> dict:
+    """Newest presence-journal entries first (visits of traffic-source people)."""
+    from ..core.presence import read_journal
+
+    return {"entries": read_journal(limit)}
+
+
 @router.get("/{log_name}", response_model=dict)
 async def get_log_content(
     log_name: str,

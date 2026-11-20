@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Radio, Pause, Play, Trash2 } from "lucide-react";
+import { Radio, Pause, Play, Trash2, X } from "lucide-react";
 import { Card } from "../../components/common";
 import { getLogTraffic, type LogTrafficEntry } from "../../services/api";
 
@@ -44,6 +44,7 @@ export function LiveTrafficPanel() {
   const [paused, setPaused] = useState(false);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clientFilter, setClientFilter] = useState<string | null>(null);
   const lastSeqRef = useRef(0);
   const inFlightRef = useRef(false);
 
@@ -82,13 +83,19 @@ export function LiveTrafficPanel() {
     return () => window.clearInterval(id);
   }, [poll, paused]);
 
+  // Read ?client= from the URL on load (Maya's chip links here to filter her traffic).
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get("client");
+    if (c) setClientFilter(c);
+  }, []);
+
   const clear = () => {
     setEntries([]);
     lastSeqRef.current = 0;
   };
 
-  // Newest first for display.
-  const rows = [...entries].reverse();
+  // Newest first for display, optionally narrowed to one client (from ?client=).
+  const rows = [...entries].reverse().filter((e) => !clientFilter || e.client_ip === clientFilter);
 
   return (
     <Card className="mb-4 flex flex-col">
@@ -99,6 +106,19 @@ export function LiveTrafficPanel() {
           <span className="text-[10px] text-muted tabular-nums">
             {entries.length} req{entries.length === 1 ? "" : "s"}
           </span>
+          {clientFilter && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] text-primary">
+              client {clientFilter}
+              <button
+                type="button"
+                onClick={() => setClientFilter(null)}
+                title="Clear client filter"
+                className="inline-flex"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          )}
           <span className="flex items-center gap-1 text-[10px]">
             <span
               className={`inline-block w-1.5 h-1.5 rounded-full ${

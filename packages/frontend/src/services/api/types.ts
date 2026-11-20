@@ -775,15 +775,36 @@ export interface LogTrafficEntry {
   query?: string;
 }
 
-/** Presence snapshot for the tracked identity (app-shell avatar chip). */
-export interface LogPresence {
+/** One person in the presence roster (Admin > Log Analytics / app-shell chip). */
+export interface PresencePerson {
   name: string;
   role: string;
-  avatar: string;
+  avatar: string | null;
+  color: string | null;
+  source: "traffic" | "commits";
   state: "active" | "recent" | "away";
   last_seen_ts: string | null;
   seconds_since: number | null;
   session_started_ts: string | null;
+  activity: string | null;
+  client_ip?: string;
+  commit_hash?: string | null;
+}
+
+/** Presence roster (version + ordered people). */
+export interface PresenceRoster {
+  version: string;
+  people: PresencePerson[];
+}
+
+/** One closed-visit journal entry (traffic-source people). */
+export interface PresenceJournalEntry {
+  name: string;
+  started_ts: string;
+  ended_ts: string;
+  duration_seconds: number;
+  areas: string[];
+  requests: number;
 }
 
 // ============================================================================

@@ -164,6 +164,7 @@ export {
   getLogAnalyticsEvents,
   getLogTraffic,
   getLogPresence,
+  getPresenceJournal,
   getLogAnalyticsSummary,
   getLogAnalyticsTrends,
   getLogAnalyticsPatterns,
@@ -180,7 +181,9 @@ export type {
   LogAnalyticsErrors,
   LogAnalyticsEvent,
   LogTrafficEntry,
-  LogPresence,
+  PresencePerson,
+  PresenceRoster,
+  PresenceJournalEntry,
 } from "./logs";
 
 // Data persistence

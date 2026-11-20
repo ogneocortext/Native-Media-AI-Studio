@@ -58,13 +58,9 @@ _DEFAULTS: dict[str, Any] = {
         "limit": 20000,
     },
     "presence": {
-        "name": "Maya",
-        "role": "Manager",
-        "client_ip": "100.124.151.51",
-        "avatar": "/maya-avatar.webp",
-        "active_window_seconds": 300,
-        "recent_window_seconds": 1800,
+        "version": "1.4",
         "session_gap_seconds": 900,
+        "people": [],
     },
 }
 

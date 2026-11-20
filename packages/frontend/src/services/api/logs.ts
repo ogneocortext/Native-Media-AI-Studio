@@ -12,7 +12,8 @@ import type {
   LogAnalyticsErrors,
   LogAnalyticsEvent,
   LogTrafficEntry,
-  LogPresence,
+  PresenceRoster,
+  PresenceJournalEntry,
 } from "./types";
 
 const BASE = "/api/logs";
@@ -53,11 +54,23 @@ export async function getLogTraffic(
 }
 
 /**
- * Get the presence snapshot for the configured identity (Maya).
- * Powers the app-shell avatar chip. Computed from the live traffic ring buffer.
+ * Get the presence roster (one entry per configured person, config order).
+ * Powers the app-shell avatar chips.
  */
-export async function getLogPresence(): Promise<LogPresence> {
-  return getJson<LogPresence>(`${BASE}/presence`, { timeout: 15000 });
+export async function getLogPresence(): Promise<PresenceRoster> {
+  return getJson<PresenceRoster>(`${BASE}/presence`, { timeout: 15000 });
+}
+
+/**
+ * Get the visits journal (newest entries first) for traffic-source people.
+ */
+export async function getPresenceJournal(
+  limit = 5,
+): Promise<{ entries: PresenceJournalEntry[] }> {
+  return getJson<{ entries: PresenceJournalEntry[] }>(
+    `${BASE}/presence/journal?limit=${limit}`,
+    { timeout: 15000 },
+  );
 }
 
 /**

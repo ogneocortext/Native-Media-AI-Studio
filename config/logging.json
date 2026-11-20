@@ -26,13 +26,10 @@
       "analytics.interval_seconds": "How often the auto-ingest loop runs.",
       "analytics.sources": "Log file keys to ingest (app, error, queue, comfyui, ollama).",
       "analytics.limit": "Max new events ingested per source per pass.",
-      "presence.name": "Display name of the tracked presence identity.",
-      "presence.role": "Role shown under the name.",
-      "presence.client_ip": "Client IP that identifies this presence in the traffic log.",
-      "presence.avatar": "Avatar URL path served from the frontend public dir.",
-      "presence.active_window_seconds": "state='active' when the last request is within this many seconds.",
-      "presence.recent_window_seconds": "state='recent' when the last request is within this many seconds (else 'away').",
-      "presence.session_gap_seconds": "Gap under which consecutive requests form one session."
+      "presence.version": "Roster schema version (1.4).",
+      "presence.session_gap_seconds": "Gap under which consecutive requests form one session.",
+      "presence.people": "Ordered roster. Each person is traffic-source (client_ip + activity_labels) or commit-source (commit_match).",
+      "presence.people[].activity_labels": "Ordered prefix->label map for traffic-source activity; the 'default' key is the fallback."
     },
     "last_updated": "2026-11-20"
   },
@@ -73,12 +70,38 @@
     "limit": 20000
   },
   "presence": {
-    "name": "Maya",
-    "role": "Manager",
-    "client_ip": "100.124.151.51",
-    "avatar": "/maya-avatar.webp",
-    "active_window_seconds": 300,
-    "recent_window_seconds": 1800,
-    "session_gap_seconds": 900
+    "version": "1.4",
+    "session_gap_seconds": 900,
+    "people": [
+      {
+        "name": "Maya",
+        "role": "Manager",
+        "avatar": "/maya-avatar.webp",
+        "color": "#6A4C98",
+        "client_ip": "100.124.151.51",
+        "active_window_seconds": 300,
+        "recent_window_seconds": 1800,
+        "activity_labels": {
+          "/api/logs/": "reviewing logs",
+          "/api/integrations/": "checking integrations",
+          "/api/services/": "checking services",
+          "default": "working in the Studio"
+        }
+      },
+      {
+        "name": "ERNIE",
+        "role": "Builder",
+        "avatar": null,
+        "color": "#0C4F65",
+        "commit_match": "Kilo"
+      },
+      {
+        "name": "Devin",
+        "role": "Builder",
+        "avatar": null,
+        "color": "#E8A33D",
+        "commit_match": "Devin"
+      }
+    ]
   }
 }
