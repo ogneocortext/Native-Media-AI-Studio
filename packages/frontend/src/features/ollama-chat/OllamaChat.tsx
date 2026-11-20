@@ -50,6 +50,8 @@ import {
   Copy,
   Trash2,
   Plus,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { Card } from "../../components/common";
 import { AudioTransport } from "../../components/audio";
@@ -72,6 +74,7 @@ import {
 } from "../../services/api";
 import { getOutputUrl } from "../../utils/url";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
+import { useSpeakAloud } from "../../hooks/useSpeakAloud";
 import { selectModel } from "../../services/api/agent-loop";
 
 /** Source badge configs keyed by engine source. */
@@ -301,9 +304,10 @@ function SimpleMarkdown({ content }: { content: string }): React.ReactNode {
 interface MessageItemProps {
   msg: ChatMessage;
   onCopy: (text: string) => void;
+  onSpeak: (text: string) => void;
 }
 
-function MessageItem({ msg, onCopy }: MessageItemProps) {
+function MessageItem({ msg, onCopy, onSpeak }: MessageItemProps) {
   const isUser = msg.role === "user";
   const time = msg.timestamp
     ? msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -351,14 +355,24 @@ function MessageItem({ msg, onCopy }: MessageItemProps) {
               </div>
             ) : null}
             {!isUser && !isError && (
-              <button
-                onClick={() => onCopy(msg.content)}
-                className="absolute -top-6 -right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-white/10 rounded text-gray-400 hover:text-white"
-                title="Copy"
-                aria-label="Copy message"
-              >
-                <Copy size={12} />
-              </button>
+              <div className="absolute -top-6 -right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => onSpeak(msg.content)}
+                  className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-white"
+                  title="Read aloud"
+                  aria-label="Read message aloud"
+                >
+                  <Volume2 size={12} />
+                </button>
+                <button
+                  onClick={() => onCopy(msg.content)}
+                  className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-white"
+                  title="Copy"
+                  aria-label="Copy message"
+                >
+                  <Copy size={12} />
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -381,11 +395,19 @@ interface MessageListProps {
   messages: ChatMessage[];
   loading: boolean;
   onCopy: (text: string) => void;
+  onSpeak: (text: string) => void;
   atBottom: boolean;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
 }
 
-function MessageList({ messages, loading, onCopy, atBottom, setAtBottom }: MessageListProps) {
+function MessageList({
+  messages,
+  loading,
+  onCopy,
+  onSpeak,
+  atBottom,
+  setAtBottom,
+}: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -434,6 +456,7 @@ function MessageList({ messages, loading, onCopy, atBottom, setAtBottom }: Messa
             key={String(msg.timestamp?.getTime() ?? Math.random())}
             msg={msg}
             onCopy={onCopy}
+            onSpeak={onSpeak}
           />
         ))}
         {loading && (
@@ -1137,6 +1160,8 @@ export function OllamaChat() {
     { time: string; event: string; detail: string }[]
   >([]);
   const [extractRunning, setExtractRunning] = useState(false);
+  const [readAloud, setReadAloud] = useState(false);
+  const speakAloud = useSpeakAloud();
   const [extractError, setExtractError] = useState<string | null>(null);
   const [extractResult, setExtractResult] = useState<{
     filename: string;
@@ -1407,6 +1432,9 @@ export function OllamaChat() {
               }
               return next;
             });
+            if (readAloud && assistantContent.trim()) {
+              void speakAloud.speak(assistantContent);
+            }
             break;
           }
           case "error": {
@@ -1582,6 +1610,24 @@ export function OllamaChat() {
                   <Plus size={12} className="mr-2" /> New
                 </button>
               </div>
+              <label className="mt-3 flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={readAloud}
+                  onChange={(e) => setReadAloud(e.target.checked)}
+                  className="rounded border-white/20 bg-white/5"
+                />
+                Read replies aloud
+              </label>
+              {speakAloud.speaking && (
+                <button
+                  onClick={speakAloud.stop}
+                  className="mt-2 flex items-center gap-1 px-2 py-1 text-[10px] rounded bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300"
+                  title={`Stop — voice: ${speakAloud.voice || "maya-blend65"}`}
+                >
+                  <VolumeX size={11} /> Stop speaking
+                </button>
+              )}
               <p className="text-[10px] text-muted mt-2">
                 {messages.length} message{messages.length !== 1 ? "s" : ""} in this conversation
               </p>
@@ -1596,6 +1642,7 @@ export function OllamaChat() {
         onCopy={(text) => {
           void navigator.clipboard.writeText(text);
         }}
+        onSpeak={(text) => void speakAloud.speak(text)}
         atBottom={atBottom}
         setAtBottom={setAtBottom}
       />
