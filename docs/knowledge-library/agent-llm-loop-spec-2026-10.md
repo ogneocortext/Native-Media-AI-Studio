@@ -135,3 +135,7 @@ State is persisted to `output/agent-state/{session_id}.json` via `AgentState` (e
 - Model self-critique / refinement loop
 - Parallel tool calls (sequential only)
 - Video rendering (pipeline stops at remix preview)
+
+## Related
+
+- [[agent-skill-authoring-and-maintenance-lessons-2026]] :see-also — Agent Skill Authoring and Maintenance Lessons 2026

@@ -426,3 +426,7 @@ every browser and forces a full re-download.
 - [[comfyui-workflows]] — the ComfyUI surface the video specs exercise
 - [[knowledge-tracker]] — library migration tracker
 - [[tagging-guide]] — how this article is tagged
+
+## Related
+
+- [[agent-skill-authoring-and-maintenance-lessons-2026]] :see-also — Agent Skill Authoring and Maintenance Lessons 2026

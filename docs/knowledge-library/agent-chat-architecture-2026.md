@@ -117,6 +117,7 @@ on demand.
   tool-call retries (user WIP area — verify before relying on details).
 
 ## Related
+- [[agent-skill-authoring-and-maintenance-lessons-2026]] :see-also — Agent Skill Authoring and Maintenance Lessons 2026
 
 - [[custom-agent-design]] — agent design notes
 - [[agent-llm-loop-spec-2026-10]] — LLM decision-loop spec over `NMAApiClient`

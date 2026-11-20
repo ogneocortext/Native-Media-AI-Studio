@@ -151,6 +151,7 @@ date: 2026-09-30
 - [[stack-extensions-2026|🔧 Stack Extensions 2026]] — Optional languages (CUDA C++, Rust/PyO3, WGSL, **Go**) + high-value Python tools for audio/video/3D (core-flux, madmom-infer, sonara, MovieLite, essentia, audiofeat, videopython, BeatSync Engine, gsplat) — benchmark-first adoption
 
 ### 🤖 AI & ML (Models & Training)
+- [[agent-skill-authoring-and-maintenance-lessons-2026|Agent Skills Best Practices]] — Agent Skill Authoring and Maintenance Lessons 2026
 - [[danbooru-the-tag-vocabulary-behind-anime-diffusion-models-2026|Danbooru Tags]] — Danbooru: The Tag Vocabulary Behind Anime Diffusion Models
 - [[animagine-xl-4-0-tag-reference-order-rating-score-and-temporal-tags-2026|Animagine XL Tag Guide]] — Animagine XL 4.0 Tag Reference: Order, Rating, Score and Temporal Tags
 - [[defect-analysis-for-ai-generated-images-multi-pass-vision-qa-2026|AI Image Defect Analysis]] — Defect Analysis for AI-Generated Images: Multi-Pass Vision QA
@@ -223,7 +224,7 @@ date: 2026-09-30
 || `#platform/*` | Platform-specific integrations | 14 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
-|| `#ai/*` | AI models, training & ML | 26 documents |
+|| `#ai/*` | AI models, training & ML | 27 documents |
 || `#research/*` | Industry trends & analysis | 25 documents |
 
 ### Cross-Cutting Tags
@@ -239,7 +240,7 @@ date: 2026-09-30
 || `#hardware-pascal` | Pascal architecture specifics | 10 documents |
 || `#mcp` | Model Context Protocol | 1 document |
 || `#ascii-art` | ASCII art generation, rendering & tools | 1 document |
-|| `#testing` | Testing & QA | 4 documents |
+|| `#testing` | Testing & QA | 5 documents |
 || `#design` | Design systems & UX | 8 documents |
 || `#audio` | Audio analysis & processing | 27 documents |
 || `#visualization` | Visualization techniques | 19 documents |
