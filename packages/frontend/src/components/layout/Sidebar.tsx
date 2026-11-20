@@ -31,6 +31,7 @@ import {
   Rocket,
   Video,
   Monitor,
+  Info,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
@@ -292,6 +293,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Quick Start",
         icon: <Rocket size={18} />,
         keywords: "quick start onboarding first clip guided",
+      },
+      {
+        path: "/about",
+        label: "About",
+        icon: <Info size={18} />,
+        keywords: "about goals company version info",
       },
     ],
     collapsedByDefault: true,

@@ -145,6 +145,7 @@ const OnboardingPage = lazyNamed(
   async () => import("./features/onboarding/OnboardingPage"),
   "OnboardingPage",
 );
+const AboutPage = lazyNamed(async () => import("./features/about/AboutPage"), "AboutPage");
 
 // Register all lazy routes for preloading on hover
 registerRouteLoader("/create/music-video", async () => import("./features/music-video/MusicVideoWizard"));
@@ -240,6 +241,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/render/visualizer": "Visualizer",
   "/render/preview": "Preview",
   "/render/prompts": "Music Prompts",
+  "/about": "About",
 };
 
 function RouteTitle() {
@@ -300,6 +302,9 @@ function App() {
                 element={withErrorBoundary(<NotificationsPage />)}
               />
               <Route path="/system/docs" element={withErrorBoundary(<DocsPage />)} />
+
+              {/* About */}
+              <Route path="/about" element={withErrorBoundary(<AboutPage />)} />
 
               {/* Create */}
               <Route path="/create/music-video" element={withErrorBoundary(<MusicVideoWizard />)} />

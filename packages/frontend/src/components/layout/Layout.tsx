@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { startAutoRefresh, stopAutoRefresh } from "../../state/jobStore";
 import { useUIStore } from "../../state/uiStore";
@@ -68,7 +69,9 @@ export function Layout({ children }: LayoutProps) {
         <main className="layout-main">{children}</main>
         <footer className="layout-footer">
           <span className="layout-footer-version">V{APP_VERSION}</span>
-          <span className="layout-footer-copyright">© 2026 {COPYRIGHT}</span>
+          <Link to="/about" className="layout-footer-copyright hover:text-foreground transition-colors">
+            © 2025–2027 {COPYRIGHT}
+          </Link>
         </footer>
       </div>
     </div>
