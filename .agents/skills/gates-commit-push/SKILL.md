@@ -25,25 +25,37 @@ description: >-
 
 ## Steps
 
-### 0. Ensure Services Are Running (Use `background_process`)
+### 0. Ensure Services Are Running
 
-When running tests that need the dev server or backend:
+When running tests that need the dev server or backend, start them through
+the repo's service manager — via your host's background-process tool
+(Kilo: `background_process`; Devin: a detached `exec`/`Start-Process`
+shell). Ports come from `config/ports.json` — backend is **8004**, frontend
+**5173**; never assume 8000.
 
 ```python
-# Start all services
+# Start all services (host tool call)
 background_process(
     action="start",
     command="pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1 -Action start -Services all",
     description="Start all services for testing",
     ready={"pattern": "All requested services started"}
 )
-# Verify
+# Verify (backend_port from config/ports.json — currently 8004)
 import requests
 requests.get("http://localhost:5173/").raise_for_status()
-requests.get("http://localhost:8000/api/health").raise_for_status()
+requests.get("http://localhost:8004/api/health").raise_for_status()
 ```
 
-> **Do not use `bash` for service management** — it leaks wrapper noise (`ChildProcess.kill... [Console]::InputEncoding...`). Use `background_process` for all service lifecycle operations.
+> **Do not use `bash` for service management** — it leaks wrapper noise (`ChildProcess.kill... [Console]::InputEncoding...`). Use a background-process tool for all service lifecycle operations.
+>
+> **Known false positive:** `manage-servers.ps1` treats *any* listener on the
+> port as "occupied", including `tailscaled.exe` holding the tailnet-side
+> `tailscale serve` bind. If it reports "port occupied by a non-responding
+> process" while `Get-NetTCPConnection` shows only tailscaled on the tailnet
+> IP, start uvicorn directly on loopback instead:
+> `python -m uvicorn app.main:app --host 127.0.0.1 --port <backend_port>`
+> from `packages/backend`, and leave it running.
 
 ### 1. Run the relevant gates
 
@@ -96,16 +108,18 @@ body.
 > before re-doing "lost" work, run `git log --oneline -10` and `git status` —
 > it may already have landed under someone else's commit.
 
-### 4. Push (pre-push runs the fast gates automatically)
+### 4. Push — only when asked
 
 ```bash
 git push
 ```
 
-The pre-push hook runs `docs ruff type lint unit tools-pytest` (~15s) and
-deliberately skips pytest (~40s) and Playwright (~30s). Run
-`python tools/run-gates.py --e2e` yourself before pushing if the change touches
-the browser.
+**Push only when the task or the user asks for it.** Many tasks are
+explicitly commit-only ("one commit, no push"); pushing anyway violates the
+constraint. When pushing is wanted, the pre-push hook runs `docs ruff type
+lint unit tools-pytest` (~15s) and deliberately skips pytest (~40s) and
+Playwright (~30s). Run `python tools/run-gates.py --e2e` yourself before
+pushing if the change touches the browser.
 
 ## Rules
 

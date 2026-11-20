@@ -58,8 +58,9 @@ await page.click('button[aria-label="Analyze track"]');
 await page.waitForResponse(response => response.url().includes("/api/audio/analyze"));
 ```
 
-Save any captures to a scratch dir outside the repo (e.g. `%TEMP%\kilo\`) or
-`packages/frontend/tests/browser/out/` (gitignored).
+Save any captures to a scratch dir outside the repo (e.g. `%TEMP%\`) or
+`packages/frontend/tests/browser/out/` (gitignored). Backend port comes from
+`config/ports.json` — currently **8004**, not 8000.
 
 ### 2. MEASURE the actual results
 
@@ -159,13 +160,14 @@ re-measure → correct until within `LOUDNESS_TOLERANCE_LU` (0.5 LU) or
 
 ---
 
-## Service Management During Testing: Use `background_process`
+## Service Management During Testing
 
-When running Playwright tests or testing backend APIs, you need services running (Vite dev server, backend, etc.). **Always use `background_process`** — not `bash` — to start/stop services.
+When running Playwright tests or testing backend APIs, you need services running (Vite dev server, backend, etc.). Start/stop them through the repo's service manager (`scripts/manage-servers.ps1`) using your host's background-process tool — Kilo: `background_process`; Devin: a detached `exec`/`Start-Process` shell. **Never plain `bash`** — it leaks wrapper noise (`ChildProcess.kill... [Console]::InputEncoding...`).
 
-### ✅ Correct: Start services via `background_process`
+Ports come from `config/ports.json`: backend **8004**, frontend **5173**.
+
 ```python
-# Start backend + frontend for E2E tests
+# Start backend + frontend for E2E tests (host tool call)
 background_process(
     action="start",
     command="pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1 -Action start -Services all",
@@ -176,26 +178,20 @@ background_process(
 # Wait a moment, then verify
 import requests
 requests.get("http://localhost:5173/").raise_for_status()
-requests.get("http://localhost:8000/api/health").raise_for_status()
+requests.get("http://localhost:8004/api/health").raise_for_status()
 ```
 
-### ❌ Wrong: Using `bash` for services
 ```bash
-# Leaks wrapper noise: "ChildProcess.kill... [Console]::InputEncoding..."
-pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all
-```
-
-### Checking status (OK in `bash`)
-```bash
+# Checking status (any shell)
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action status
 curl -s http://localhost:5173/
 ```
 
-### Stop services after testing
-```python
-background_process(
-    action="stop",
-    command="pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\\manage-servers.ps1 -Action stop -Services all",
-    description="Stop all services"
-)
-```
+Stop services after testing only if the task calls for it — the repo
+convention is to leave services running for the next step.
+
+> **Known false positive:** `manage-servers.ps1` counts *any* listener on
+> the port as occupied, including `tailscaled.exe` on the tailnet-side
+> `tailscale serve` bind. If it reports "port occupied by a non-responding
+> process" while only tailscaled holds the tailnet IP, launch uvicorn
+> directly on loopback instead (see `gates-commit-push` step 0).

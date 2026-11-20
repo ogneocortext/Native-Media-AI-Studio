@@ -92,7 +92,21 @@ must not do any of them:
   Untracked + recent = someone else's in-flight work.
 - **Moving-target protocol:** if a file you edited changes underneath you
   or your fix "disappears", run `git log --oneline -10` + `git status`
-  before redoing it — another agent may have already landed it.
+  before redoing it — another agent may have already landed it. Worse:
+  their `git add` of a shared file can absorb **your uncommitted hunks**
+  into *their* commit. After any surprise, run
+  `git show HEAD:<file> | Select-String <your marker>` to check whether
+  your edit already shipped under someone else's hash before re-applying.
+- **Secrets stay server-side.** Tokens/keys go in env vars or local files
+  outside the repo — never inline in commands, scripts, config, code,
+  commit messages, or reports. To inject one into a service, have a temp
+  script read it from its local source file and set the env var without
+  printing the value.
+- **`manage-servers.ps1` port check is address-blind.** It counts
+  `tailscaled.exe` holding the tailnet-side `tailscale serve` bind as
+  "port occupied" and refuses to start the backend. If that happens,
+  launch uvicorn directly on `127.0.0.1:<backend_port>` from
+  `packages/backend` and leave it running.
 - **Pre-push gates check the working tree, not your commits.** If push
   fails on files you didn't touch, report the blocker; do not bypass
   hooks, do not fix other agents' files mid-flight.
