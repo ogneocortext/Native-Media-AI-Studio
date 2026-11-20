@@ -149,6 +149,16 @@ Native-Media-AI-Studio/
   into some selectors with a visible hash. `cleanTrackName()` in the visualizer's
   `visualizerHelpers.ts` covers names used outside selectors (storyboards, CSV
   lookups, shader labels).
+- **NSFW is a visibility gate, not a cleanup** (D79): the flag is the `nsfw`
+  **media tag**, and flagged items are excluded **server-side** from
+  `/api/outputs`, `/recent`, `/{file_type}` and every path-only library list
+  (favorites, collections, tags, trash, organization). `visible_outputs()` in
+  `api/outputs_scanner.py` is the one choke point — a new general list
+  endpoint that skips it leaks flagged items and their thumbnails.
+  `show_nsfw` (`config/settings.json`, default false) only governs whether
+  `/nsfw` is served and whether its nav entry exists; `GET /api/outputs/nsfw`
+  answers `[]` while it is off. Never re-add client-only hiding, and never
+  flag items programmatically: the owner flags his own, one item at a time.
 - **`/api/audio` is four modules, not one** (D15): `audio.py` (upload, analysis
   endpoints, cache, JSON index), `audio_stems.py` (separation), `audio_edit.py`
   (extract/rename/trim/file serving), `audio_analysis.py` (result builder,

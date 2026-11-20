@@ -242,3 +242,55 @@ Rules: `docs/plans/tasks/README.md`
   unblocked for the whole tree.
 - **Last session:** Devin, 2026-11-08 — finished the repair under
   board claim devin-api-repair, gates verified locally before push.
+
+### T-LIB-11 — NSFW gate: flagged items out of every general list, one gated section
+- **Status:** done
+- **Goal:** Flagged media is permanently absent from the home Recent Videos
+  and every general library/list surface, and lives in one dedicated section
+  (`/nsfw`) behind a `show_nsfw` setting that defaults to false. Enforcement
+  is server-side: while the gate is off, the item and its thumbnail never
+  reach the client at all (no placeholder card, no hidden-item count, no
+  blurred thumbnail, no gap in the grid).
+- **Approach:** the flag is the per-item `nsfw` **tag** that already exists
+  (D79) — no schema change, no second store of item metadata. `core/nsfw.py`
+  holds the flag and the gate; `visible_outputs()` in `outputs_scanner.py` is
+  the single choke point for `/api/outputs`, `/recent` and `/{file_type}`; the
+  path-only library lists (favorites, collections, tags, trash, organization)
+  drop flagged paths; the `nsfw` tag itself is withheld from
+  `/api/media-library/tags` while the gate is off so no filter chip advertises
+  the hidden section.
+- **Files:** packages/backend/app/core/nsfw.py (new),
+  packages/backend/app/api/outputs_endpoints.py,
+  packages/backend/app/api/outputs_scanner.py,
+  packages/backend/app/api/outputs_models.py,
+  packages/backend/app/api/media_library.py,
+  packages/backend/app/api/integrations_config.py,
+  packages/backend/app/core/config.py,
+  packages/backend/tests/test_nsfw_gate.py (new),
+  packages/frontend/src/features/media-library/NsfwLibrary.tsx (new),
+  packages/frontend/src/features/media-library/MediaLibraryView.tsx,
+  packages/frontend/src/features/media-library/hooks/useMediaFiles.ts,
+  packages/frontend/src/state/nsfwStore.ts (new),
+  packages/frontend/src/features/settings/Settings.tsx,
+  packages/frontend/src/components/layout/Layout.tsx,
+  packages/frontend/src/components/layout/Sidebar.tsx,
+  packages/frontend/src/App.tsx, config/settings.json.
+- **Verification:** tsc -b = 0; py_compile = 0; ruff clean on every touched
+  file; 8 new pytest cases; 17/17 live API checks against the running backend
+  — with the gate off the item and its cover path are absent from
+  `/api/outputs`, `/recent?limit=4` and `/recent?limit=200`, the list total
+  drops 625 -> 624 (no hidden-item count) and a 4-item recent grid still
+  returns 4 items (no gap); with the gate on it appears in
+  `/api/outputs/nsfw` and is still absent from the home feed. Rendered DOM
+  with an item flagged: library search returns the standard empty state with 0
+  cards and no hidden/blurred text, and the thumbnail URL is not in the DOM.
+  `/about` footer and `/api/logs/presence` (v1.4, 3 people) unchanged.
+- **Acceptance:** satisfied — default-off gate, server-side exclusion, one
+  commit `6f8a86fb`. Temporary test flag on `audio/test-demo.roll.png` was
+  reverted; the empty `nsfw` tag row it created was deleted.
+- **Last session:** Kilo, 2026-11-20 — built the gate end to end (explore
+  finding: tags array already existed, so the flag is the tag), verified live
+  against the dev backend, then left the stack running. Note: Devin's voice
+  route/nav hunks were in App.tsx/Sidebar.tsx when they were staged, so those
+  few hunks landed inside this commit — acknowledged in
+  tools/model-reliability/observed.jsonl.

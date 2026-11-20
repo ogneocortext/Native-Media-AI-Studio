@@ -412,3 +412,66 @@ assets/character/expressions/
 assets/character/portraits/
 assets/character/clips/
 assets/character/misc/
+
+# ---------------------------------------------------------------------------
+# Agent-session debris and machine-local payloads (sweep 2026-11-20)
+# ---------------------------------------------------------------------------
+
+# pytest-testmon run cache, at the root and in any package that runs pytest
+# with --testmon. Rebuilt on every run; it embeds node ids and timings.
+.testmondata
+
+# Nested agent homes. The ROOT .agents/ .kilo/ .devin/ skill mirrors are
+# tracked on purpose (see the skill-mirror rule above, and
+# tools/check-skill-mirrors.py, which only compares the root mirrors). A
+# second copy created by a tool that ran with packages/frontend as its cwd is
+# not a mirror and must never be committed — nor are the one-off diagnostic
+# scripts an agent leaves in a package-local .kilo/.
+packages/frontend/.agents/
+packages/frontend/.kilo/
+
+# One-off lint / type-check diagnostics from an earlier session, left at the
+# package root instead of in src/. eslint.config.js is the real config;
+# eslint-config.json is a stray dump and nothing imports it. Breadcrumbs.tsx /
+# Breadcrumbs2.tsx are dead copies of the tracked component.
+packages/frontend/Breadcrumbs.tsx
+packages/frontend/Breadcrumbs2.tsx
+packages/frontend/test.ts
+packages/frontend/eslint-config.json
+packages/frontend/eslint-detail.txt
+packages/frontend/eslint-out.json
+packages/frontend/eslint-report.json
+packages/frontend/type-check-output*.txt
+
+# Root-level scratch from agent sessions: one-off capture scripts and an ad-hoc
+# dev-server wrapper. The canonical entry points are scripts/start-services.ps1
+# and scripts/manage-servers.ps1; AGENTS.md already routes scratch to
+# docs/scratch/ or the gitignored browser-test out dir.
+capture-*.cjs
+test_scan.mjs
+start-frontend.ps1
+
+# Visualizer QA capture runs: frames + video + per-mode analysis JSON, named
+# with a run-id timestamp (viz-capture-<ISO>). 225 MB of regenerable output —
+# the same class of artifact already ignored under
+# packages/frontend/tests/browser/out/.
+viz-capture-*/
+
+# Machine-local payloads re-acquired from upstream, like tools/vendor/: the
+# Rhubarb Lip Sync binary bundle (239 MB) and the VST plugin behind the VST
+# page workstream. Neither is source.
+tools/rhubarb/
+assets/vst/
+
+# Ad-hoc SQLite inspectors with a hardcoded absolute path to this machine's
+# checkout (D:\Backup of Important Data...). One-off diagnostics, not portable
+# tooling — a fresh clone cannot run them and they are not referenced.
+tools/check_db_tables.py
+tools/check_gpu_schema.py
+
+# Scratch by policy: docs/scratch is explicitly not authoritative (D12) and
+# most file types there are already ignored above. PowerShell one-offs and
+# ComfyUI/workflow dumps were the remaining gap. Already-tracked files are
+# unaffected — gitignore only hides untracked paths.
+docs/scratch/*.ps1
+docs/scratch/*.json

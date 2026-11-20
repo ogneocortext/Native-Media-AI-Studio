@@ -2178,3 +2178,37 @@
   touching frontend must run `eslint --fix` habits or fix by hand.
   Verified: eslint src = 0 problems, type-check = 0 errors,
   vitest = 979/979.
+
+### D79 — NSFW is a per-item tag plus a server-enforced visibility gate (2026-11-20)
+
+- **Status:** Decided
+- **Context:** The home page's Recent Videos and the library lists could
+  surface explicit thumbnails on first paint, and the owner shows this
+  frontend to other people. Two flag shapes were possible: a boolean `nsfw`
+  column, or the per-item **tags array that already exists**
+  (`media_tags` / `media_item_tags`, keyed by `relative_path`, with CRUD under
+  `/api/media-library` and a tag editor already in the detail modal).
+- **Decision:** The flag is the existing `nsfw` **tag** — no schema change and
+  no second store of item metadata. Flagged items are excluded from every
+  general list **server-side** and permanently, whether or not the owner has
+  turned NSFW display on; `show_nsfw` (`config/settings.json`, default
+  **false**) governs only whether the dedicated `/nsfw` section is served and
+  whether its nav entry exists. Client-only hiding was rejected: it leaves the
+  items and their thumbnails on the wire, which is the whole problem. Flagging
+  is manual by design — no classification, no content scanning, no bulk edit.
+- **Files:** packages/backend/app/core/nsfw.py,
+  packages/backend/app/api/outputs_scanner.py (`visible_outputs()`),
+  packages/backend/app/api/outputs_endpoints.py,
+  packages/backend/app/api/media_library.py, config/settings.json,
+  packages/frontend/src/features/media-library/NsfwLibrary.tsx,
+  packages/frontend/src/state/nsfwStore.ts,
+  packages/frontend/src/features/settings/Settings.tsx.
+- **Consequences:** Any new *general* list endpoint must go through
+  `visible_outputs()`, or flagged items leak through it — that choke point is
+  the enforcement mechanism, not the route. `GET /api/outputs/nsfw` is the
+  only route that returns flagged items, and it answers `[]` while the gate is
+  off. The gate is only as complete as the owner's flagging (manual by
+  decision), and the `nsfw` tag is withheld from the tag list while off so a
+  filter chip cannot advertise the section. Nothing on disk changes: no file
+  is moved, renamed, re-encoded or deleted. Verified by 8 pytest cases
+  (`tests/test_nsfw_gate.py`) and 17 live API checks; see T-LIB-11.
