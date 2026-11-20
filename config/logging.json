@@ -25,7 +25,14 @@
       "analytics.auto_ingest": "Background task that ingests new log lines into the analytics store so the Log Analytics dashboard is not stuck at zero. false = manual 'Ingest Logs' only.",
       "analytics.interval_seconds": "How often the auto-ingest loop runs.",
       "analytics.sources": "Log file keys to ingest (app, error, queue, comfyui, ollama).",
-      "analytics.limit": "Max new events ingested per source per pass."
+      "analytics.limit": "Max new events ingested per source per pass.",
+      "presence.name": "Display name of the tracked presence identity.",
+      "presence.role": "Role shown under the name.",
+      "presence.client_ip": "Client IP that identifies this presence in the traffic log.",
+      "presence.avatar": "Avatar URL path served from the frontend public dir.",
+      "presence.active_window_seconds": "state='active' when the last request is within this many seconds.",
+      "presence.recent_window_seconds": "state='recent' when the last request is within this many seconds (else 'away').",
+      "presence.session_gap_seconds": "Gap under which consecutive requests form one session."
     },
     "last_updated": "2026-11-20"
   },
@@ -64,5 +71,14 @@
     "interval_seconds": 15,
     "sources": ["app", "error"],
     "limit": 20000
+  },
+  "presence": {
+    "name": "Maya",
+    "role": "Manager",
+    "client_ip": "100.124.151.51",
+    "avatar": "/maya-avatar.webp",
+    "active_window_seconds": 300,
+    "recent_window_seconds": 1800,
+    "session_gap_seconds": 900
   }
 }

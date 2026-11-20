@@ -53,6 +53,20 @@ async def get_traffic(
     return {"entries": entries, "latest_seq": traffic_log.latest_seq()}
 
 
+@router.get("/presence", response_model=dict)
+async def get_presence() -> dict:
+    """Presence snapshot for the configured identity (logging.json -> presence).
+
+    Computed from the live traffic ring buffer: state active/recent/away,
+    last_seen_ts, seconds_since, session_started_ts. The presence and traffic
+    polling paths are excluded for every client so polling cannot self-trigger
+    presence. Declared before ``/{log_name}`` so the catch-all cannot shadow it.
+    """
+    from ..core.presence import compute_presence
+
+    return compute_presence()
+
+
 @router.get("/{log_name}", response_model=dict)
 async def get_log_content(
     log_name: str,

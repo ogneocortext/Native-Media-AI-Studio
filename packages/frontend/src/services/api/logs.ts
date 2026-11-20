@@ -12,6 +12,7 @@ import type {
   LogAnalyticsErrors,
   LogAnalyticsEvent,
   LogTrafficEntry,
+  LogPresence,
 } from "./types";
 
 const BASE = "/api/logs";
@@ -49,6 +50,14 @@ export async function getLogTraffic(
     `${BASE}/traffic?since=${since}&limit=${limit}`,
     { timeout: 15000 },
   );
+}
+
+/**
+ * Get the presence snapshot for the configured identity (Maya).
+ * Powers the app-shell avatar chip. Computed from the live traffic ring buffer.
+ */
+export async function getLogPresence(): Promise<LogPresence> {
+  return getJson<LogPresence>(`${BASE}/presence`, { timeout: 15000 });
 }
 
 /**

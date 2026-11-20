@@ -775,6 +775,17 @@ export interface LogTrafficEntry {
   query?: string;
 }
 
+/** Presence snapshot for the tracked identity (app-shell avatar chip). */
+export interface LogPresence {
+  name: string;
+  role: string;
+  avatar: string;
+  state: "active" | "recent" | "away";
+  last_seen_ts: string | null;
+  seconds_since: number | null;
+  session_started_ts: string | null;
+}
+
 // ============================================================================
 // Data Persistence Types
 // ============================================================================

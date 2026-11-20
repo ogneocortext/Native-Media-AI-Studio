@@ -57,6 +57,15 @@ _DEFAULTS: dict[str, Any] = {
         "sources": ["app", "error"],
         "limit": 20000,
     },
+    "presence": {
+        "name": "Maya",
+        "role": "Manager",
+        "client_ip": "100.124.151.51",
+        "avatar": "/maya-avatar.webp",
+        "active_window_seconds": 300,
+        "recent_window_seconds": 1800,
+        "session_gap_seconds": 900,
+    },
 }
 
 _cache: dict[str, Any] | None = None
@@ -145,3 +154,7 @@ def sentry() -> dict[str, Any]:
 
 def analytics() -> dict[str, Any]:
     return load().get("analytics", {})
+
+
+def presence() -> dict[str, Any]:
+    return load().get("presence", {})
