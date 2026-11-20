@@ -118,7 +118,11 @@ def _repo_root() -> Path | None:
 
 
 def _read_recent_commits(limit: int = _GIT_LOG_LIMIT) -> list[dict[str, Any]]:
-    """Return ``[{hash, ts, author, email, body}]`` for the last ``limit`` commits.
+    """Return ``[{hash, ts, author, email, trailers}]`` for the last ``limit`` commits.
+
+    Only authorship fields are captured (author name/email + Co-authored-by
+    trailer values) -- never the subject/body prose -- so matching cannot be
+    fooled by a commit message that merely mentions a name.
 
     Any failure (missing git, not a repo, timeout, non-zero exit) returns ``[]``
     -- never raises, so a git problem degrades to "away" instead of an error.
@@ -126,7 +130,8 @@ def _read_recent_commits(limit: int = _GIT_LOG_LIMIT) -> list[dict[str, Any]]:
     root = _repo_root()
     if root is None:
         return []
-    fmt = "%H%x1f%at%x1f%an%x1f%ae%x1f%B%x1e"
+    # %x1f separates fields, %x1d separates trailer values, %x1e ends a record.
+    fmt = "%H%x1f%at%x1f%an%x1f%ae%x1f%(trailers:key=Co-authored-by,valueonly,separator=%x1d)%x1e"
     try:
         res = subprocess.run(
             ["git", "log", f"-{limit}", f"--format={fmt}"],
@@ -149,13 +154,14 @@ def _read_recent_commits(limit: int = _GIT_LOG_LIMIT) -> list[dict[str, Any]]:
         parts = chunk.split("\x1f")
         if len(parts) < 5:
             continue
-        h, ts_raw, author, email, body = parts[0], parts[1], parts[2], parts[3], parts[4]
+        h, ts_raw, author, email, trailers_raw = parts[0], parts[1], parts[2], parts[3], parts[4]
         try:
             ts = float(ts_raw)
         except ValueError:
             continue
+        trailers = [t for t in trailers_raw.split("\x1d") if t.strip()]
         commits.append(
-            {"hash": h.strip(), "ts": ts, "author": author, "email": email, "body": body}
+            {"hash": h.strip(), "ts": ts, "author": author, "email": email, "trailers": trailers}
         )
     return commits
 
@@ -172,13 +178,34 @@ def _git_commits_cached() -> list[dict[str, Any]]:
     return commits
 
 
+def _trailer_name(value: str) -> str:
+    """Name part of a Co-authored-by value ('Kilo <kilo@x>' -> 'kilo')."""
+    v = value.strip()
+    if "<" in v:
+        v = v.split("<", 1)[0]
+    return v.strip().lower()
+
+
 def _match_commit(match: str, commits: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Newest commit whose author/email/trailer contains ``match`` (case-insensitive)."""
-    needle = match.lower()
+    """Newest commit whose AUTHORSHIP matches ``match`` (never the message prose).
+
+    A match is: ``match`` equals the author name, equals the author email's name
+    part (before ``@``), or equals the name in a Co-authored-by trailer value.
+    Subject/body prose is never inspected -- a message that merely mentions a
+    name does not count.
+    """
+    needle = match.strip().lower()
+    if not needle:
+        return None
     for c in commits:  # newest first
-        hay = f"{c['author']} {c['email']} {c['body']}".lower()
-        if needle in hay:
+        if (c.get("author") or "").strip().lower() == needle:
             return c
+        email_name = (c.get("email") or "").split("@", 1)[0].strip().lower()
+        if email_name == needle:
+            return c
+        for t in c.get("trailers", []):
+            if _trailer_name(t) == needle:
+                return c
     return None
 
 
