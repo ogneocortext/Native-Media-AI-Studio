@@ -80,15 +80,34 @@ def is_enabled() -> bool:
 
 
 def client_ip_from(request: Any) -> str:
-    """Best-effort client IP: X-Forwarded-For first hop, else socket peer."""
+    """Best-effort client IP for the Live Traffic panel.
+
+    Resolution order:
+      1. First entry of ``X-Forwarded-For`` -- the original client as recorded by
+         the Tailscale HTTP serve proxy / Vite dev proxy sitting in front of us.
+      2. The socket peer (``request.client.host``) when no forwarding header is set.
+      3. ``"-"`` when neither is available.
+
+    Trust note (deployment-specific safeguard): we trust ``X-Forwarded-For``
+    because in this deployment EVERY backend request arrives over loopback. The
+    backend binds 127.0.0.1:8004 only; the only paths in are the Vite dev proxy
+    (127.0.0.1:5173 -> 127.0.0.1:8004) or ``tailscale serve`` forwarding to
+    localhost. No external client can open a socket straight to the backend, so a
+    caller cannot spoof the header to mask its real IP. If the backend is ever
+    bound to 0.0.0.0 / a public interface, this trust MUST be revisited -- only
+    then could an untrusted client forge X-Forwarded-For.
+    """
     try:
         xff = request.headers.get("x-forwarded-for")
         if xff:
-            return xff.split(",")[0].strip()
+            # First hop = the original client; later hops are our own proxies.
+            first = xff.split(",")[0].strip()
+            if first:
+                return first
         client = getattr(request, "client", None)
         if client is not None and getattr(client, "host", None):
             return client.host
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 - never let IP resolution break request logging
         pass
     return "-"
 
