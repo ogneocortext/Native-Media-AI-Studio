@@ -41,15 +41,15 @@ from .api.integrations_music_video import router as integrations_music_video_rou
 from .api.sub_agent import router as sub_agent_router
 from .api.test_analytics import router as test_analytics_router
 from .api.vst import router as vst_router
+from .core import logging_settings as _logging_settings
+from .core import traffic_log
 from .core.config import PROJECT_ROOT, config
 from .core.cors import get_all_origins, get_public_origin_regex, is_local_origin
 from .core.database import get_db, init_db
 from .core.event_bus import HealthEventData, event_bus
 from .core.idle_monitor import idle_monitor
-from .core.logging_config import setup_logging, structured_logger
-from .core import logging_settings as _logging_settings
-from .core import traffic_log
 from .core.log_ingest import log_analytics_ingest_loop
+from .core.logging_config import setup_logging, structured_logger
 from .core.metrics import MetricsMiddleware, metrics_endpoint
 from .core.port_manager import port_manager
 from .core.rate_limit import RateLimitMiddleware

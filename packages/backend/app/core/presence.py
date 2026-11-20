@@ -32,7 +32,8 @@ import logging
 import subprocess
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from operator import itemgetter
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +60,7 @@ _journal_lock = threading.Lock()
 
 def _iso(ts: float) -> str:
     """Epoch seconds -> ISO-8601 UTC string (unambiguous across timezones)."""
-    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+    return datetime.fromtimestamp(ts, tz=UTC).isoformat()
 
 
 def _activity_for_path(path: str, labels: dict[str, Any]) -> str:
@@ -82,7 +83,7 @@ def _read_traffic_tail(limit: int = _TRAFFIC_TAIL_LINES) -> list[dict[str, Any]]
     """Return up to ``limit`` parsed JSON records from the tail of traffic.log."""
     path = LOG_DIR / str(logging_settings.traffic().get("log_file", "traffic.log"))
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        with open(path, encoding="utf-8", errors="replace") as fh:
             lines = fh.readlines()
     except OSError:
         return []
@@ -225,7 +226,7 @@ def _journaled_starts() -> set[str]:
         return _journal_starts_cache
     starts: set[str] = set()
     try:
-        with open(_journal_path(), "r", encoding="utf-8", errors="replace") as fh:
+        with open(_journal_path(), encoding="utf-8", errors="replace") as fh:
             for line in fh:
                 line = line.strip()
                 if not line:
@@ -281,7 +282,7 @@ def _maybe_journal(name: str, start_ts: float, end_ts: float, events: list[tuple
 def read_journal(limit: int = 5) -> list[dict[str, Any]]:
     """Return the newest ``limit`` journal entries (newest first)."""
     try:
-        with open(_journal_path(), "r", encoding="utf-8", errors="replace") as fh:
+        with open(_journal_path(), encoding="utf-8", errors="replace") as fh:
             lines = fh.readlines()
     except OSError:
         return []
@@ -360,7 +361,7 @@ def _traffic_person(person: dict[str, Any], now: float, session_gap: float) -> d
     if not events:
         return _away(person, "traffic")
 
-    events.sort(key=lambda x: x[0], reverse=True)  # newest first
+    events.sort(key=itemgetter(0), reverse=True)  # newest first
     last_ts, last_path = events[0]
     seconds_since = max(0.0, now - last_ts)
 
@@ -431,7 +432,7 @@ def compute_presence(now: float | None = None) -> dict[str, Any]:
     version = str(cfg.get("version", "1.4"))
     session_gap = float(cfg.get("session_gap_seconds", 900))
     if now is None:
-        now = datetime.now(tz=timezone.utc).timestamp()
+        now = datetime.now(tz=UTC).timestamp()
 
     people: list[dict[str, Any]] = []
     for person in cfg.get("people", []):

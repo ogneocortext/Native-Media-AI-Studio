@@ -83,7 +83,7 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return out
 
 
-def load(force: bool = False) -> dict[str, Any]:
+def load(*, force: bool = False) -> dict[str, Any]:
     """Return the merged logging config (defaults + config/logging.json)."""
     global _cache, _cache_mtime
     try:

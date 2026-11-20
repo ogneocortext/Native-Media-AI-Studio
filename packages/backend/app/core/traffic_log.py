@@ -26,11 +26,13 @@ import threading
 import time
 from collections import deque
 from datetime import datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from . import logging_settings
 from .logging_config import LOG_DIR
+
+if TYPE_CHECKING:  # Path is only referenced in annotations (PEP 563)
+    from pathlib import Path
 
 _lock = threading.Lock()
 _records: deque[dict[str, Any]] = deque(maxlen=500)
