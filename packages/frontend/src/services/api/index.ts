@@ -162,6 +162,7 @@ export {
   clearLogs,
   getLogAnalyticsErrors,
   getLogAnalyticsEvents,
+  getLogTraffic,
   getLogAnalyticsSummary,
   getLogAnalyticsTrends,
   getLogAnalyticsPatterns,
@@ -177,6 +178,7 @@ export type {
   LogAnalyticsErrorPattern,
   LogAnalyticsErrors,
   LogAnalyticsEvent,
+  LogTrafficEntry,
 } from "./logs";
 
 // Data persistence

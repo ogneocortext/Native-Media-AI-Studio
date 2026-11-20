@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ..core.logging_config import clear_log_files, get_log_files, get_log_stats, read_log_tail
+from ..core import traffic_log
 
 router = APIRouter(prefix="/api/logs", tags=["Logs"])
 
@@ -34,6 +35,22 @@ async def get_log_info() -> dict:
         "log_directory": str(get_log_stats().get("app", {}).get("path", "")),
         "files": get_log_stats(),
     }
+
+
+@router.get("/traffic", response_model=dict)
+async def get_traffic(
+    since: int = Query(0, ge=0, description="Only records with seq greater than this"),
+    limit: int = Query(200, ge=1, le=1000),
+) -> dict:
+    """Live request traffic (every HTTP request, independent of log level).
+
+    Returns records with ``seq`` > ``since`` so the Admin "Live Traffic"
+    panel can poll incrementally (``since=last_seq``) and render requests as
+    they happen. Declared before ``/{log_name}`` so it is not shadowed by the
+    catch-all log-file route.
+    """
+    entries = traffic_log.since(since, limit)
+    return {"entries": entries, "latest_seq": traffic_log.latest_seq()}
 
 
 @router.get("/{log_name}", response_model=dict)

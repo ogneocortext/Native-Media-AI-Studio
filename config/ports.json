@@ -9,6 +9,7 @@
     ],
     "conventions": {
       "*_port": "TCP port number only",
+      "*_host": "Bind address for a local server. frontend_host stays 127.0.0.1 (loopback only): external/tailnet access is provided by `tailscale serve`, never by binding 0.0.0.0 or a LAN interface.",
       "*_url": "full base URL including scheme and host",
       "backend_url": "FastAPI origin. The Vite dev proxy targets this.",
       "frontend_url": "Vite dev server origin; the Playwright baseURL.",
@@ -27,6 +28,7 @@
   "backend_port": 8004,
   "frontend_url": "http://127.0.0.1:5173",
   "frontend_port": 5173,
+  "frontend_host": "127.0.0.1",
   "video_editor_port": 8080,
   "comfyui_port": 8188,
   "comfyui_url": "http://127.0.0.1:8188",

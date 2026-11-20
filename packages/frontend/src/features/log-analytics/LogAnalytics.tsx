@@ -44,6 +44,7 @@ import {
   type LogAnalyticsErrorPattern,
   type LogAnalyticsEvent,
 } from "../../services/api";
+import { LiveTrafficPanel } from "./LiveTrafficPanel";
 
 const LEVEL_COLORS: Record<string, string> = {
   DEBUG: "#6b7280",
@@ -71,7 +72,7 @@ export function LogAnalytics() {
   const [ingestResult, setIngestResult] = useState<string | null>(null);
   const [selectedLog, setSelectedLog] = useState<string>("app");
   const [eventLevelFilter, setEventLevelFilter] = useState<string>("ALL");
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   const refreshAll = useCallback(async () => {
@@ -100,7 +101,7 @@ export function LogAnalytics() {
   }, [refreshAll]);
 
   usePolling(refreshAll, {
-    intervalMs: 30000,
+    intervalMs: 15000,
     enabled: autoRefresh,
     immediate: false, // mount effect above already fetches once
     leaderChannel: "log-analytics",
@@ -279,6 +280,9 @@ export function LogAnalytics() {
           </p>
         </Card>
       </div>
+
+      {/* Live request traffic (every HTTP request, as it happens) */}
+      <LiveTrafficPanel />
 
       {/* Source Breakdown */}
       {summary?.sources && summary.sources.length > 0 && (

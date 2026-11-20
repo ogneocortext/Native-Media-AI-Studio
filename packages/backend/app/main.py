@@ -47,6 +47,9 @@ from .core.database import get_db, init_db
 from .core.event_bus import HealthEventData, event_bus
 from .core.idle_monitor import idle_monitor
 from .core.logging_config import setup_logging, structured_logger
+from .core import logging_settings as _logging_settings
+from .core import traffic_log
+from .core.log_ingest import log_analytics_ingest_loop
 from .core.metrics import MetricsMiddleware, metrics_endpoint
 from .core.port_manager import port_manager
 from .core.rate_limit import RateLimitMiddleware
@@ -61,8 +64,16 @@ from .queue.processor import processor
 from .sse.handler import sse_manager
 from .websocket.handler import connection_manager
 
-# Initialize logging before anything else
-setup_logging(config.log_level)
+# Initialize logging before anything else. Logging INFRASTRUCTURE (JSON output,
+# PII redaction, Sentry) comes from config/logging.json (core.logging_settings);
+# the console LEVEL stays a live setting on config.log_level (settings.json).
+setup_logging(
+    config.log_level,
+    json_logs=_logging_settings.json_logs(),
+    pii_redaction=_logging_settings.pii_redaction(),
+    sentry_dsn=(_logging_settings.sentry().get("dsn") or None),
+    sentry_env=(_logging_settings.sentry().get("environment") or None),
+)
 logger = logging.getLogger(__name__)
 
 
@@ -617,9 +628,16 @@ async def lifespan(app: FastAPI):
         restart_on_failure=True,
         restart_delay=5.0,
     )
+    _task_manager.add_task(
+        name="log_analytics_ingest",
+        coro_factory=log_analytics_ingest_loop,
+        restart_on_failure=True,
+        restart_delay=5.0,
+    )
     await _task_manager.start_all()
     logger.info("Health broadcast background task started")
     logger.info("Resource monitoring task started (30s interval)")
+    logger.info("Log analytics auto-ingest task started")
 
     # Start the idle monitor that auto-unloads services after 15 minutes of inactivity
     await idle_monitor.start()
@@ -896,10 +914,33 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
                 duration_ms,
                 request_id,
             )
+            # Record the failed request in the live traffic buffer too, so the
+            # admin panel sees 5xx/unhandled calls that never reach the access log.
+            traffic_log.record(
+                method=request.method,
+                path=request.url.path,
+                status=500,
+                duration_ms=duration_ms,
+                client_ip=traffic_log.client_ip_from(request),
+                request_id=request_id,
+                query=str(request.url.query) if request.url.query else "",
+            )
             raise
         duration_ms = (time.perf_counter() - start) * 1000
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Response-Time"] = f"{duration_ms:.2f}ms"
+        # Record EVERY request in the live traffic ring buffer (independent of
+        # the console log level) so the Admin "Live Traffic" panel shows all
+        # traffic as it happens -- fast requests included.
+        traffic_log.record(
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            duration_ms=duration_ms,
+            client_ip=traffic_log.client_ip_from(request),
+            request_id=request_id,
+            query=str(request.url.query) if request.url.query else "",
+        )
         # Access log: one line per request at INFO (slow) / DEBUG (fast) so
         # the app log shows traffic without flooding on health polls.
         # SSE/health polling is frequent -- keep those at DEBUG.

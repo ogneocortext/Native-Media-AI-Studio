@@ -14,6 +14,7 @@ interface PortConfig {
   backend_url: string;
   backend_port: number;
   frontend_port: number;
+  frontend_host?: string;
   ws_port: number;
   events_url?: string;
   sse_url?: string;
@@ -24,9 +25,9 @@ interface PortConfig {
  * Kept in one place so a backend URL change only needs one edit.
  */
 const PROXY_TARGETS = {
-  "/api": { target: "", changeOrigin: true },
-  "/output": { target: "", changeOrigin: true },
-  "/ws": { target: "", changeOrigin: true, ws: true },
+  "/api": { target: "", changeOrigin: true, xfwd: true },
+  "/output": { target: "", changeOrigin: true, xfwd: true },
+  "/ws": { target: "", changeOrigin: true, ws: true, xfwd: true },
 } as const;
 
 /**
@@ -43,6 +44,15 @@ const ALLOWED_HOSTS = [
   ".ngrok.io",
   ".trycloudflare.com",
   ".serveo.net",
+  // Tailnet (Tailscale) -- lets the Meta Muse agent's VM sandbox reach the dev
+  // server over the private tailnet (e.g. http://100.95.60.73:5173 or
+  // http://customrig.tailb89a58.ts.net:5173) WITHOUT exposing it to the public
+  // internet. Access is still gated by Tailscale ACLs + no Funnel; this only
+  // stops Vite from rejecting the tailnet Host header with 403. Keep in sync
+  // with backend TrustedHostMiddleware (app/main.py) and the tailnet peer name.
+  "100.95.60.73",
+  "customrig.tailb89a58.ts.net",
+  ".tailb89a58.ts.net",
 ];
 
 /**
@@ -65,6 +75,7 @@ function getPortConfig(mode: string): PortConfig {
     backend_url: publicBackend || env.VITE_BACKEND_URL || "http://127.0.0.1:8000",
     backend_port: parseInt(env.VITE_BACKEND_PORT || "8000", 10),
     frontend_port: publicFrontend ? parseInt(publicFrontend.split(":")[2] || "5173", 10) : parseInt(env.VITE_FRONTEND_PORT || "5173", 10),
+    frontend_host: "127.0.0.1",
     ws_port: parseInt(env.VITE_WS_PORT || "8000", 10),
   };
 
@@ -77,6 +88,7 @@ function getPortConfig(mode: string): PortConfig {
           backend_url: fileConfig.backend_url || config.backend_url,
           backend_port: fileConfig.backend_port || config.backend_port,
           frontend_port: fileConfig.frontend_port || config.frontend_port,
+          frontend_host: fileConfig.frontend_host || config.frontend_host,
           ws_port: fileConfig.ws_port || config.ws_port,
         };
       }
@@ -152,7 +164,10 @@ export default defineConfig(({ mode }) => {
       tsconfigPaths: true,
     },
     server: {
-      host: "0.0.0.0",
+      // Loopback-only by default (ports.json -> frontend_host). External access
+      // is provided tailnet-only via `tailscale serve` (customrig...ts.net:5173),
+      // never by binding 0.0.0.0 or a LAN interface. See config/tailscale-acl-muse.json.
+      host: portConfig.frontend_host || "127.0.0.1",
       port: portConfig.frontend_port,
       strictPort: true,
       // Vite 8 no longer treats the string "all" as a wildcard: allowedHosts is
@@ -301,6 +316,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     preview: {
+      // Same loopback-only host policy as `server`.
+      host: portConfig.frontend_host || "127.0.0.1",
       port: portConfig.frontend_port + 1, // Avoid colliding with dev server port
       // Same host policy as `server`: `vite preview` is also reachable through
       // the tunnel when an agent is pointed at a built bundle.

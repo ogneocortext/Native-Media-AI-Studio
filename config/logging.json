@@ -1,0 +1,68 @@
+{
+  "_about": {
+    "purpose": "Single source of truth for logging INFRASTRUCTURE + request-traffic capture. Mirrors config/ports.json: edit HERE, not in code. Consumed by app/core/logging_settings.py (loaded by app/core/logging_config.py and app/main.py).",
+    "not_here": "The console log LEVEL is intentionally NOT in this file. It is a live, user-facing setting owned by config/settings.json -> config.log_level, edited at runtime via the Settings page (integrations_config.py) so it changes without a restart. Everything else about logging lives here so it stops being scattered across hardcoded constants and NMA_* env vars.",
+    "consumed_by": [
+      "packages/backend/app/core/logging_config.py (rotation, retention, JSON output, PII redaction, third-party logger levels)",
+      "packages/backend/app/core/traffic_log.py (ring buffer size, traffic.log sink, capture-all)",
+      "packages/backend/app/main.py (setup_logging args; per-request traffic recording)"
+    ],
+    "fields": {
+      "json_logs": "Emit structured JSON logs to file handlers (machine-parseable).",
+      "pii_redaction": "Mask emails/phones/IPs/paths/API keys in every log record.",
+      "rotation.max_bytes": "Rotate a log file once it exceeds this size (bytes).",
+      "rotation.backup_count": "How many rotated files to keep per log.",
+      "retention_days": "Delete log files older than this on startup.",
+      "third_party_levels": "Per-logger level overrides for noisy libraries (uvicorn.access, etc.).",
+      "traffic.enabled": "Record every HTTP request into the live traffic ring buffer.",
+      "traffic.buffer_size": "Max requests held in memory for the Admin live-traffic view.",
+      "traffic.log_file": "File name under output/logs for the append-only request journal.",
+      "traffic.capture_all": "Write every recorded request to traffic.log (not just slow ones).",
+      "traffic.slow_ms": "Requests slower than this are also flagged in the text app log at INFO.",
+      "traffic.excluded_paths": "Paths never recorded (health/SSE/traffic polling) to avoid noise + self-feedback.",
+      "sentry.dsn": "Optional Sentry DSN for shipping structured logs/errors. null = disabled.",
+      "sentry.environment": "Optional Sentry environment label.",
+      "analytics.auto_ingest": "Background task that ingests new log lines into the analytics store so the Log Analytics dashboard is not stuck at zero. false = manual 'Ingest Logs' only.",
+      "analytics.interval_seconds": "How often the auto-ingest loop runs.",
+      "analytics.sources": "Log file keys to ingest (app, error, queue, comfyui, ollama).",
+      "analytics.limit": "Max new events ingested per source per pass."
+    },
+    "last_updated": "2026-11-20"
+  },
+  "json_logs": false,
+  "pii_redaction": true,
+  "rotation": {
+    "max_bytes": 10485760,
+    "backup_count": 5
+  },
+  "retention_days": 7,
+  "third_party_levels": {
+    "uvicorn.access": "WARNING",
+    "uvicorn.error": "WARNING",
+    "websockets": "WARNING",
+    "aiohttp": "WARNING",
+    "sse_starlette": "WARNING"
+  },
+  "traffic": {
+    "enabled": true,
+    "buffer_size": 500,
+    "log_file": "traffic.log",
+    "capture_all": true,
+    "slow_ms": 500,
+    "excluded_paths": [
+      "/api/health",
+      "/api/events",
+      "/api/logs/traffic"
+    ]
+  },
+  "sentry": {
+    "dsn": null,
+    "environment": null
+  },
+  "analytics": {
+    "auto_ingest": true,
+    "interval_seconds": 15,
+    "sources": ["app", "error"],
+    "limit": 20000
+  }
+}

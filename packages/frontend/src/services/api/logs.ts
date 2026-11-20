@@ -11,6 +11,7 @@ import type {
   LogAnalyticsPatterns,
   LogAnalyticsErrors,
   LogAnalyticsEvent,
+  LogTrafficEntry,
 } from "./types";
 
 const BASE = "/api/logs";
@@ -34,6 +35,20 @@ export async function getLogContent(logName: string, lines = 100): Promise<LogCo
  */
 export async function clearLogs(): Promise<unknown> {
   return postJson<unknown>(`${BASE}/clear`, {}, { timeout: 30000 });
+}
+
+/**
+ * Get live request traffic (every HTTP request, incremental via `since`).
+ * Powers the Admin "Live Traffic" panel.
+ */
+export async function getLogTraffic(
+  since = 0,
+  limit = 200,
+): Promise<{ entries: LogTrafficEntry[]; latest_seq: number }> {
+  return getJson<{ entries: LogTrafficEntry[]; latest_seq: number }>(
+    `${BASE}/traffic?since=${since}&limit=${limit}`,
+    { timeout: 15000 },
+  );
 }
 
 /**

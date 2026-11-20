@@ -39,6 +39,7 @@ from typing import Any
 import typing_extensions
 
 from ..core.config import PROJECT_ROOT
+from . import logging_settings
 
 override = typing_extensions.override
 
@@ -383,12 +384,17 @@ def _comfyui_user_log_dir() -> Path:
 
 COMFYUI_USER_LOG_DIR = _comfyui_user_log_dir()
 
-# Max size per log file (10 MB)
-MAX_BYTES = 10 * 1024 * 1024
-BACKUP_COUNT = 5
+# Rotation / retention come from config/logging.json (core.logging_settings)
+# instead of being hardcoded here, so they are configured in one place like
+# ports.json. Values are read at import and re-read inside setup_logging().
+_ROTATION = logging_settings.rotation()
+# Max size per log file before rotation (bytes).
+MAX_BYTES = int(_ROTATION.get("max_bytes", 10 * 1024 * 1024))
+# How many rotated files to keep per log.
+BACKUP_COUNT = int(_ROTATION.get("backup_count", 5))
 
-# Log retention days (cleanup files older than this)
-LOG_RETENTION_DAYS = 7
+# Log retention days (cleanup files older than this on startup).
+LOG_RETENTION_DAYS = logging_settings.retention_days()
 
 
 # ---------------------------------------------------------------------------
@@ -723,11 +729,12 @@ def setup_logging(
         _setup_sentry(sentry_dsn, sentry_env)
 
     # === Quiet down noisy third-party loggers ===
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
-    logging.getLogger("websockets").setLevel(logging.WARNING)
-    logging.getLogger("aiohttp").setLevel(logging.WARNING)
-    logging.getLogger("sse_starlette").setLevel(logging.WARNING)
+    # Levels come from config/logging.json (third_party_levels) so the
+    # noisy-library allowlist is configured in one place, not hardcoded here.
+    for _logger_name, _level_name in logging_settings.third_party_levels().items():
+        logging.getLogger(_logger_name).setLevel(
+            getattr(logging, str(_level_name).upper(), logging.WARNING)
+        )
 
     # Suppress benign Windows Proactor ConnectionResetError noise
     # (asyncio pipes closed by remote - happens on every SSE disconnect)

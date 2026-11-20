@@ -1,0 +1,12 @@
+// OWNER ACTION REQUIRED: paste this policy into the Tailscale admin console (Access Controls) yourself. It is NOT applied automatically.
+// Restrictive on purpose: as written it ONLY permits the muse node (100.124.151.51) to reach customrig (100.95.60.73) on ports 5173 (Studio frontend) and 8004 (backend).
+// Merge it with your existing allow rules before activating so you do not lock out your own devices. Second layer on top of the tailnet-only `tailscale serve`; not a replacement you should apply blind.
+{
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["100.124.151.51"],
+      "dst": ["100.95.60.73:5173,8004"]
+    }
+  ]
+}

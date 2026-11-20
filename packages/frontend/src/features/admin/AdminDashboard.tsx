@@ -70,7 +70,7 @@ const ADMIN_NAV: AdminNavItem[] = [
   { id: "health", label: "Health", description: "System health, adapters, resource cards, diagnostics", path: "/system/health", icon: <Activity size={20} />, category: "monitoring" },
   { id: "queue", label: "Queue", description: "Job queue, stats, SSE live indicator, job cards", path: "/system/queue", icon: <ListOrdered size={20} />, category: "monitoring" },
   { id: "gpu", label: "GPU Monitor", description: "VRAM, temperature, CUDA processes, telemetry", path: "/system/gpu", icon: <Cpu size={20} />, category: "monitoring" },
-  { id: "log-analytics", label: "Log Analytics", description: "Log counts, analytics summary, search", path: "/system/log-analytics", icon: <BarChart3 size={20} />, category: "monitoring" },
+  { id: "log-analytics", label: "Log Analytics", description: "Log counts, analytics, live request traffic", path: "/system/log-analytics", icon: <BarChart3 size={20} />, category: "monitoring" },
   { id: "notifications", label: "Notifications", description: "System alerts, notification history", path: "/system/notifications", icon: <Zap size={20} />, category: "monitoring" },
   
   // Data

@@ -31,7 +31,7 @@ router = APIRouter(prefix="/api/logs/analytics", tags=["Log Analytics"])
 # work when the frontend polls repeatedly during active investigation.
 # ---------------------------------------------------------------------------
 _summary_cache: dict[str, tuple[float, dict]] = {}
-_SUMMARY_TTL_SECONDS = 30
+_SUMMARY_TTL_SECONDS = 10
 
 
 def _cached_summary() -> dict:
@@ -45,8 +45,14 @@ def _cached_summary() -> dict:
 
 
 def _build_summary() -> dict:
-    trends = get_log_trends(limit=1)
-    last_ts = trends[0]["ts_iso"] if trends else None
+    # Newest event's timestamp. NOTE: get_log_trends() is ORDER BY ts_ms ASC (for
+    # charting), so requesting it with limit=1 returned the OLDEST event and made
+    # the "Last Event" card show a stale date. Query the max directly instead.
+    with get_db() as conn:
+        _row = conn.execute(
+            "SELECT ts_iso FROM log_events ORDER BY ts_ms DESC LIMIT 1"
+        ).fetchone()
+    last_ts = _row["ts_iso"] if _row else None
     patterns = get_log_patterns(limit=5)
     total = sum(p["count"] for p in patterns.get("levels", []))
     return {

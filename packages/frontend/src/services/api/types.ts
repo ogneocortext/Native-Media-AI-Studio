@@ -761,6 +761,20 @@ export interface LogAnalyticsEvent {
   source: string;
 }
 
+/** One recorded HTTP request in the live traffic buffer (Admin > Log Analytics). */
+export interface LogTrafficEntry {
+  seq: number;
+  ts_ms: number;
+  ts: string;
+  method: string;
+  path: string;
+  status: number;
+  duration_ms: number;
+  client_ip: string;
+  request_id: string;
+  query?: string;
+}
+
 // ============================================================================
 // Data Persistence Types
 // ============================================================================
