@@ -21,9 +21,10 @@ import {
   Copy,
   List,
   LayoutGrid,
+  EyeOff,
 } from "lucide-react";
 import { useFileOperations } from "./hooks/useFileOperations";
-import { useMediaFiles, type MediaFile } from "./hooks/useMediaFiles";
+import { useMediaFiles, type MediaFile, type MediaScope } from "./hooks/useMediaFiles";
 import { useFileFilters } from "./hooks/useFileFilters";
 import { useMediaLibrary } from "./hooks/useMediaLibrary";
 import { FilterBar } from "./components/FilterBar";
@@ -34,7 +35,8 @@ import { PlaybackModal } from "./components/PlaybackModal";
 import { DuplicatesPanel } from "./components/DuplicatesPanel";
 import { TrashPanel } from "./components/TrashPanel";
 import { extractThumbnailAtTime } from "../../services/api/media";
-import { listCollectionItems } from "../../services/api";
+import { listCollectionItems, setNsfwFlag } from "../../services/api";
+import { EmptySection } from "../../components/common";
 import { formatFileSize, formatDateTime } from "../../utils/format";
 import { audioEntryLabel } from "../../state/audioNaming";
 import { DS } from "../../styles/designSystem";
@@ -48,10 +50,16 @@ type MediaFileType = "all" | "audio" | "video";
 export interface MediaLibraryViewProps {
   /** Pre-filter to this file type. When not "all", type filter chips are hidden. */
   defaultFileType: MediaFileType;
+  /**
+   * Which server list to read. "nsfw" scopes the whole view to the dedicated
+   * NSFW section (/nsfw); "all" is every general library surface.
+   */
+  scope?: MediaScope;
 }
 
-export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
-  const { files: allFiles, loading: filesLoading, error, refetch: refetchFiles } = useMediaFiles();
+export function MediaLibraryView({ defaultFileType, scope = "all" }: MediaLibraryViewProps) {
+  const { files: allFiles, loading: filesLoading, error, refetch: refetchFiles } =
+    useMediaFiles(scope);
   const { handleBulkDelete, handleRename, handleProbe, isOperating, setOperationError } =
     useFileOperations();
   const {
@@ -116,6 +124,7 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
   const [expandedCollection, setExpandedCollection] = useState<string | null>(null);
   const [collectionItems, setCollectionItems] = useState<string[]>([]);
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
+  const [nsfwSaving, setNsfwSaving] = useState(false);
 
   const filteredFiles = useFileFilters(allFiles, filter, itemTags);
 
@@ -262,6 +271,37 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
     [removeTagFromItem, loadItemTags],
   );
 
+  /**
+   * Per-item NSFW flag. The flag is the `nsfw` tag, written by the server;
+   * this only flips it. Refetching matters: with the gate off, flagging an
+   * item makes it vanish from this very list (that is the point), and
+   * unflagging one in /nsfw makes it leave that section.
+   */
+  const handleToggleNsfw = useCallback(
+    async (file: MediaFile, value: boolean) => {
+      setNsfwSaving(true);
+      try {
+        await setNsfwFlag(file.relative_path || file.filename, value);
+        await refetchFiles();
+        await refetchOrg();
+      } catch (e) {
+        setOperationError(e instanceof Error ? e.message : "Failed to update NSFW flag");
+      } finally {
+        setNsfwSaving(false);
+      }
+    },
+    [refetchFiles, refetchOrg, setOperationError],
+  );
+
+  /** Whether an item currently carries the NSFW flag. */
+  const isNsfw = useCallback(
+    (file: MediaFile) =>
+      (itemTags.get(file.relative_path || file.filename) ?? []).some(
+        (tag) => tag.name.toLowerCase() === "nsfw",
+      ),
+    [itemTags],
+  );
+
   const handleAddToCollection = useCallback(
     async (file: MediaFile, collectionId: string) => {
       await addItemToCollection(collectionId, file.relative_path);
@@ -300,15 +340,25 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
 
   const isTypeScoped = defaultFileType !== "all";
 
-  const pageTitle =
-    defaultFileType === "video"
+  const isNsfwScope = scope === "nsfw";
+
+  const pageTitle = isNsfwScope
+    ? "NSFW"
+    : defaultFileType === "video"
       ? "Video Library"
       : defaultFileType === "audio"
         ? "Audio Library"
         : "Media Library";
-  const pageIcon = defaultFileType === "video" ? <Video size={22} /> : <Music size={22} />;
-  const pageSubtitle =
-    defaultFileType === "video"
+  const pageIcon = isNsfwScope ? (
+    <EyeOff size={22} />
+  ) : defaultFileType === "video" ? (
+    <Video size={22} />
+  ) : (
+    <Music size={22} />
+  );
+  const pageSubtitle = isNsfwScope
+    ? "Items you flagged NSFW. They stay out of the home feed and the library; this is the only place they appear."
+    : defaultFileType === "video"
       ? "Browse and manage video files in output/ — play, rename, delete, duplicates, favorites, collections, tags, and trash."
       : defaultFileType === "audio"
         ? "Browse and manage audio files in output/ — play, rename, delete, duplicates, favorites, collections, tags, and trash."
@@ -455,49 +505,57 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
       {loading ? (
         <div className="text-center py-12 text-muted">Loading…</div>
       ) : view === "library" || view === "favorites" ? (
-        <>
-          <FilterBar
-            filter={filter}
-            tags={tags}
-            hideFileTypeFilter={isTypeScoped}
-            onChange={(next) =>
-              setFilter({
-                ...next,
-                fileType: isTypeScoped ? defaultFileType : next.fileType,
-              })
-            }
+        isNsfwScope && filesForView.length === 0 ? (
+          <EmptySection
+            icon={<EyeOff />}
+            title="Nothing flagged NSFW"
+            description="Flag an item from its detail view in the library and it will show up here."
           />
-          <FileGrid
-            files={paginatedFiles}
-            viewMode={viewMode}
-            onFileClick={handleFileClick}
-            onSelect={toggleSelect}
-            onDelete={handleDeleteFile}
-            onRename={(file) => {
-              // Rename lives in the detail modal now (no window.prompt).
-              handleFileClick(file);
-            }}
-            onSendToWizard={(file) => {
-              window.dispatchEvent(new CustomEvent("send-to-wizard", { detail: { file } }));
-            }}
-            selectedPaths={selectedPaths}
-            favoritedPaths={favorites}
-            itemCollections={itemCollections}
-            itemTags={itemTags}
-            onToggleFavorite={handleToggleFavorite}
-            onGenerateThumbnail={(file) => {
-              void handleGenerateThumbnail(file);
-            }}
-            collisionNames={collisionNames}
-          />
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            pageSize={pageSize}
-            totalCount={filesForView.length}
-          />
-        </>
+        ) : (
+          <>
+            <FilterBar
+              filter={filter}
+              tags={tags}
+              hideFileTypeFilter={isTypeScoped}
+              onChange={(next) =>
+                setFilter({
+                  ...next,
+                  fileType: isTypeScoped ? defaultFileType : next.fileType,
+                })
+              }
+            />
+            <FileGrid
+              files={paginatedFiles}
+              viewMode={viewMode}
+              onFileClick={handleFileClick}
+              onSelect={toggleSelect}
+              onDelete={handleDeleteFile}
+              onRename={(file) => {
+                // Rename lives in the detail modal now (no window.prompt).
+                handleFileClick(file);
+              }}
+              onSendToWizard={(file) => {
+                window.dispatchEvent(new CustomEvent("send-to-wizard", { detail: { file } }));
+              }}
+              selectedPaths={selectedPaths}
+              favoritedPaths={favorites}
+              itemCollections={itemCollections}
+              itemTags={itemTags}
+              onToggleFavorite={handleToggleFavorite}
+              onGenerateThumbnail={(file) => {
+                void handleGenerateThumbnail(file);
+              }}
+              collisionNames={collisionNames}
+            />
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              pageSize={pageSize}
+              totalCount={filesForView.length}
+            />
+          </>
+        )
       ) : view === "collections" ? (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-white">Collections</h3>
@@ -679,6 +737,30 @@ export function MediaLibraryView({ defaultFileType }: MediaLibraryViewProps) {
                 Favorited:{" "}
                 {favorites.has(selectedFile.relative_path || selectedFile.filename) ? "Yes" : "No"}
               </p>
+
+              {/* Per-item NSFW flag. Manual by design: no scanning, no
+                  classification, no bulk edit. The flag is the `nsfw` tag,
+                  written server-side, and it only changes visibility. */}
+              <div className="flex items-center justify-between border-t border-white/5 pt-2">
+                <div>
+                  <p className="text-sm text-white">NSFW</p>
+                  <p className="text-xs text-muted">
+                    Kept out of the home feed and library until you turn on "Show NSFW content"
+                    in Settings.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    aria-label="NSFW"
+                    checked={isNsfw(selectedFile)}
+                    disabled={nsfwSaving}
+                    onChange={(e) => void handleToggleNsfw(selectedFile, e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </div>
 
               <div className="space-y-2">
                 <div className="flex items-center gap-2">

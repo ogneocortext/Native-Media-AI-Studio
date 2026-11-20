@@ -32,11 +32,13 @@ import {
   Video,
   Monitor,
   Info,
+  EyeOff,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { BrandMark } from "./BrandMark";
 import { useHealthStore } from "../../state/healthStore";
+import { useNsfwStore } from "../../state/nsfwStore";
 import { useUIStore } from "../../state/uiStore";
 import { getVideoEditorUrl } from "../../services/portConfig";
 import { preloadRoute } from "../../utils/routePreloader";
@@ -128,6 +130,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: "HyperFrames",
         icon: <Play size={18} />,
         keywords: "hyperframes animation frames",
+      },
+      {
+        path: "/voice-live",
+        label: "Voice Live",
+        icon: <Mic size={18} />,
+        keywords: "voice tts speak pocket live",
       },
     ],
   },
@@ -305,6 +313,18 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+/**
+ * The /nsfw destination. Offered only while `show_nsfw` is on — when the gate
+ * is off the entry does not exist in the nav at all, so there is nothing to
+ * click through to an empty page.
+ */
+const NSFW_NAV_ITEM: NavItem = {
+  path: "/nsfw",
+  label: "NSFW",
+  icon: <EyeOff size={18} />,
+  keywords: "nsfw explicit adult flagged private hidden",
+};
+
 function isPathActive(current: string, target: string) {
   if (target === "/") return current === "/";
   return current === target || current.startsWith(target + "/");
@@ -445,6 +465,8 @@ export function Sidebar() {
   const location = useLocation();
   const { overall, adapters, isLoading, fetchHealth } = useHealthStore();
   const { focusMode } = useUIStore();
+  // Visibility gate: drives whether the NSFW destination is offered at all.
+  const showNsfw = useNsfwStore((s) => s.showNsfw);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -574,9 +596,13 @@ export function Sidebar() {
     [],
   );
   const visibleGroups = useMemo(() => {
-    const withExternal = NAV_GROUPS.map((g) =>
-      g.id === "create" ? { ...g, items: [...g.items, remotionItem] } : g,
-    );
+    const withExternal = NAV_GROUPS.map((g) => {
+      if (g.id === "create") return { ...g, items: [...g.items, remotionItem] };
+      // The NSFW destination is appended to Library only while the owner has
+      // enabled it; with the gate off the nav has no entry for it.
+      if (g.id === "library" && showNsfw) return { ...g, items: [...g.items, NSFW_NAV_ITEM] };
+      return g;
+    });
     if (!q) return withExternal;
     const terms = q.split(/\s+/).filter(Boolean);
     const matches = (i: NavItem) => {
@@ -586,7 +612,7 @@ export function Sidebar() {
     return withExternal
       .map((g) => ({ ...g, items: g.items.filter(matches) }))
       .filter((g) => g.items.length > 0);
-  }, [q, remotionItem]);
+  }, [q, remotionItem, showNsfw]);
 
   return (
     <>

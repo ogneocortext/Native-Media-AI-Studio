@@ -531,6 +531,7 @@ class SettingsUpdateRequest(BaseModel):
     default_workflow: str | None = None
     output_node_id: str | None = None
     default_model: str | None = None
+    show_nsfw: bool | None = None
 
 
 @router.get("/config/settings")
@@ -550,6 +551,9 @@ async def get_settings() -> dict:
         "default_model": config.default_model,
         "default_workflow": config.default_workflow,
         "output_node_id": config.output_node_id,
+        # Visibility gate for NSFW-flagged media. False (the default) keeps
+        # flagged items out of every list response.
+        "show_nsfw": config.show_nsfw,
     }
 
 
@@ -594,6 +598,11 @@ async def update_settings(req: SettingsUpdateRequest) -> dict:
     if req.output_node_id is not None:
         config.output_node_id = req.output_node_id
         updates["output_node_id"] = req.output_node_id
+    if req.show_nsfw is not None:
+        # Visibility only: the next list request re-reads this, so the change
+        # takes effect without a restart and without touching any file.
+        config.show_nsfw = req.show_nsfw
+        updates["show_nsfw"] = req.show_nsfw
 
     save_config(config)
     return {

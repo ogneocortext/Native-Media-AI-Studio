@@ -25,6 +25,13 @@ export interface MediaFile {
   recording?: boolean;
 }
 
+/**
+ * Which list endpoint the library reads.
+ * - "all": every general library surface (NSFW-flagged items excluded by the server)
+ * - "nsfw": the dedicated /nsfw section (empty while show_nsfw is off)
+ */
+export type MediaScope = "all" | "nsfw";
+
 export interface FilterState {
   query: string;
   fileType: string;
@@ -33,7 +40,7 @@ export interface FilterState {
   sortOrder: "asc" | "desc";
 }
 
-export function useMediaFiles() {
+export function useMediaFiles(scope: MediaScope = "all") {
   const [files, setFiles] = useState<MediaFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,21 +51,29 @@ export function useMediaFiles() {
     try {
       // The API caps pages at 500; the library must show ALL generated
       // media, so page through until the reported total is reached.
+      // "nsfw" reads the dedicated section instead: while show_nsfw is off
+      // the server answers that endpoint with an empty list, so this hook
+      // needs no gate logic of its own.
       const PAGE = 500;
+      const listPath = scope === "nsfw" ? "/api/outputs/nsfw" : "/api/outputs";
       const allRaw: Record<string, unknown>[] = [];
       let total = Infinity;
       while (allRaw.length < total) {
         const res = await fetchWithTimeout(
-          `/api/outputs?limit=${PAGE}&offset=${allRaw.length}`,
+          `${listPath}?limit=${PAGE}&offset=${allRaw.length}`,
           { timeout: 15000 },
         );
         if (!res.ok) throw new Error(`Failed to load files: ${res.status}`);
-        const data = (await res.json()) as {
-          outputs?: Record<string, unknown>[];
-          total?: number;
-        };
-        const batch = data.outputs ?? [];
-        if (typeof data.total === "number") total = data.total;
+        const data = (await res.json()) as
+          | { outputs?: Record<string, unknown>[]; total?: number }
+          | Record<string, unknown>[];
+        // /nsfw answers with a bare list; /api/outputs with a paged envelope.
+        const batch = Array.isArray(data) ? data : (data.outputs ?? []);
+        if (Array.isArray(data)) {
+          total = batch.length;
+        } else if (typeof data.total === "number") {
+          total = data.total;
+        }
         allRaw.push(...batch);
         if (batch.length < PAGE) break;
       }
@@ -95,7 +110,8 @@ export function useMediaFiles() {
 
   useEffect(() => {
     void loadFiles();
-  }, []);
+    // scope selects the endpoint, so a change of scope must refetch.
+  }, [scope]);
 
   return {
     files,

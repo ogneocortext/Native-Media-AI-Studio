@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.config import config
+from ..core.nsfw import hidden_paths
 from ..core.paths import comfyui_output_dir
 from ..services.subprocess_runner import run_subprocess_thread as _run_subprocess_thread
 from .outputs_models import OutputFile, get_file_type
@@ -446,6 +447,23 @@ def _scan_with_cache() -> list[OutputFile]:
         _output_cache["timestamp"] = now
 
     return all_outputs
+
+
+def visible_outputs() -> list[OutputFile]:
+    """Every scanned output the general list surfaces may show a client.
+
+    ``_scan_with_cache`` is the unfiltered truth: the /nsfw section and the
+    per-item flag editor both need to see flagged items. Every *general* list
+    surface (all outputs, recent, by type) goes through here, so a flagged item
+    -- and its cover/thumbnail path -- is dropped server-side and never reaches
+    the client. The exclusion is permanent; ``show_nsfw`` only governs whether
+    the dedicated /nsfw section is served.
+    """
+    items = _scan_with_cache()
+    hidden = hidden_paths()
+    if not hidden:
+        return items
+    return [item for item in items if item.relative_path not in hidden]
 
 
 def _scan_standard_dirs(output_base: Path) -> list[OutputFile]:

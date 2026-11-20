@@ -146,6 +146,14 @@ const OnboardingPage = lazyNamed(
   "OnboardingPage",
 );
 const AboutPage = lazyNamed(async () => import("./features/about/AboutPage"), "AboutPage");
+const NsfwLibrary = lazyNamed(
+  async () => import("./features/media-library/NsfwLibrary"),
+  "NsfwLibrary",
+);
+const VoiceLivePage = lazyNamed(
+  async () => import("./features/voice-live/VoiceLivePage"),
+  "VoiceLivePage",
+);
 
 // Register all lazy routes for preloading on hover
 registerRouteLoader("/create/music-video", async () => import("./features/music-video/MusicVideoWizard"));
@@ -169,6 +177,8 @@ registerRouteLoader(
 registerRouteLoader("/create/unity", async () => import("./features/unity-control/UnityControlPage"));
 registerRouteLoader("/create/hyperframes", async () => import("./features/hyperframes/HyperFramesPage"));
 registerRouteLoader("/library", async () => import("./features/media-library/MediaLibrary"));
+registerRouteLoader("/nsfw", async () => import("./features/media-library/NsfwLibrary"));
+registerRouteLoader("/voice-live", async () => import("./features/voice-live/VoiceLivePage"));
 registerRouteLoader("/library/video", async () => import("./features/media-library/VideoLibrary"));
 registerRouteLoader("/library/audio", async () => import("./features/media-library/AudioLibrary"));
 registerRouteLoader("/library/storyboards", async () => import("./features/storyboards/StoryboardPage"));
@@ -232,6 +242,8 @@ const ROUTE_TITLES: Record<string, string> = {
   "/library/video": "Video Library",
   "/library/audio": "Audio Library",
   "/library/storyboards": "Storyboards",
+  "/nsfw": "NSFW",
+  "/voice-live": "Voice Live",
   "/analyze/audio": "Audio Analysis",
   "/analyze/ai": "AI Tools",
   "/analyze/chat": "Ollama Chat",
@@ -325,12 +337,18 @@ function App() {
               <Route path="/create/animation" element={withErrorBoundary(<AnimationStudio />)} />
               <Route path="/create/unity" element={withErrorBoundary(<UnityControlPage />)} />
               <Route path="/create/hyperframes" element={withErrorBoundary(<HyperFramesPage />)} />
+              <Route path="/voice-live" element={withErrorBoundary(<VoiceLivePage />)} />
 
               {/* Library */}
               <Route path="/library" element={withErrorBoundary(<MediaLibrary />)} />
               <Route path="/library/video" element={withErrorBoundary(<VideoLibrary />)} />
               <Route path="/library/audio" element={withErrorBoundary(<AudioLibrary />)} />
               <Route path="/library/storyboards" element={withErrorBoundary(<StoryboardPage />)} />
+
+              {/* Gated NSFW section. The route exists regardless of the
+                  setting; the page itself renders the standard empty state
+                  while show_nsfw is off, and the server returns no items. */}
+              <Route path="/nsfw" element={withErrorBoundary(<NsfwLibrary />)} />
 
               {/* Analyze */}
               <Route path="/mastering" element={withErrorBoundary(<MasteringPage />)} />

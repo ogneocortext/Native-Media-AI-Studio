@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { startAutoRefresh, stopAutoRefresh } from "../../state/jobStore";
 import { useUIStore } from "../../state/uiStore";
+import { useNsfwStore } from "../../state/nsfwStore";
 import { useHealthStore } from "../../state/healthStore";
 import { useJobStore } from "../../state/jobStore";
 import { connectNotificationSSE, disconnectNotificationSSE } from "../../state/notificationStore";
@@ -43,6 +44,9 @@ export function Layout({ children }: LayoutProps) {
     (window as Window).__sseService = sseService;
 
     startAutoRefresh();
+    // Visibility gate for NSFW-flagged media. Loaded once at the shell so the
+    // nav entry and the /nsfw route agree without each fetching settings.
+    void useNsfwStore.getState().load();
     // Centralize SSE: connect once here so the EventSource is not
     // opened/closed by every mount/unmount of Sidebar/Queue/etc.
     useHealthStore.getState().connectSSE();

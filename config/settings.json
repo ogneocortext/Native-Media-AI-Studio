@@ -6,6 +6,7 @@
   "max_queue_workers": 1,
   "output_dir": "output",
   "log_level": "INFO",
+  "show_nsfw": false,
   "default_model": "gemma4:e2b-it-qat",
   "vision_model": "gemma4:e2b-it-qat",
   "embedding_model": "nomic-embed-text:v1.5",

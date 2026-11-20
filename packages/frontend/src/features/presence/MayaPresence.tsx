@@ -70,7 +70,7 @@ function shownKey(person: PresencePerson): string {
 
 function readShown(person: PresencePerson): string {
   try {
-    return localStorage.getItem(shownKey(person)) || "";
+    return localStorage.getItem(shownKey(person)) ?? "";
   } catch {
     return "";
   }
@@ -94,7 +94,7 @@ function subtextFor(person: PresencePerson): string {
   if (person.state === "away") {
     return role ? `${role} · away` : "away";
   }
-  const activity = person.activity || "working in the Studio";
+  const activity = person.activity ?? "working in the Studio";
   return role ? `${role} · ${activity}` : activity;
 }
 
@@ -126,7 +126,7 @@ function Avatar({
   return (
     <span
       className="flex items-center justify-center rounded-full font-bold text-white"
-      style={{ ...px, backgroundColor: person.color || VIOLET, fontSize: Math.round(size * 0.5) }}
+      style={{ ...px, backgroundColor: person.color ?? VIOLET, fontSize: Math.round(size * 0.5) }}
       aria-hidden
     >
       {initial}

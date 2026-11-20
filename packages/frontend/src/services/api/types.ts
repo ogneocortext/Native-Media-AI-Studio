@@ -81,6 +81,8 @@ export interface AppConfig {
   go_worker_url: string;
   go_gateway_url: string;
   go_ports_url: string;
+  /** Visibility gate for NSFW-flagged media; false unless the owner opts in. */
+  show_nsfw?: boolean;
 }
 
 // ============================================================================
@@ -2160,6 +2162,15 @@ export interface AppSettings {
   backend_port: number;
   frontend_port: number;
   default_model?: string;
+  /** Visibility gate for NSFW-flagged media. Defaults to false on the server. */
+  show_nsfw?: boolean;
+}
+
+/** Response from POST /api/outputs/nsfw (per-item NSFW flag toggle). */
+export interface NsfwFlagResponse {
+  relative_path: string;
+  nsfw: boolean;
+  show_nsfw: boolean;
 }
 
 export interface UnityAudioSyncFrame {

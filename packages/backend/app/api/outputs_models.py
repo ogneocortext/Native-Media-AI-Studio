@@ -51,6 +51,17 @@ class RenameRequest(BaseModel):
     new_name: str  # new filename only, no path
 
 
+class NsfwFlagRequest(BaseModel):
+    """Per-item NSFW flag toggle (see core/nsfw.py).
+
+    The flag is stored as the ``nsfw`` media tag on the item's
+    ``relative_path`` -- no file is moved, renamed, or re-encoded.
+    """
+
+    relative_path: str
+    nsfw: bool
+
+
 def get_file_type(filename: str) -> str:
     """Determine file type from extension"""
     ext = Path(filename).suffix.lower()

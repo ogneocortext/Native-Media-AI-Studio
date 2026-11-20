@@ -47,6 +47,7 @@ from ..core.database import (
     toggle_media_favorite,
     update_collection,
 )
+from ..core.nsfw import NSFW_TAG_NAME, gate_enabled, hidden_paths
 
 logger = logging.getLogger(__name__)
 
@@ -138,10 +139,23 @@ class TrashEmptyResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _visible_paths(paths: list[str]) -> list[str]:
+    """Drop NSFW-flagged paths while the show_nsfw gate is off.
+
+    These endpoints return library identifiers rather than media bytes, but a
+    relative path is still the item's address: leaving flagged ones in the map
+    would name media the gate is meant to keep off the client entirely.
+    """
+    hidden = hidden_paths()
+    if not hidden:
+        return paths
+    return [p for p in paths if p not in hidden]
+
+
 @router.get("/favorites", response_model=list[str])
 async def list_favorites(limit: int = Query(200, ge=1, le=1000)) -> list[str]:
     """Return favorited relative_paths, newest first."""
-    return list_media_favorites(limit=limit)
+    return _visible_paths(list_media_favorites(limit=limit))
 
 
 @router.get("/favorites/{relative_path:path}/status", response_model=dict)
@@ -224,7 +238,7 @@ async def list_collection_items(
     """Return relative_paths in a collection, newest added first."""
     if not get_collection(collection_id):
         raise HTTPException(status_code=404, detail="Collection not found")
-    return get_items_in_collection(collection_id)
+    return _visible_paths(get_items_in_collection(collection_id))
 
 
 @router.post("/collections/{collection_id}/items", status_code=204)
@@ -260,14 +274,16 @@ async def list_item_collections(
 @router.get("/items/organization", response_model=ItemOrganizationResponse)
 async def item_organization() -> ItemOrganizationResponse:
     """Return every item's tags and collections in two bulk maps."""
+    hidden = hidden_paths()
+    tags = get_all_item_tags()
+    collections = get_all_item_collections()
+    if hidden:
+        tags = {path: t for path, t in tags.items() if path not in hidden}
+        collections = {path: c for path, c in collections.items() if path not in hidden}
     return ItemOrganizationResponse(
-        tags={
-            path: [TagResponse(**t) for t in tags]
-            for path, tags in get_all_item_tags().items()
-        },
+        tags={path: [TagResponse(**t) for t in item_tags] for path, item_tags in tags.items()},
         collections={
-            path: [CollectionResponse(**c) for c in colls]
-            for path, colls in get_all_item_collections().items()
+            path: [CollectionResponse(**c) for c in colls] for path, colls in collections.items()
         },
     )
 
@@ -279,8 +295,17 @@ async def item_organization() -> ItemOrganizationResponse:
 
 @router.get("/tags", response_model=list[TagResponse])
 async def list_tags_endpoint() -> list[TagResponse]:
-    """List all tags, most recently created first."""
-    return [TagResponse(**t) for t in list_tags()]
+    """List all tags, most recently created first.
+
+    The ``nsfw`` tag is withheld while the gate is off: it exists only to mark
+    items that are themselves withheld, so offering it as a filter chip would
+    advertise the hidden section on a general surface. Flagged items keep the
+    tag server-side -- only this listing hides it.
+    """
+    tags = list_tags()
+    if not gate_enabled():
+        tags = [t for t in tags if t["name"].lower() != NSFW_TAG_NAME]
+    return [TagResponse(**t) for t in tags]
 
 
 @router.post("/tags", response_model=TagResponse, status_code=201)
@@ -295,7 +320,7 @@ async def list_tag_items(
     tag_id: str = PathParam(..., description="Tag ID"),
 ) -> list[str]:
     """Return relative_paths tagged with the given tag."""
-    return get_items_with_tag(tag_id)
+    return _visible_paths(get_items_with_tag(tag_id))
 
 
 @router.get("/items/{relative_path:path}/tags", response_model=ItemTagsResponse)
@@ -372,7 +397,11 @@ async def list_trash_endpoint() -> list[TrashItemResponse]:
     30-day retention is honored without a background job.
     """
     purge_expired_trash()
-    return [TrashItemResponse(**t) for t in list_trash()]
+    hidden = hidden_paths()
+    items = list_trash()
+    if hidden:
+        items = [t for t in items if t["relative_path"] not in hidden]
+    return [TrashItemResponse(**t) for t in items]
 
 
 @router.post("/trash/purge-expired", response_model=TrashEmptyResponse)

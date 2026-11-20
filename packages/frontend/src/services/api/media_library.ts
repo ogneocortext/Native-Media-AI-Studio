@@ -12,6 +12,7 @@ import type {
   CreateCollectionRequest,
   CreateTagRequest,
   ItemOrganization,
+  NsfwFlagResponse,
 } from "./types";
 
 const BASE = "/api/media-library";
@@ -185,3 +186,25 @@ export async function emptyTrash(): Promise<number> {
 }
 
 export type * from "./types";
+
+/* --------------------------------------------------------------------------- */
+/* NSFW flag + section                                                         */
+/* --------------------------------------------------------------------------- */
+
+/**
+ * Flag (or unflag) one library item as NSFW.
+ *
+ * The flag is the `nsfw` media tag on the item's relative_path, so the item
+ * stays exactly where it is on disk -- only its visibility changes. While
+ * `show_nsfw` is off, flagged items are excluded from every general list
+ * response server-side.
+ */
+export async function setNsfwFlag(
+  relativePath: string,
+  nsfw: boolean,
+): Promise<NsfwFlagResponse> {
+  return postJson<NsfwFlagResponse>("/api/outputs/nsfw", {
+    relative_path: relativePath,
+    nsfw,
+  });
+}

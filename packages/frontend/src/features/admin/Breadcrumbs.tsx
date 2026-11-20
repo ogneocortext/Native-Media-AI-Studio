@@ -27,6 +27,7 @@ import {
   Gamepad2,
   Mic,
   MessageSquare,
+  EyeOff,
 } from "lucide-react";
 
 interface BreadcrumbItem {
@@ -64,6 +65,7 @@ const ROUTE_LABELS: Partial<
   "/library/video": { label: "Video Library", icon: <Video size={14} /> },
   "/library/audio": { label: "Audio Library", icon: <Music size={14} /> },
   "/library/storyboards": { label: "Storyboards", icon: <BookOpen size={14} /> },
+  "/nsfw": { label: "NSFW", icon: <EyeOff size={14} /> },
   "/analyze/audio": { label: "Audio Analysis", icon: <BarChart3 size={14} /> },
   "/analyze/ai": { label: "AI Tools", icon: <Brain size={14} /> },
   "/analyze/chat": { label: "Ollama Chat", icon: <Mic size={14} /> },

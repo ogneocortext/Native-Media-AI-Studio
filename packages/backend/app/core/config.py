@@ -44,6 +44,10 @@ class AppConfig(BaseModel):
     max_queue_workers: int = 1
     output_dir: Path = OUTPUT_DIR
     log_level: str = "INFO"
+    # Visibility gate for NSFW-flagged media (see core/nsfw.py). Default OFF:
+    # flagged items stay out of every list response until the owner turns this
+    # on in Settings. A user feature flag, so save_config() must not exclude it.
+    show_nsfw: bool = False
     default_model: str = "gemma4:e2b-it-qat"
     vision_model: str = "gemma4:e2b-it-qat"
     embedding_model: str = "nomic-embed-text:v1.5"

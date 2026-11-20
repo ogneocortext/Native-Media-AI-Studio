@@ -18,9 +18,11 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from ..core.config import config
+from ..core.nsfw import flagged_paths, gate_enabled, set_flagged
 from ..core.paths import comfyui_output_dir, is_within, resolve_within, sanitize_filename
 from .outputs_models import (
     BulkDeleteRequest,
+    NsfwFlagRequest,
     OutputFile,
     OutputsResponse,
     RenameRequest,
@@ -33,6 +35,7 @@ from .outputs_scanner import (
     _sidecar_candidates,
     _sidecar_rename_pairs,
     extract_video_thumbnail,
+    visible_outputs,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,10 +64,12 @@ async def list_outputs(
     Uses in-memory caching with 30s TTL. No FFmpeg calls on list --
     thumbnails are generated on-demand when opening a file.
     """
-    # Fast cached scan (no FFmpeg)
+    # Fast cached scan (no FFmpeg). visible_outputs() drops NSFW-flagged items
+    # while the show_nsfw gate is off, so neither the row nor its cover path
+    # is serialized into the response.
     if refresh:
         _invalidate_cache()
-    all_outputs = _scan_with_cache()
+    all_outputs = visible_outputs()
 
     if file_type and file_type != "all":
         # Accept both singular ("image") and plural ("images") spellings.
@@ -134,9 +139,51 @@ async def list_recent_outputs(
 
     Must be declared before ``/{file_type}`` — otherwise ``recent`` is
     captured as a file_type and rejected with 400.
+
+    This is the home page's "Your recent videos" feed. Filtering happens
+    before the limit is applied, so a flagged item never occupies one of the
+    few slots the dashboard shows.
     """
     # _scan_with_cache() returns results sorted by created_at descending.
-    return _scan_with_cache()[:limit]
+    return visible_outputs()[:limit]
+
+
+@router.get("/nsfw", response_model=list[OutputFile])
+async def list_nsfw_outputs(
+    limit: int = Query(200, ge=1, le=500, description="Maximum number of results"),
+) -> list[OutputFile]:
+    """List the items flagged NSFW -- the /nsfw section's only data source.
+
+    Returns an empty list while ``show_nsfw`` is off, so the section is gated
+    server-side: guessing the URL does not hand back the items or their
+    thumbnails. Declared before ``/{file_type}`` for the same reason as
+    ``/recent``.
+    """
+    if not gate_enabled():
+        return []
+    flagged = flagged_paths()
+    if not flagged:
+        return []
+    return [item for item in _scan_with_cache() if item.relative_path in flagged][:limit]
+
+
+@router.post("/nsfw")
+async def set_nsfw_flag(body: NsfwFlagRequest) -> dict:
+    """Flag (or unflag) one library item as NSFW.
+
+    Per-item and manual by design: no classification, no scanning, no bulk
+    flagging. The item stays exactly where it is on disk -- only its
+    visibility changes.
+    """
+    relative_path = body.relative_path.strip()
+    if not relative_path:
+        raise HTTPException(status_code=400, detail="relative_path is required")
+    state = set_flagged(relative_path, flagged=body.nsfw)
+    return {
+        "relative_path": relative_path,
+        "nsfw": state,
+        "show_nsfw": gate_enabled(),
+    }
 
 
 @router.get("/{file_type}", response_model=list[OutputFile])
@@ -152,8 +199,8 @@ async def list_outputs_by_type(
             detail=f"Invalid file type. Must be one of: {list(valid_types.keys())}",
         )
 
-    # Use cached scan
-    all_outputs = _scan_with_cache()
+    # Use cached scan, minus anything the NSFW gate hides.
+    all_outputs = visible_outputs()
     filtered = [o for o in all_outputs if o.file_type == valid_types[file_type]]
     return filtered[:limit]
 

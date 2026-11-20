@@ -31,6 +31,7 @@ import { Card, StatusBadge } from "../../components/common";
 
 import { useHealth } from "../../hooks";
 import { useTheme } from "../../utils/theme";
+import { useNsfwStore } from "../../state/nsfwStore";
 import {
   getSettings,
   getIntegrationStatus,
@@ -60,6 +61,7 @@ interface AppSettings {
   default_model?: string;
   default_workflow?: string;
   output_node_id?: string;
+  show_nsfw?: boolean;
 }
 
 /**
@@ -96,6 +98,7 @@ export function Settings() {
       frontend_port: env.frontend_port || 5173,
       default_workflow: "default",
       output_node_id: "9",
+      show_nsfw: false,
     };
   });
   const [connectionTests, setConnectionTests] = useState<Record<string, ConnectionTestResult>>({});
@@ -142,6 +145,7 @@ export function Settings() {
           default_model: settings.default_model,
           default_workflow: settings.default_workflow,
           output_node_id: settings.output_node_id,
+          show_nsfw: settings.show_nsfw ?? false,
         }),
       });
       if (!res.ok) {
@@ -152,6 +156,8 @@ export function Settings() {
       }
       setSaved(true);
       setHasUnsavedChanges(false);
+      // Mirror the persisted gate into the nav without waiting for a reload.
+      useNsfwStore.getState().setShowNsfw(settings.show_nsfw ?? false);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save settings");
@@ -549,6 +555,22 @@ export function Settings() {
               <option value="WARNING">Warning</option>
               <option value="ERROR">Error</option>
             </select>
+          </div>
+        </Card>
+
+        {/* Content visibility */}
+        <Card title="Content">
+          <div className="space-y-3">
+            <ToggleRow
+              label="Show NSFW content"
+              checked={settings.show_nsfw ?? false}
+              onToggle={() => updateSetting("show_nsfw", !(settings.show_nsfw ?? false))}
+            />
+            <p className="text-xs text-muted">
+              Items you flag NSFW are always kept out of the home feed and the library. Turn this
+              on to reveal the dedicated NSFW section; the flag itself never changes a file on
+              disk.
+            </p>
           </div>
         </Card>
 

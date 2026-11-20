@@ -303,6 +303,7 @@ export {
   restoreFromTrash,
   purgeFromTrash,
   emptyTrash,
+  setNsfwFlag,
 } from "./media_library";
 export type {
   Collection,
@@ -315,6 +316,7 @@ export type {
   SetItemTagsRequest,
   MoveToTrashRequest,
   ItemOrganization,
+  NsfwFlagResponse,
 } from "./media_library";
 
 // Diagnostics
