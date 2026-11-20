@@ -1884,3 +1884,37 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** satisfied — synth wav -> lipsync job c97d1406 completed (300 frames, 12s, h264 704x1216, HTTP 200).
 - **Last session:** Devin, 2026-11-09 — install + service + API + remote
   proof PASS; ledger + VOICE_API.md + commit. Follow-up 2026-11-09: maya profile re-seeded with cast voice (Pendant) via lipsync-upload staged clip; vram_adapters Ollama-reload fail-soft fix (aa04e8d0) after Ollama-down killed two jobs post-inference.
+
+### T-VOICE-02 — Voice Live page + Pocket TTS proxy (follows T-VOICE-01)
+
+- **Status:** done
+- **Goal:** Studio "Voice Live" page backed by a server-side proxy to the
+  rig-local Pocket TTS server (tailnet-only, per-launch Bearer token), so
+  Maya can speak text in a cloned voice without the endpoint or token ever
+  reaching the browser. F5-TTS API (T-VOICE-01) unchanged.
+- **Changes:** config/tts.json (base_url/token_env/default_voice/timeout_s);
+  app/core/tts_settings.py (mtime-cached hot-reload loader, logging.json
+  style); app/api/voice_pocket.py (GET /api/voice/pocket/health + /voices,
+  POST /api/voice/pocket/speak -> upstream POST /speech, streamed audio,
+  token from env at request time, 503 not-configured / 503 unreachable /
+  502 upstream-status); router registered in main.py; frontend
+  services/api/voice_pocket.ts + features/voice-live/VoiceLivePage.tsx,
+  route /voice-live + Create-group nav entry "Voice Live".
+- **Files:** config/tts.json, packages/backend/app/core/tts_settings.py,
+  packages/backend/app/api/voice_pocket.py, packages/backend/app/main.py,
+  packages/backend/tests/test_voice_pocket.py,
+  packages/frontend/src/services/api/voice_pocket.ts,
+  packages/frontend/src/features/voice-live/VoiceLivePage.tsx,
+  packages/frontend/src/App.tsx,
+  packages/frontend/src/components/layout/Sidebar.tsx
+- **Verification:** pytest test_voice_pocket.py 5/5 (missing-token 503,
+  closed-port 503 + degraded fallback, absolute-path filtering);
+  live proxy GET /health 200 sample_rate 24000 voices_cached maya +
+  maya-blend65; POST /speak {"Testing one two three.","maya-blend65"} ->
+  200, 76,800 bytes, TTFB 0.69 s; headless /voice-live renders, select
+  preselected maya-blend65, engine ready, Speak run produced 1 session take;
+  token value grep 0 hits repo-wide; "8811" absent from frontend src.
+- **Acceptance:** satisfied — page renders headless with maya-blend65
+  preselected and a Speak run yields a replayable session take.
+- **Last session:** Devin, 2026-11-20 — proxy + page landed; ledger +
+  commit in the same change.

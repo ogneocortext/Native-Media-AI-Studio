@@ -1,0 +1,22 @@
+{
+  "_about": {
+    "purpose": "TTS engine endpoints. Mirrors config/ports.json / config/logging.json: edit HERE, not in code. Consumed by app/core/tts_settings.py and app/api/voice_pocket.py.",
+    "consumed_by": [
+      "packages/backend/app/core/tts_settings.py (mtime-cached loader)",
+      "packages/backend/app/api/voice_pocket.py (/api/voice/pocket/* proxy)"
+    ],
+    "fields": {
+      "pocket.base_url": "Pocket TTS server base URL (tailnet-only bind on the rig).",
+      "pocket.token_env": "Name of the environment variable holding the per-launch Pocket Bearer token. The token value itself is NEVER stored here -- env var only, server-side only.",
+      "pocket.default_voice": "Voice preselected by the Voice Live page.",
+      "pocket.timeout_s": "Upstream request timeout in seconds."
+    },
+    "last_updated": "2026-11-20"
+  },
+  "pocket": {
+    "base_url": "http://100.95.60.73:8811",
+    "token_env": "POCKET_TTS_TOKEN",
+    "default_voice": "maya-blend65",
+    "timeout_s": 30
+  }
+}
