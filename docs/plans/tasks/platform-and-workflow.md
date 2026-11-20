@@ -1918,3 +1918,29 @@ Rules: `docs/plans/tasks/README.md`
   preselected and a Speak run yields a replayable session take.
 - **Last session:** Devin, 2026-11-20 — proxy + page landed; ledger +
   commit in the same change.
+
+### T-VOICE-03 — Voice Live: F5-TTS engine gap-fill (follows T-VOICE-02)
+
+- **Status:** done
+- **Goal:** The F5-TTS API (T-VOICE-01) had no frontend surface — Voice
+  Live only spoke through Pocket. Add engine selection so both rig TTS
+  engines are drivable from /voice-live.
+- **Changes:** services/api/voice_f5.ts (status/voices/synthesize client,
+  waitForJob poller, audioFileUrl output_path -> /api/audio/file mapper);
+  VoiceLivePage engine toggle (Pocket streaming vs F5 job-based), F5
+  voice profiles from /api/voice/voices, job progress in the progress
+  line, Stop cancels the queued job, takes tagged by engine, F5 output
+  note (saves to output/audio + media library).
+- **Files:** packages/frontend/src/services/api/voice_f5.ts,
+  packages/frontend/src/features/voice-live/VoiceLivePage.tsx
+- **Verification:** GET /api/voice/status -> installed:true "ready",
+  voices=[maya]; headless /voice-live engine toggle shows F5 select =
+  "Maya" and pocket select still maya-blend65; live E2E POST
+  /api/voice/synthesize ("Testing one two three.", maya) -> job
+  d62088a3 completed -> GET /api/audio/file/voice_maya_d62088a3.wav 200
+  60,972 bytes. eslint + tsc clean. Pocket path regression-checked
+  (select still preselects maya-blend65).
+- **Acceptance:** satisfied — both engines selectable and drivable from
+  one page; F5 take verified end-to-end through the real job queue.
+- **Last session:** Devin, 2026-11-20 — engine gap-fill landed; ledger +
+  commit in the same change.
