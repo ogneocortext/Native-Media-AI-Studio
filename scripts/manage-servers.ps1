@@ -328,6 +328,26 @@ function Start-StudioService {
         return
     }
 
+    # Pocket TTS bearer token: /api/voice/pocket and /api/voice/live read
+    # POCKET_TTS_TOKEN from the process env at request time. The token is
+    # per-launch (rotates when the Pocket server restarts) and is only ever
+    # persisted in the Pocket server's launch.log -- never in the repo.
+    # Inject it here so ANY agent-initiated backend restart keeps the voice
+    # endpoints working. launch.log is the source of truth for the currently
+    # running Pocket instance, so it wins over a possibly-stale env value.
+    if ($ServiceName -eq 'backend') {
+        $pocketLaunchLog = 'D:\Tools\streaming-tts\pocket\server\launch.log'
+        if (Test-Path $pocketLaunchLog) {
+            $tokenLine = Select-String -Path $pocketLaunchLog -Pattern 'TOKEN:\s*(\S+)' |
+                Select-Object -Last 1
+            $pocketToken = $tokenLine.Matches[0].Groups[1].Value
+            if ($pocketToken) {
+                $env:POCKET_TTS_TOKEN = $pocketToken
+                Write-Step 'Injected POCKET_TTS_TOKEN from Pocket launch.log (value not printed)'
+            }
+        }
+    }
+
     Write-Step "Starting $($config.Name)"
 
     $logFile = Join-Path $LogDir $config.LogFile

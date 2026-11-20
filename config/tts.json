@@ -9,7 +9,16 @@
       "pocket.base_url": "Pocket TTS server base URL (tailnet-only bind on the rig).",
       "pocket.token_env": "Name of the environment variable holding the per-launch Pocket Bearer token. The token value itself is NEVER stored here -- env var only, server-side only.",
       "pocket.default_voice": "Voice preselected by the Voice Live page.",
-      "pocket.timeout_s": "Upstream request timeout in seconds."
+      "pocket.timeout_s": "Upstream request timeout in seconds.",
+      "live.stt_model": "faster-whisper model name for the /api/voice/live cascade (cached in HF_HOME; 'base' is the fast default).",
+      "live.stt_device": "cuda|cpu for faster-whisper.",
+      "live.stt_compute_type": "int8|float16 for faster-whisper on cuda.",
+      "live.llm_model": "Ollama model for replies; empty string uses config.default_model.",
+      "live.voice": "Pocket voice used for spoken replies.",
+      "live.sample_rate_in": "Mic PCM rate expected from the browser (Hz).",
+      "live.endpoint_silence_ms": "Silence after speech that ends an utterance.",
+      "live.barge_speech_ms": "Continuous speech during TTS playback that triggers barge-in.",
+      "live.max_utterance_s": "Hard cap on buffered user speech per turn."
     },
     "last_updated": "2026-11-20"
   },
@@ -18,5 +27,16 @@
     "token_env": "POCKET_TTS_TOKEN",
     "default_voice": "maya-blend65",
     "timeout_s": 30
+  },
+  "live": {
+    "stt_model": "base",
+    "stt_device": "cuda",
+    "stt_compute_type": "int8",
+    "llm_model": "",
+    "voice": "maya-blend65",
+    "sample_rate_in": 16000,
+    "endpoint_silence_ms": 800,
+    "barge_speech_ms": 400,
+    "max_utterance_s": 30
   }
 }

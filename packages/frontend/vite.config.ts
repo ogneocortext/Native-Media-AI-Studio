@@ -25,7 +25,9 @@ interface PortConfig {
  * Kept in one place so a backend URL change only needs one edit.
  */
 const PROXY_TARGETS = {
-  "/api": { target: "", changeOrigin: true, xfwd: true },
+  // ws:true so /api/voice/live (duplex voice WebSocket) upgrades through the
+  // dev proxy; plain HTTP /api calls are unaffected.
+  "/api": { target: "", changeOrigin: true, ws: true, xfwd: true },
   "/output": { target: "", changeOrigin: true, xfwd: true },
   "/ws": { target: "", changeOrigin: true, ws: true, xfwd: true },
 } as const;

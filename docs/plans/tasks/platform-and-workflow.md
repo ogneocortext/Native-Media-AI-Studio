@@ -1944,3 +1944,42 @@ Rules: `docs/plans/tasks/README.md`
   one page; F5 take verified end-to-end through the real job queue.
 - **Last session:** Devin, 2026-11-20 — engine gap-fill landed; ledger +
   commit in the same change.
+
+### T-VOICE-04 — Live duplex voice cascade (follows T-VOICE-03)
+
+- **Status:** done
+- **Goal:** Real-time spoken conversation on /voice-live — mic in, spoken
+  reply out, barge-in (talk over Maya and she stops and listens). Native
+  full-duplex models (Moshi/PersonaPlex/Qwen3-Omni) need >=12 GB VRAM and
+  cannot run on the 1070 Ti; the cascade + VAD barge-in is the feasible
+  path (see docs/knowledge-library/
+  real-time-duplex-voice-open-source-landscape-and-local-cascade-plan-2026.md).
+- **Changes:** /api/voice/live WebSocket (app/api/voice_live.py) —
+  Silero VAD endpointing (512-sample chunks @16 kHz), faster-whisper STT,
+  Ollama chat (think=False, 12-msg history), Pocket TTS streaming PCM16
+  24 kHz out; barge-in cancels the TTS stream after 400 ms of sustained
+  speech at a higher VAD threshold; pending-utterance queue for speech
+  during "thinking". config/tts.json "live" section + tts_settings.live().
+  Frontend voice_live.ts (WS client, PCM16 converters) + VoiceLivePage
+  "Live duplex" engine (16 kHz mic capture via ScriptProcessor, 24 kHz
+  WebAudio playback queue cleared on barge-in, transcript log, text
+  injection). vite.config /api proxy gained ws:true. manage-servers.ps1
+  now injects POCKET_TTS_TOKEN from Pocket launch.log on backend start
+  (any agent restart keeps voice endpoints working).
+- **Files:** packages/backend/app/api/voice_live.py,
+  packages/backend/app/core/tts_settings.py, packages/backend/app/main.py,
+  config/tts.json, scripts/manage-servers.ps1,
+  packages/frontend/src/services/api/voice_live.ts,
+  packages/frontend/src/features/voice-live/VoiceLivePage.tsx,
+  packages/frontend/vite.config.ts
+- **Verification:** WS E2E (Python client): start -> {"type":"text"} ->
+  reply event + state listening->thinking->speaking->listening, 18 PCM
+  chunks / 69,120 bytes audio streamed. GET /api/voice/pocket/health 200
+  through proxy after token-injecting restart. tsc -b + eslint clean on
+  new frontend files; py_compile + ruff clean on backend. Deps installed
+  into the backend runtime env: faster-whisper + silero-vad.
+- **Acceptance:** satisfied — duplex cascade verified end-to-end over the
+  real WebSocket; mic/VAD path shares the same PCM plumbing (browser mic
+  capture untested headlessly — needs a real mic session).
+- **Last session:** Devin, 2026-11-20 — cascade landed; ledger + commit in
+  the same change.

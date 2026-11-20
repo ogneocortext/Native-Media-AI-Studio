@@ -34,6 +34,17 @@ _DEFAULTS: dict[str, Any] = {
         "default_voice": "maya-blend65",
         "timeout_s": 30,
     },
+    "live": {
+        "stt_model": "base",
+        "stt_device": "cuda",
+        "stt_compute_type": "int8",
+        "llm_model": "",
+        "voice": "maya-blend65",
+        "sample_rate_in": 16000,
+        "endpoint_silence_ms": 800,
+        "barge_speech_ms": 400,
+        "max_utterance_s": 30,
+    },
 }
 
 _cache: dict[str, Any] | None = None
@@ -82,3 +93,7 @@ def load(*, force: bool = False) -> dict[str, Any]:
 
 def pocket() -> dict[str, Any]:
     return load().get("pocket", {})
+
+
+def live() -> dict[str, Any]:
+    return load().get("live", {})

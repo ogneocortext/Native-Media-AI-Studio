@@ -230,3 +230,5 @@ for AI agents.
 ## 2026-11-20 — Knowledge library additions
 - Added `docs/knowledge-library/agent-skill-authoring-and-maintenance-lessons-2026.md` → `#ai`
 
+- Added `docs/knowledge-library/real-time-duplex-voice-open-source-landscape-and-local-cascade-plan-2026.md` → `#ai`
+

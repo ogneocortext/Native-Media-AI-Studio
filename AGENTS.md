@@ -42,10 +42,12 @@
 > sheet is `docs/powershell-command-sheet.md`.
 >
 > **Agent bootstrap:** read `docs/README.md` first — it maps every documentation
-> directory and says which are authoritative. Then read
-> `docs/architecture/decision-log.md` before writing code. It records
-> stack/architecture decisions (D1–D54 — do not re-litigate) and open questions
-> (Q1–Q6). Update the log when you make or reverse an architecture decision.
+> directory and says which are authoritative. Then read the **Quick index** at
+> the top of `docs/architecture/decision-log.md` before writing code — one
+> line per decision (D1–D79 — do not re-litigate) plus Q1–Q6 — and open
+> only the entries your task touches. Do **not** read the whole log
+> (~190 KB): the index is the navigation layer. Update both the entry and
+> its index line when you make or reverse an architecture decision.
 > Frontend visualizer work also requires `docs/architecture/visualizer.md` — it
 > maps the module split from D14 and states where new logic belongs.
 > For source discovery, follow `docs/agent-code-navigation.md`; docs search is
