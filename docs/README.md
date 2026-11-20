@@ -5,7 +5,8 @@ This directory contains project documentation, knowledge base articles, and setu
 > [!tip] Start here
 > New to this directory? Read the map below, then `knowledge-library/index.md`
 > for the research library. `architecture/decision-log.md` records decisions that
-> must not be re-litigated. If you are an agent, this file is the fastest way to
+> must not be re-litigated — read its **Quick index** (one line per decision),
+> not the whole 190 KB log. If you are an agent, this file is the fastest way to
 > find the right document — the directories below are not interchangeable.
 
 ## Directory Map
@@ -33,7 +34,8 @@ This directory contains project documentation, knowledge base articles, and setu
 - `knowledge-library/index.md` — library navigation and tag counts
 - `knowledge-library/tagging-guide.md` — how library articles are tagged
 - `knowledge-library/playwright-e2e-2026.md` — the Playwright E2E suite: layout, helper vocabulary, and current Playwright practices
-- `architecture/decision-log.md` — decisions and open questions
+- `architecture/decision-log.md` — decisions and open questions (start at the
+  Quick index at the top; it is one line per decision)
 - `architecture/visualizer.md` — visualizer module map and refactor rules (D14)
 - `architecture/browser-support.md` — the single-engine target: modern Chromium (D44)
 - `setup/SYSTEM_REQUIREMENTS.md` — Hardware and software requirements

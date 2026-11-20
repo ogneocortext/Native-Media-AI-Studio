@@ -2,15 +2,118 @@
 
 > **Purpose:** the persistent memory for stack and architecture decisions. Coding
 > agents (Kilo, Cline, OpenCode, Codex, Antigravity, Devin) compress context and
-> rotate — **start every session by reading this file** so decisions aren't
-> re-litigated. Update it when a decision is made or reversed.
+> rotate — **start every session with the Quick index below**, then open only
+> the entries you need, so decisions aren't re-litigated. The full log is
+> ~190 KB; the index is the navigation layer and carries almost every
+> session on its own. Update it when a decision is made or reversed.
 >
 > Format: each entry has **Status** (`Decided` / `In evaluation` / `Open`),
 > **Context**, **Decision**, and **Consequences**. Open questions carry a
-> **Recommendation** where one exists.
+> **Recommendation** where one exists. **Quick index** is the navigation
+> layer for readers who should not load the whole log.
 >
-> Current scope: D1–D69 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D79 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Start at **Quick index** below: one line per entry, then open only the
+> entries you need.
 > (D69 was originally numbered D55 — a duplicate; renumbered 2026-11-05.)
+
+## Quick index
+
+One line per entry, so an agent can find what it needs without reading the
+whole log (2000+ lines). Open the entry only when the one-liner is not
+enough. **Keep this in step:** a decision added or reversed without its
+line here is an incomplete decision.
+
+**Decided**
+
+- `D1` **Video render engine chain** (2026, Phase 1 benchmarks) — `auto` resolves **coreflux → movielite → FFmpeg**.
+- `D2` **Python environment separation** — Three envs — `nma-studio-cuda` (backend + GPU + audio/ML), `comfyui-cuda` (**ComfyUI only, never backend**), `venv/` (CPU fallback).
+- `D3` **Audio analysis backends** — librosa (CPU) + CUDA-accelerated FFT (`app.services.cuda`) with CPU fallback; **madmom-infer + sonara** wired as working analysis backends.
+- `D4` **Stem separation + transcription stack** (2026-09-21) — **Demucs 4.1.0** + **faster-whisper 1.2.1** (`large-v3-turbo`, Pascal/sm_61 → float32, Turing+ → float16).
+- `D5` **Vision analysis workflow** — All screenshot analysis goes through the project's vision script (`node tools/vision/analyze.mjs`, default `gemma4:e2b-it-qat`) or `vision-mcp.mjs`.
+- `D6` **Centralized port management** (2026-09-10) — `config/ports.json` is the single source of truth; everything reads from it.
+- `D7` **8GB VRAM budget as a hard constraint** — All model choices must fit 8GB: Hunyuan3D-2mini, Wan 2.2 5B 480p, Q4_K_M quants, Pascal-safe CTranslate2 compute types.
+- `D8` **Job queue + observability backbone** — FastAPI `queue_manager` with retries, dead-letter queue (`GET /api/jobs/dead-letter`), metrics endpoint, SSE progress; Go sidecars (dashboard :3847,…
+- `D9` **Cost estimation API + wizard integration** (2026-09-29) — Backend `POST /api/video/estimate-cost` returns `estimated_seconds`, `vram_estimate_mb`, `total_frames`, and optional `cloud_cost_usd`.
+- `D10` **No GitHub Actions; local pre-commit hook for library validation** — **No GitHub Actions.** This project is local-first on Windows with heavy GPU dependencies, so hosted runners add cost and upkeep without covering…
+- `D11` **Git LFS hooks are installed but track nothing** — **Leave them installed, do not add LFS tracking.** They cost nothing today, and removing them would be a change to someone else's setup with no…
+- `D12` **docs/knowledge/ is app-served content, not a shadow library** — **Treat them as a separate doc set, not migration debt.** Do not retro-fit library frontmatter onto them.
+- `D13` **docs/README.md is the documentation index; keep it honest with a check** — **Keep the directory layout; make the map authoritative and verified.** Restructuring 146 files would break `docs.py` (`DOCS_ROOT.rglob("*.md")`),…
+- `D14` **Visualizer module decomposition over monolithic components** — Split by responsibility, not by line count.
+- `D15` **Audio API split into four peer modules** — Split by responsibility into four peer modules under the same `/api/audio` prefix: `audio.py` keeps upload, analysis endpoints, the in-memory cache…
+- `D16` **One shared audio-library store feeds every audio selector** — `state/audioNaming.ts` owns the naming and dedup rules as pure functions, and `state/audioLibraryStore.ts` (Zustand) owns the list.
+- `D17` **GPU telemetry retention is bounded by elapsed time, and pruning actually frees space** — Retention is driven by elapsed monotonic time, expressed as two pure helpers (`next_prune_time`, `prunes_due`) plus named constants in…
+- `D18` **2026 visualization audit: feature alignment and perceptual frequency scaling** — - Audit confirmed core 2026 research features are implemented and aligned:
+- `D19` **Database connections are pooled per thread** — Connections are pooled per thread.
+- `D20` **Nesting depth is measured, and the worst offenders are flattened by duplication** — Flatten where nesting is caused by _duplication_ or by interleaving unrelated concerns — not merely because a number is high.
+- `D21` **Agent handoff portability across model providers** (2026-10-02) — The repo is provider-agnostic by design.
+- `D22` **Ollama behaviour is characterised against a live server before it is refactored** — Characterise first, against a real server, then refactor.
+- `D23` **Motion craft lives in a pure, unit-tested vocabulary; the spec's numbers are treated as claims to verify** — Implement the moves as pure functions in `src/features/visualizer/motion/` (D14: not in `Visualizer.tsx`), and treat every number in the handoff as…
+- `D24` **Visual restraint is a declared budget with a runtime cap, not per-mode judgement** — The budget is **data**, keyed by mode, and the cap is enforced at **runtime** rather than by the size of the declaration.
+- `D25` **The Canvas2D mode list has exactly one definition** — `CANVAS_2D_MODES` in `visualizerHelpers.ts` is the only definition.
+- `D26` **Test tooling must not be reachable in a production build** — a test-only affordance that reaches production is a defect.
+- `D32` **Break the two import cycles by inverting, and check it with a gate** (2026-10-02) — invert the dependency rather than move code around.
+- `D55` **Atomic Chat adapter split into its own file** (2026-10-29) — Split Atomic Chat into `adapters/atomic_chat.py` with its own `AtomicChatAdapter` (lazy-loaded via `adapter_registry.get("atomic-chat")`).
+- `D27` **A 404 from the analysis endpoint is a state, not an error** — split the concept in two — `trackName` (display, for the label and preset selection) and `trackFile` (raw library reference, for API/cache keys).
+- `D28` **The studio is the post-production for Suno v6-mini drafts** (2026-10-02) — The studio owns everything between the raw mini draft and a postable social video: the audio post chain (mix polish, consistency/arrangement repair,…
+- `D29` **Abandoning a ComfyUI prompt must cancel it, and a queued prompt is not a slow prompt** (2026-10-02) — Two rules, both now enforced in the adapter and the upscale service.
+- `D30` **A resource wait must not hold the lock that guards unrelated work** (2026-10-02) — Resource _waits_ happen outside the lock; the lock protects only the short bookkeeping critical sections.
+- `D31` **The queue reclaims stranded work, but never retries what cannot succeed** (2026-10-02) — Reclaim stranded work on both axes, and report honestly.
+- `D33` **Verified interpreter selection at every Python entry point** (2026-10-06) — Selection is verified, never path-based.
+- `D34` **Remix build/enhance are background jobs** (2026-10-06) — Both endpoints now validate synchronously (recipe shape, source-stem existence → 404, name collision with `overwrite` off → 409, remix/stem presence…
+- `D35` **Ollama 0.40.0: adopt the capability surface, not the MLX default** (2026-10-06) — Adopt the introspection surface; ignore the engine change.
+- `D36` **Ollama 0.40.1: Windows-only serving fixes, no surface change** (2026-10-08) — Adopt by upgrade only; no code or doc-surface change.
+- `D37` **Vision routing: gemma4 primary, qwen3-vl family pruned** (2026-10-10) — `gemma4:e2b-it-qat` is the vision primary for **every** analysis mode in `tools/vision/analyze.mjs` (`MODE_MODEL`); qwen3-vl is reachable only via…
+- `D38` **3D visualizations share one 2026-grade motion vocabulary** (2026-10-11) — A new pure module `viz-styles/vizMotion.ts` owns the shared primitives — `attackRelease` (frame-rate-independent envelope), `beatSnap` (quantizes…
+- `D39` **Stale path references fail a gate** (2026-10-13) — New checker `tools/check-path-references.py` scans tracked text files for repo-relative path references (`packages/…`, `tools/…`, `docs/…`,…
+- `D40` **`motion/` is live; the "dead code" removal is struck** (2026-10-13) — The removal is struck and the modules stay.
+- `D41` **The audible remix preview mixes server-side, from the build's own core** (2026-10-13) — The preview is a server render through the same mix core as `/build`: `stem_remixer._mix_recipe` now serves both, the preview truncating the recipe…
+- `D43` **Ollama 0.40.5: catalog-drift pass, no API change** (2026-10-17) — Treat 0.40.5 as a doc-measurement pass, not a code change.
+- `D42` **Local lip-sync via MuseTalk; no lip-sync APIs, ever** (2026-10-16) — MuseTalk v1.5 (MIT) is the lip-sync backend, local-only.
+- `D44` **One target engine: modern Chromium** (2026-10-18) — Support exactly one engine - **modern Chromium (current stable)** - and write it down rather than leave it implied.
+- `D45` **ibm/granite4.2:3b evaluated as a text model** (2026-10-22) — `ibm/granite4.2:3b` is added as a **lightweight text-only option** for simple chat/generate tasks where thinking-mode overhead is unwanted.
+- `D46` **Deleted oversized Ollama models; added do-not-re-download guard** (2026-10-22) — Deleted all four model entries (`glm-4.7-flash:latest`, `qwen3.5:9b`, `minicpm-v:8b`, `minicpm-v:latest`) via `DELETE /api/delete`.
+- `D47` **Deleted cloud-only Ollama models without paid keys** (2026-10-22) — Deleted all four via `DELETE /api/delete`.
+- `D48` **Gate runner: two concurrent lanes, TTL probe cache** (2026-10-22) — (1) Gates execute on two concurrent lanes: python-only gates (docs, ruff, arch, routes, pytest, tools-pytest) and node-only gates (type, lint, unit,…
+- `D49` **Make studio.db relocatable with bounded WAL/cache growth** (2026-10-27) — (1) `DB_PATH` is configurable via `NMA_DB_PATH` env var, defaulting to `<PROJECT_ROOT>/storage/studio.db`.
+- `D50` **Zero deferred imports in the app package** (2026-10-27) — Promote all deferred imports to top level across `packages/backend/app/`.
+- `D51` **Add ACE-Step isolation layer (provider updates are config-only)** (2026-10-27) — Build an ACE-Step bridge: `config/ace-step/bridge.json` (base URL, timeouts, param/response compatibility maps, tracked version/model, startup…
+- `D52` **Remix/Mashup surfaced as standalone frontend feature** (2026-10-27) — (1) `RemixPage.tsx` wraps `RemixPanel` as a standalone page at `/create/remix`, reachable from the Sidebar under **Create → Remix / Mashup**.
+- `D53` **Subagent layer architecture fixes** (2026-10-29) — (1) Replaced frontend polling with proper SSE streaming using EventSource API.
+- `D54` **Harden npx execution across the repo** (2026-10-29) — (1) Root `opencode.json` and `packages/video-editor/opencode.json`: replaced `npx -y <pkg>@latest` with `npx --no --offline <pkg>@<version>` for all…
+- `D69` **Handler/subprocess/service timeouts reduced to match local workstation** (2026-11-01; renumbered from D55 2026-11-05 — duplicate ID) — Reduce all handler/subprocess timeouts to match local execution characteristics: - `HANDLER_TIMEOUT_SECONDS`: 3600 → 300 (5 min) -…
+- `D56` **Cloud gateway removed from model routing (local-first)** (2026-11-01) — Remove `cloud_gateway` from `config/model_routing.json` and remove the cloud-fallback suggestion logic from `POST /api/video/route-scene`.
+- `D57` **Process tree cleanup + stale reaping for service management** (2026-11-01) — Add process tree management to `shared-utils.ps1`: - `Stop-ProcessTree` — walks the WMI process tree bottom-up, kills descendants first then the…
+- `D58` **Remotion CLI render service for programmatic video control** (2026-11-01) — New `packages/backend/app/services/remotion_cli.py` wrapping `npx remotion render <composition_id> <output_path> [--codec h264] [--props <json>]`.
+- `D59` **Real-time progress streaming via SSE + queue manager** (2026-11-02) — Wire `queue_manager.update_job(job.id, progress=frac, message=...)` into every long-running handler so SSE broadcasts `job.progress` events in real…
+- `D60` **Job queue: cancellation, TTL, priority aging, rate limiting, pause/resume, idempotency** (2026-11-02) — (1) Removed `asyncio.shield()` from handler execution so cancellation propagates; added `JobCancelledError` and `queue_manager.is_cancelled()`…
+- `D61` **Database connection pool: WAL checkpoint validation, id(conn) reuse prevention** (2026-11-02) — (1) `checkpoint_wal(mode)` validates mode against `{PASSIVE, FULL, RESTART, TRUNCATE}` and raises `ValueError` for invalid modes.
+- `D62` **Database migrations: integrity check, backup, migration lock** (2026-11-02) — (1) Added `migration_lock` table — only one process migrates at a time; lock auto-expires after 5 minutes (stale-lock stealing).
+- `D63` **SSE handler: fire-and-forget task tracking, HTTPException at capacity, shutdown cleanup** (2026-11-02) — (1) `SSEManager.connect()` raises `HTTPException(503, "Server at capacity, try again later")` instead of returning an orphan queue.
+- `D64` **VRAM manager: NVML shutdown, exception handling, debug→warning logging** (2026-11-02) — (1) `sync_resident_state()` wrapped in try/except with `logger.warning` — flags unchanged on failure (safer than wrong state).
+- `D65` **MuseTalk adapter: fp16, per-frame progress, cancellation, avatar caching, fps validation** (2026-11-02) — (1) Added `use_float16` config (default `true`) — passes `--use_float16` to MuseTalk, roughly halving VRAM from ~4 GB to ~2 GB.
+- `D66` **Audio analysis progress streaming** (2026-11-02) — Added `progress_cb: Callable[[float, str], None]` parameter to `analyze_and_save()` — invoked at 4 stages: load (0.1), features (0.5), saving (0.9),…
+- `D67` **Test insights generator** (2026-11-02) — New `tools/generate-test-insights.py` — discovers, runs, and categorizes the full test suite (backend pytest + frontend vitest), producing…
+- `D68` **pytest basetemp override + sessionfinish PermissionError handling** (2026-11-02) — `packages/backend/tests/conftest.py`: `pytest_configure()` always uses a repo-local basetemp (`packages/.pytest_tmp`) instead of…
+- `D70` **Go sidecars consolidated into one go-studio binary** (2026-11-06) — New `tools/go-studio/` — one binary hosting all five legacy listeners on their original ports and routes, so every caller (go_*_client.py,…
+- `D71` **Shared GPU work lane serializes all VRAM-heavy entry points** (2026-11-06) — One process-wide `asyncio.Lock` on `VRAMManager` (`work_lane(label)` async context manager) is the single exclusion domain for VRAM-heavy work.
+- `D72` **Recover jobs stranded in RETRYING across restarts** (2026-11-06) — `QueueManager.recover_stranded_retrying_jobs()` runs in `reload_from_db` after the unrunnable quarantine.
+- `D73` **Eliminate retrieval import cycle by moving doc scanner into service layer** (2026-11-06) — Moved `_scan_docs_for_indexing` plus `DOCS_ROOT`/`VAULT_ROOT` into `services/retrieval_service.py` (made sync; it performs no awaits).
+- `D74` **Split health into liveness (/healthz) and readiness (/readyz); convert ComfyUI workflows to API format** (2026-11-06) — Added `GET /api/health/healthz` (liveness: timestamp only, no external calls) and `GET /api/health/readyz` (readiness: checks database, ComfyUI…
+- `D75` **Backend timeout guards + TanStack Query server state** (2026-11-06) — Added `asyncio.timeout(timeout)` wrappers around every ComfyUI and Ollama client call in `app/core/comfyui_client.py` and…
+- `D76` **Nuked-OPN2 cycle-accurate YM2612 FM synthesis with EG state machine fixes** (2026-11-07) — (1) Patched upstream in `tools/nuked-opn2/ym3438.c`: compute attack increment on ANY transition to attack state, not just attack→attack; map AR=15…
+- `D77` **Chip emulator adapter pattern for maintainable upstream integration** (2026-11-07) — Adapter pattern in `packages/backend/app/adapters/chips/`: - Base `ChipAdapter` class with unified interface: `write_register()`, `generate()`,…
+- `D78` **Promote all type-aware ESLint rules from warn to error after T-LINT-01 zero-warning sweep** (2026-11-08) — Six parallel subagents eliminated every warning by root cause (typed fetch/JSON/SSE boundaries, honest optionals, dead-check removal, promise…
+- `D79` **NSFW is a per-item tag plus a server-enforced visibility gate** (2026-11-20) — The flag is the existing `nsfw` **tag** — no schema change and no second store of item metadata.
+
+**Open / in evaluation / resolved questions**
+
+- `Q1` **3D path convergence: Unity vs Blender vs Three.js** — Resolved 2026-10-17 — converged on Three.js Studio as primary, Unity MCP as fallback for hero renders, Blender MCP as asset processing (not a…
+- `Q2` **Automatic AI → shader fallback in the music video wizard** — Resolved 2026-10-17 — ComfyUI live verification complete: POST /api/integrations/music-video/generate with on_source_failure:"auto" returns HTTP 200…
+- `Q3` **ComfyUI Wan smoke test** (red-pattern output) — Resolved 2026-10-06 — does not reproduce on the patched path
+- `Q4` **Visualizer mode consolidation** (3D / FX / 2D) — Resolved — modes are now a priority list (`VIZ_MODE_PRIORITY` = `["3d", "shader", "2d"]`), auto-selected on track load via `selectVizMode()` in…
+- `Q5` **Chroma→hue palette mapping for the shader visualizer** (2026-10-01) — Resolved — Tier 1 implemented 2026-10-01; Tier 2 deferred
+- `Q6` **Worker lease/heartbeat, so the reaper cannot reclaim valid long work** (2026-10-02) — Resolved 2026-10-06 — options (a) then (c) implemented
 
 ## Decided
 
