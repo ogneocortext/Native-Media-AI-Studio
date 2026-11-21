@@ -15,6 +15,7 @@ Checks, in order of cost (cheapest first, so a fast failure surfaces early):
   7. tools/check-consistency.py         - R1-R4 task-block/library consistency
   8. tools/check-skill-mirrors.py       - every host's skills == .claude/skills
   8b. tools/sync-user-skills.py --check - home-level hosts carry the full set
+  8c. tools/check-line-endings.py       - no file flips line endings vs HEAD
   9. tools/check-repo-layout.py         - generated output, duplicates, collisions
  10. tools/check-path-references.py     - stale repo-relative path references
  11. tools/report-nesting.py            - control-flow nesting vs baseline
@@ -92,6 +93,11 @@ CHECKS = [
     # and never see the repo. Without this they only carry the few skills
     # someone copied there by hand, so every agent gets a different set.
     ("user skills", "sync-user-skills.py", ["--check"], False),
+    # A tool that rewrites an LF file with CRLF endings (what
+    # Path.write_text does on Windows) turns a one-line edit into a
+    # whole-file diff. Six files were repaired by hand on 2026-11-21 for
+    # exactly this; nothing caught it.
+    ("line endings", "check-line-endings.py", [], False),
     ("repo layout", "check-repo-layout.py", [], False),
     # Dangling repo-relative path references: the moved-file signature
     # (target gone, same basename still tracked elsewhere). The only
@@ -144,6 +150,7 @@ CHECK_TIMEOUTS = {
     "check-staged-hygiene.py": 30,
     "check-skill-mirrors.py": 30,
     "sync-user-skills.py": 60,
+    "check-line-endings.py": 60,
 }
 
 # Max concurrent check workers. Checks are independent read-only scans, so

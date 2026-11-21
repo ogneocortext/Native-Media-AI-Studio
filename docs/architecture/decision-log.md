@@ -12,7 +12,7 @@
 > **Recommendation** where one exists. **Quick index** is the navigation
 > layer for readers who should not load the whole log.
 >
-> Current scope: D1–D81 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D82 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 > Start at **Quick index** below: one line per entry, then open only the
 > entries you need.
 > (D69 was originally numbered D55 — a duplicate; renumbered 2026-11-05.)
@@ -107,6 +107,7 @@ line here is an incomplete decision.
 - `D79` **NSFW is a per-item tag plus a server-enforced visibility gate** (2026-11-20) — The flag is the existing `nsfw` **tag** — no schema change and no second store of item metadata.
 - `D80` **One canonical skill set for every agent host, repo and home** (2026-11-21) — `.claude/skills/` (52 skills) is the only canonical set; `tools/sync-skill-mirrors.py` writes the repo mirrors and `tools/sync-user-skills.py` writes every home-level host, with both as hard docs gates.
 - `D81` **Ollama 0.40.17: tools are validated against capabilities, tool schema keywords survive** (2026-11-21) — Adopt by upgrade plus one probe fix; `/api/chat` now 400s on `tools` for a model without the capability.
+- `D82` **Never flip a text file's line endings; write through `tools/_ioutil.write_text_like()`** (2026-11-21) — `Path.write_text` on Windows turns LF into CRLF and turns a one-line edit into a whole-file diff; new gate `tools/check-line-endings.py`.
 
 **Open / in evaluation / resolved questions**
 
@@ -2412,3 +2413,54 @@ line here is an incomplete decision.
   `tools/probe-ollama.py` after the next upgrade; it is the record of what
   the server actually serves. No model re-pulls: same GGUF quants,
   `details.runner` still `ggml`/`llamacpp`.
+
+### D82 — Never flip a text file's line endings; write through `tools/_ioutil.write_text_like()` (2026-11-21)
+
+- **Status:** Decided
+- **Context:** `Path.write_text()` on Windows is not a byte-preserving write.
+  Text-mode I/O applies universal-newline translation, so every `"\n"` in the
+  string becomes `"\r\n"` on disk. Measured here (Python 3.11, win32)::
+
+      Path("t.txt").write_text("a\nb\n", encoding="utf-8")
+      # -> b'a\r\nb\r\n'
+
+  This repo is ~89% LF (3,634 of 4,078 tracked text files) but 418 files are
+  CRLF and 21 are mixed, because different agents' editors disagree and
+  `.gitattributes` pinned LF for only three directories. When a tool rewrote a
+  CRLF-stored or mixed file, git reported **every line as changed**: a 41-line
+  append to `docs/plans/tasks/local-models-and-vision-loop.md` rendered as 795
+  changed lines, and six files had to be repaired by hand before the
+  2026-11-21 commits could land. `.gitattributes` already recorded the same
+  failure in commit `22ff3d5` (234 added / 234 deleted for a 20-line edit).
+  No gate caught any of it: `check-text-encoding.py` validates UTF-8 and never
+  looks at `\r`, `validate-knowledge-tags.py` checks CRLF only under
+  `docs/knowledge-library/`, and `check-banned-chars.py` does not inspect CR.
+
+  The same audit found 24 tools calling `write_text`, 9 of which already passed
+  `newline="\n"` as a local workaround. That fixes LF files but is wrong for
+  the 418 CRLF ones, and it has to be remembered at every new call site.
+- **Decision:** Make the correct behaviour the default rather than a per-call
+  convention. `tools/_ioutil.write_text_like(path, text)` detects the file's
+  **dominant** style (majority wins for mixed files, since a lone stray line is
+  drift rather than the style) and writes bytes directly. `tools/check-line-
+  endings.py` is a new hard gate in `check-all.py`: for each text file that
+  differs from HEAD it compares dominant styles and fails on a flip, with
+  `--fix` restoring HEAD's bytes. Only *changed* files are checked, so the 418
+  existing CRLF files are left alone — re-normalising the tree would touch 4,534
+  files and belongs in its own commit, not as a side effect of an unrelated one.
+  `.gitattributes` now also pins `docs/plans/tasks/*.md` to LF: the task ledgers
+  are the one file class every agent writes to, and the census found 3 of the
+  21 mixed-EOL files there.
+- **Files:** tools/_ioutil.py (new), tools/check-line-endings.py (new),
+  tools/check-all.py (gate registration), tools/combine_hook.py (now uses the
+  helper **and** gained a `main()` guard — importing it previously executed the
+  codegen and rewrote a tracked file), tools/check-docs-map.py,
+  tools/verify-nesting-gate.py, .gitattributes, AGENTS.md.
+- **Consequences:** A flip is a defect and fails the docs gate; a CRLF file is
+  merely a CRLF file and is not. Tools that rewrite tracked text import
+  `write_text_like` instead of calling `write_text`. The three mixed task
+  ledgers were normalised to LF as a one-time fix (pure EOL, zero content
+  change, verified with `git diff --ignore-cr-at-eol`). The gate was verified
+  to catch a flip in both directions and to repair to a byte-perfect restore
+  when only the endings changed, and to produce a minimal (2-line) diff when
+  the edit also changed content.

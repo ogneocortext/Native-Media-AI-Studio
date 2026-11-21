@@ -12,6 +12,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _ioutil import write_text_like  # noqa: E402
+
 REPO = Path(__file__).resolve().parent.parent
 TARGET = REPO / "packages" / "backend" / "app" / "api" / "docs.py"
 FUNC = "def _parse_frontmatter"
@@ -38,7 +41,7 @@ def main() -> int:
     injected.append("    " * 9 + "pass\n")
 
     mutated = "".join(lines[: body_start + 1]) + "".join(injected) + "".join(lines[body_start + 1 :])
-    TARGET.write_text(mutated, encoding="utf-8")
+    write_text_like(TARGET, mutated)
     try:
         proc = subprocess.run(
             [
@@ -50,7 +53,7 @@ def main() -> int:
             capture_output=True, encoding="utf-8", errors="replace", cwd=REPO,
         )
     finally:
-        TARGET.write_text(original, encoding="utf-8")
+        write_text_like(TARGET, original)
 
     out = (proc.stdout or "").strip().splitlines()
     print("\n".join(out[-4:]))

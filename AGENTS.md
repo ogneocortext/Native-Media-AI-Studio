@@ -491,6 +491,40 @@ Non-ASCII is fine where it is the product (ASCII-art borders in
 `cli_output.py`, UI display strings, docs typography) — the gate bans the
 *broken* classes, not typography. When in doubt: ASCII.
 
+### Line endings: never flip a file's style (D82)
+
+**`Path.write_text()` on Windows silently converts every `\n` to `\r\n`.**
+Measured here (Python 3.11, win32): `write_text("a\nb\n")` produces
+`b'a\r\nb\r\n'`. If the file is tracked and its HEAD version is LF, git then
+reports **every line as changed** — a 41-line append rendered as 795 changed
+lines during the 2026-11-21 work, and six files had to be repaired by hand.
+`.gitattributes` records the same failure in commit `22ff3d5` (234 added / 234
+deleted for a 20-line edit).
+
+**Rule: when a tool rewrites a tracked text file, use
+`tools/_ioutil.write_text_like(path, text)`.** It detects the file's dominant
+line-ending style and writes bytes directly, so the diff contains only the lines
+that actually changed. Never call `write_text()` on a tracked file.
+
+```python
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _ioutil import write_text_like
+
+write_text_like(path, new_text)              # preserves the file's own style
+write_text_like(path, new_text, style="lf")  # force a style (new files)
+```
+
+**`tools/check-line-endings.py` is a hard gate** in `check-all.py`: it fails
+when a changed text file's dominant style differs from HEAD, and `--fix`
+restores HEAD's bytes (byte-perfect when only the endings changed). It was
+verified to catch a flip in both directions (LF file → CRLF, CRLF file → LF)
+and to repair to a zero-line diff.
+
+The repo is ~89% LF (3,634 of 4,078 tracked text files by the 2026-11-21
+census) but 418 files are CRLF and 21 are mixed, because different agents'
+editors disagree. **Do not renormalize the tree**: `git add --renormalize .`
+would touch 4,534 files. A flip is a defect; a CRLF file is merely a CRLF file.
+
 ### Commit attribution: every commit carries a Co-authored-by trailer
 
 Multiple agents commit to this repo, so every commit message ends with a

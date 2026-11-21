@@ -16,6 +16,13 @@ docs/knowledge-library/*.md text eol=lf
 docs/architecture/*.md text eol=lf
 docs/ux-audit/*.md text eol=lf
 
+# Task ledgers are the one file class every agent writes to (one "Last session"
+# line per task item), so they are where line-ending drift accumulates fastest:
+# the 2026-11-21 census found 3 of the repo's 21 mixed-EOL files here, each
+# carrying stray CRLF lines appended by a different agent's editor. Pinning LF
+# keeps a one-line append a one-line diff.
+docs/plans/tasks/*.md text eol=lf
+
 # Keep diffs quiet for generated and vendored paths.
 output/** binary
 node_modules/** binary

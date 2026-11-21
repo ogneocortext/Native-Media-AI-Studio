@@ -24,6 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _gitutil import git_lines  # noqa: E402
+from _ioutil import write_text_like  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS = os.path.join(ROOT, "docs")
@@ -47,7 +48,7 @@ def read(path):
 
 
 def write(path, text):
-    Path(path).write_text(text, encoding="utf-8")
+    write_text_like(Path(path), text)
 
 
 def real_dirs():
