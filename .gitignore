@@ -186,6 +186,15 @@ diffusion_models/
 !voices/**/*.mp3
 !voices/**/*.flac
 
+# Agent skills are tracked content, not generated output. The media rules above
+# exist for render output; without these re-includes a skill that bundles assets
+# ships incomplete on a fresh clone (media-use's 19-file SFX library was silently
+# dropped from every copy, so the skill was broken and no gate could see it).
+!.claude/skills/**/assets/**
+!.kilo/skills/**/assets/**
+!.devin/skills/**/assets/**
+!.agents/skills/**/assets/**
+
 # Unity (Library is regenerable cache — never commit)
 unity-project-mcp/Library/
 unity-project-mcp/Logs/

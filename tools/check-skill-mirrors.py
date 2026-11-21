@@ -3,7 +3,10 @@
 
 `.claude/skills/` is the tracked canonical set; `.kilo/skills/`,
 `.devin/skills/`, and `.agents/skills/` are machine-local mirrors that must
-equal it exactly (AGENTS.md, "Project skills"). A mirror that drifts — a
+equal it exactly (AGENTS.md, "Project skills"). This checker covers the REPO
+mirrors; `tools/sync-user-skills.py --check` covers the home-level hosts
+(`~/.claude`, `~/.codex`, ...), which read their own `skills/` dir and never
+see the repo. A mirror that drifts — a
 missing skill, a byte-different file, a skill canonical never had — means
 agents on different tools load different instructions.
 
@@ -28,6 +31,13 @@ MIRRORS = [
     ROOT / ".kilo" / "skills",
     ROOT / ".devin" / "skills",
     ROOT / ".agents" / "skills",
+]
+
+# Subset mirrors inside packages/frontend (see the loop below).
+FRONTEND_MIRRORS = [
+    "packages/frontend/.claude/skills",
+    "packages/frontend/.agents/skills",
+    "packages/frontend/agent/skills",
 ]
 
 IGNORED_NAMES = {"__pycache__"}
@@ -88,6 +98,30 @@ def main() -> int:
                 if canon_files[s][rel].read_bytes() != dst_files[rel].read_bytes():
                     violations.append(f"{rel_root}/{s}/{rel}: content differs")
 
+    # packages/frontend carries a SUBSET of the canonical set (the Remotion
+    # skills) so an agent launched inside the frontend package sees the same
+    # instructions as one at the repo root. Checked one-directionally: every
+    # skill present must exist canonically and match byte-for-byte, but the
+    # subset itself is deliberate. Some entries are junctions into
+    # packages/frontend/.agents/skills, so they are not extra copies.
+    for rel_root in FRONTEND_MIRRORS:
+        fe = ROOT / rel_root
+        if not fe.is_dir():
+            violations.append(f"{rel_root}: mirror root absent")
+            continue
+        for s in sorted(p.name for p in fe.iterdir() if p.is_dir()):
+            if s not in canon_skills:
+                violations.append(f"{rel_root}: '{s}' is not a canonical skill")
+                continue
+            fe_files = skill_files(fe / s)
+            for rel in sorted(canon_rels[s] - set(fe_files)):
+                violations.append(f"{rel_root}/{s}/{rel}: missing in frontend copy")
+            for rel in sorted(set(fe_files) - canon_rels[s]):
+                violations.append(f"{rel_root}/{s}/{rel}: not in canonical")
+            for rel in sorted(canon_rels[s] & set(fe_files)):
+                if canon_files[s][rel].read_bytes() != fe_files[rel].read_bytes():
+                    violations.append(f"{rel_root}/{s}/{rel}: content differs")
+
     if violations:
         for v in violations:
             print(f"FAIL {v}")
@@ -98,6 +132,10 @@ def main() -> int:
     print(
         f"check-skill-mirrors: {len(canon_skills)} canonical skills x "
         f"{len(MIRRORS)} mirrors, {total} files each — all byte-identical"
+    )
+    print(
+        f"check-skill-mirrors: {len(FRONTEND_MIRRORS)} packages/frontend copies "
+        f"match canonical for the skills they carry"
     )
     return 0
 

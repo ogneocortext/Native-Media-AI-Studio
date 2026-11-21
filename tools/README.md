@@ -179,6 +179,20 @@ The broader project gates (backend lint, frontend type/lint, unit tests, and
 other checks) run through `run-gates.py`; see `../AGENTS.md` for the scoped
 gate policy.
 
+### Skill mirrors
+
+`.claude/skills/` is the single canonical skill set (52 skills). Two sync
+commands propagate it, and two gates verify it:
+
+| Command | Writes | Gate |
+|---------|--------|------|
+| `python tools/sync-skill-mirrors.py` | repo mirrors `.kilo/`, `.devin/`, `.agents/` (+ `packages/frontend/` subset with `--with-frontend`) | `python tools/check-skill-mirrors.py` |
+| `python tools/sync-user-skills.py` | home-level hosts (`~/.claude`, `~/.codex`, `~/.gemini`, `~/.copilot`, `~/.continue`, `~/.factory`, `~/.openclaw`, `~/.kilocode`, `~/.kilo`, `~/.codeium/windsurf`, `~/.gemini/antigravity`) | `python tools/sync-user-skills.py --check` |
+
+Both gates run inside `check-all.py`, so a mirror that drifts from canonical
+fails the docs gate. Add a skill by writing `.claude/skills/<name>/SKILL.md`,
+then run both sync commands — never copy by hand.
+
 ## Git Hooks
 
 This repo has **no CI** (D10 in `../docs/architecture/decision-log.md`). Hook

@@ -389,3 +389,34 @@ Code: `packages/backend/app/agents/`
 - **Last session:** — registered 2026-11-07 by Orion at owner
   direction (T-AGT-11 residual gap 2, promoted to a planning item);
   not started.
+
+### T-AGT-14 — Every agent sees every beneficial skill (repo + home mirrors)
+- **Status:** done
+- **Goal:** One canonical skill set that every agent host reads, no matter
+  where it is launched from. Before this, skills were split across two
+  unrelated trees: ~40 tracked in the repo (`.claude/skills`, mirrored to
+  `.kilo/.devin/.agents`) and ~20 living only at user level (`~/.claude`,
+  `~/.codex`, `~/.gemini`, `~/.copilot`, `~/.continue`, `~/.factory`,
+  `~/.openclaw`, `~/.kilocode`, `~/.codeium/windsurf`) with only 6 skills
+  overlapping. An agent got whichever subset its host happened to carry.
+- **Plan:** (1) Promote the 12 user-level-only skills into
+  `.claude/skills/` (newest version wins: hyperframes x9, media-use,
+  game-development, frontend-design). (2) Grow the repo mirrors so they carry
+  all 52. (3) Add `tools/sync-user-skills.py` to write the canonical set into
+  every home-level host's `skills/` dir, with `--check` as the CI gate. (4)
+  Wire the new gate into `tools/check-all.py` as a hard check. (5) Leave
+  host-local non-canonical skills (`.codex`'s `.system`/`codex-primary-runtime`,
+  `.copilot`'s `browseros-neo`) untouched — they are not ours to move.
+- **Files:** .claude/skills/ (12 new), tools/sync-user-skills.py (new),
+  tools/check-all.py, AGENTS.md
+- **Acceptance:** `python tools/sync-user-skills.py --check` exits 0 with
+  "52 skills x 12 hosts, 0 drifted"; `python tools/check-skill-mirrors.py`
+  exits 0 with "52 canonical skills x 3 mirrors ... all byte-identical";
+  `check-all.py` reports `[PASS] user skills`.
+- **Last session:** Kilo, 2026-11-21 — promoted 12 skills into canonical
+  (hyperframes, hyperframes-animation/audio/cli/core/creative/keyframes/
+  registry/studio, media-use, game-development, frontend-design); grew repo
+  mirrors to 52 each; wrote tools/sync-user-skills.py and wired it into
+  check-all.py as a hard gate (verified it fails on injected drift, exit 1,
+  and repairs to 0). Final state: 52 skills across 12 home hosts + 3 repo
+  mirrors, all byte-identical; `check-all.py` all passed.

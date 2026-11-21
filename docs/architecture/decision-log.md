@@ -12,7 +12,7 @@
 > **Recommendation** where one exists. **Quick index** is the navigation
 > layer for readers who should not load the whole log.
 >
-> Current scope: D1–D79 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D80 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 > Start at **Quick index** below: one line per entry, then open only the
 > entries you need.
 > (D69 was originally numbered D55 — a duplicate; renumbered 2026-11-05.)
@@ -105,6 +105,7 @@ line here is an incomplete decision.
 - `D77` **Chip emulator adapter pattern for maintainable upstream integration** (2026-11-07) — Adapter pattern in `packages/backend/app/adapters/chips/`: - Base `ChipAdapter` class with unified interface: `write_register()`, `generate()`,…
 - `D78` **Promote all type-aware ESLint rules from warn to error after T-LINT-01 zero-warning sweep** (2026-11-08) — Six parallel subagents eliminated every warning by root cause (typed fetch/JSON/SSE boundaries, honest optionals, dead-check removal, promise…
 - `D79` **NSFW is a per-item tag plus a server-enforced visibility gate** (2026-11-20) — The flag is the existing `nsfw` **tag** — no schema change and no second store of item metadata.
+- `D80` **One canonical skill set for every agent host, repo and home** (2026-11-21) — `.claude/skills/` (52 skills) is the only canonical set; `tools/sync-skill-mirrors.py` writes the repo mirrors and `tools/sync-user-skills.py` writes every home-level host, with both as hard docs gates.
 
 **Open / in evaluation / resolved questions**
 
@@ -2315,3 +2316,40 @@ line here is an incomplete decision.
   filter chip cannot advertise the section. Nothing on disk changes: no file
   is moved, renamed, re-encoded or deleted. Verified by 8 pytest cases
   (`tests/test_nsfw_gate.py`) and 17 live API checks; see T-LIB-11.
+
+### D80 — One canonical skill set for every agent host, repo and home (2026-11-21)
+
+- **Status:** Decided
+- **Context:** Skills were split across two unrelated trees with almost no
+  overlap. About 40 lived in the repo (`.claude/skills/`, mirrored to
+  `.kilo/`, `.devin/`, `.agents/`) and were visible only to agents launched
+  inside the repo. About 20 lived only at user level (`~/.claude`, `~/.codex`,
+  `~/.gemini`, `~/.copilot`, `~/.continue`, `~/.factory`, `~/.openclaw`,
+  `~/.kilocode`, `~/.codeium/windsurf`) and were visible only to agents
+  launched from the home directory. Six skills appeared in both. Which skills
+  an agent could load therefore depended on where it happened to be started,
+  and the same skill existed in several versions (`.codex` held a stale,
+  smaller `hyperframes` and `media-use`).
+- **Decision:** One canonical set in `.claude/skills/` (now 52 skills), owned
+  by the repo and version-controlled. Two sync commands propagate it and two
+  gates enforce it: `tools/sync-skill-mirrors.py` writes the repo mirrors
+  (`.kilo/`, `.devin/`, `.agents/`, plus the deliberate `packages/frontend/`
+  Remotion subset) and `tools/sync-user-skills.py` writes every home-level
+  host. `tools/check-skill-mirrors.py` and `tools/sync-user-skills.py --check`
+  both run as hard checks in `tools/check-all.py`. Copy rule is newest-wins:
+  a host copy newer than canonical is adopted into canonical rather than
+  silently overwritten. Host-local skills that are not canonical
+  (`.codex`'s `.system` / `codex-primary-runtime`, `.copilot`'s
+  `browseros-neo`) are left untouched — they are host features, not shared
+  skills.
+- **Files:** .claude/skills/ (12 promoted: hyperframes x9, media-use,
+  game-development, frontend-design), tools/sync-user-skills.py (new),
+  tools/sync-skill-mirrors.py, tools/check-skill-mirrors.py,
+  tools/check-all.py, AGENTS.md.
+- **Consequences:** Adding or changing a skill is now two commands and no hand
+  copying; `check-all.py` fails if any mirror drifts, and it was verified to
+  fail on an injected mismatch (exit 1) and to repair to zero. The frontend
+  keeps its deliberate Remotion-only subset, so an agent launched inside
+  `packages/frontend` still sees only what is relevant there. The home-level
+  sync is machine-local and never committed — a fresh machine runs
+  `python tools/sync-user-skills.py` once. See T-AGT-14.

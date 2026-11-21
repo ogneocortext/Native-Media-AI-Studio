@@ -6,23 +6,25 @@ notices the aggregate is incomplete, and the pre-commit hook quietly runs a
 subset. This runner is the single entry point, and `tools/tests/` covers it.
 
 Checks, in order of cost (cheapest first, so a fast failure surfaces early):
-  1. tools/check-docs-map.py            - docs/README.md is an accurate map
-  2. tools/check-text-encoding.py       - rejects UTF-16 / NUL / invalid UTF-8
-  3. tools/check-subprocess-encoding.py - rejects text=True with no encoding=
-  4. tools/check-banned-chars.py        - control/invisible/mojibake chars
-  5. tools/validate-knowledge-tags.py   - frontmatter, tags, tracker, index
-  6. tools/check-consistency.py         - R1-R4 task-block/library consistency
-  7. tools/check-skill-mirrors.py       - .kilo/.devin/.agents == .claude/skills
-  8. tools/check-repo-layout.py         - generated output, duplicates, collisions
-  9. tools/check-path-references.py     - stale repo-relative path references
- 10. tools/report-nesting.py            - control-flow nesting vs baseline
- 11. tools/check-db-integrity.py        - studio.db + newest backup quick_check
- 12. tools/check-secrets.py             - credential patterns in tracked files
- 13. tools/check-staged-hygiene.py      - scratch files / over-broad staging
- 14. tools/docs-triage.py               - report-only untagged-doc grouping
- 15. tools/docs-tracker.py              - report-only doc provenance
- 16. tools/report-path-orphans.py       - report-only dangling references
- 17. tools/check-hooks-installed.py     - report-only git hooks state
+  1. tools/check-docs-map.py             - docs/README.md is an accurate map
+  2. tools/check-decision-index.py      - decision-log Quick index lists every entry
+  3. tools/check-text-encoding.py       - rejects UTF-16 / NUL / invalid UTF-8
+  4. tools/check-subprocess-encoding.py - rejects text=True with no encoding=
+  5. tools/check-banned-chars.py        - control/invisible/mojibake chars
+  6. tools/validate-knowledge-tags.py   - frontmatter, tags, tracker, index
+  7. tools/check-consistency.py         - R1-R4 task-block/library consistency
+  8. tools/check-skill-mirrors.py       - every host's skills == .claude/skills
+  8b. tools/sync-user-skills.py --check - home-level hosts carry the full set
+  9. tools/check-repo-layout.py         - generated output, duplicates, collisions
+ 10. tools/check-path-references.py     - stale repo-relative path references
+ 11. tools/report-nesting.py            - control-flow nesting vs baseline
+ 12. tools/check-db-integrity.py        - studio.db + newest backup quick_check
+ 13. tools/check-secrets.py             - credential patterns in tracked files
+ 14. tools/check-staged-hygiene.py      - scratch files / over-broad staging
+ 15. tools/docs-triage.py               - report-only untagged-doc grouping
+ 16. tools/docs-tracker.py              - report-only doc provenance
+ 17. tools/report-path-orphans.py       - report-only dangling references
+ 18. tools/check-hooks-installed.py     - report-only git hooks state
 
 Run:  python tools/check-all.py     (-v also runs the report-only checks)
       python tools/check-all.py --changed docs/x.md packages/backend/app/y.py
@@ -86,6 +88,10 @@ CHECKS = [
     # different instructions. Mirrors are gitignored, so drift is invisible
     # to git — this is the only check that sees it.
     ("skill mirrors", "check-skill-mirrors.py", [], False),
+    # Home-level hosts (~/.claude, ~/.codex, ...) read their own skills dir
+    # and never see the repo. Without this they only carry the few skills
+    # someone copied there by hand, so every agent gets a different set.
+    ("user skills", "sync-user-skills.py", ["--check"], False),
     ("repo layout", "check-repo-layout.py", [], False),
     # Dangling repo-relative path references: the moved-file signature
     # (target gone, same basename still tracked elsewhere). The only
@@ -137,6 +143,7 @@ CHECK_TIMEOUTS = {
     "check-secrets.py": 60,
     "check-staged-hygiene.py": 30,
     "check-skill-mirrors.py": 30,
+    "sync-user-skills.py": 60,
 }
 
 # Max concurrent check workers. Checks are independent read-only scans, so
@@ -313,11 +320,12 @@ def _check_relevant(script: str, changed: set[str]) -> bool:
         # Scopes are docs/plans/tasks/ + docs/knowledge-library/ - both
         # under docs/.
         return docs_changed
-    if script == "check-skill-mirrors.py":
+    if script in ("check-skill-mirrors.py", "sync-user-skills.py"):
         # Only canonical skills or the checker itself can change the verdict;
         # mirrors are gitignored so they never appear in a changed list.
         return any(
-            f.startswith((".claude/skills/", "tools/check-skill-mirrors.py"))
+            f.startswith((".claude/skills/", "tools/check-skill-mirrors.py",
+                          "tools/sync-user-skills.py"))
             for f in changed
         )
     if script == "check-text-encoding.py":

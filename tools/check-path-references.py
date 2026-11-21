@@ -145,11 +145,18 @@ SKIP_SCAN_FILES = {".gitignore", "CHANGELOG.md"}
 SKIP_SCAN_PREFIXES = (
     "docs/notes/",
     "docs/scratch/",
-    # Agent-skill reference docs (packages/frontend/{.claude,agent}/skills/).
-    # Their `scripts/...` path tokens resolve against the skill's own
-    # `scripts/` subdirectory (where real copies live), not the repo root,
-    # so repo-root resolution produces false-positive "moved file" findings.
+    # Agent-skill reference docs. Their `scripts/...` path tokens resolve
+    # against the skill's own `scripts/` subdirectory (where real copies live),
+    # not the repo root, so repo-root resolution produces false-positive
+    # "moved file" findings. This applies to every skill root, not just the
+    # frontend subset: the four mirrors are byte-identical copies of the same
+    # content, so a token that is a false positive in one is one in all four.
+    ".claude/skills/",
+    ".kilo/skills/",
+    ".devin/skills/",
+    ".agents/skills/",
     "packages/frontend/.claude/skills/",
+    "packages/frontend/.agents/skills/",
     "packages/frontend/agent/skills/",
 )
 

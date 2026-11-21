@@ -26,12 +26,16 @@ type: concept
 
 Skills are loaded on demand, so their `description` is the *only* routing
 signal — a thin description means the skill never triggers; a wrong body
-means it triggers and then misleads. This repo keeps 27 canonical skills in
-`.claude/skills/` mirrored byte-identical to `.kilo/`, `.devin/`, and
-`.agents/` (enforced by `tools/check-skill-mirrors.py`, run as a pre-commit
-check). The audit combined the agentskills.io spec, Anthropic's skill
-authoring guidance, and a line-by-line read of the skills exercised in one
-real multi-hour session.
+means it triggers and then misleads. This repo keeps 52 canonical skills in
+`.claude/skills/`, mirrored byte-identical to the repo hosts (`.kilo/`,
+`.devin/`, `.agents/`) and to every home-level host (`~/.claude`, `~/.codex`,
+`~/.gemini`, `~/.copilot`, `~/.continue`, `~/.factory`, `~/.openclaw`,
+`~/.kilocode`, `~/.kilo`, `~/.codeium/windsurf`,
+`~/.gemini/antigravity`). Two gates enforce it: `tools/check-skill-mirrors.py`
+(repo mirrors, pre-commit) and `tools/sync-user-skills.py --check` (home
+hosts, wired into `tools/check-all.py`). The audit combined the agentskills.io
+spec, Anthropic's skill authoring guidance, and a line-by-line read of the
+skills exercised in one real multi-hour session.
 
 ## What the spec actually requires (agentskills.io, 2026)
 
@@ -88,9 +92,10 @@ kind of thing only a real incident teaches:
    paths (`%TEMP%\kilo\`), and hardcoded "always push" instructions.
 4. Every claim in a skill should be verifiable in-repo — if it names a
    port, file, or command, check it still exists.
-5. After editing canonical `.claude/skills/<name>/SKILL.md`, copy it to
-   `.kilo/`, `.devin/`, `.agents/` mirrors and re-run the mirror check
-   before committing.
+5. After editing canonical `.claude/skills/<name>/SKILL.md`, run
+   `python tools/sync-skill-mirrors.py` (repo mirrors) **and**
+   `python tools/sync-user-skills.py` (home-level hosts), then re-run both
+   checks before committing. Never copy by hand.
 
 ## Related
 

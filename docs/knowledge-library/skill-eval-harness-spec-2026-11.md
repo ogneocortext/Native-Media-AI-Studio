@@ -26,9 +26,11 @@ type: concept
 
 A skill's `description` is the only text the agent sees before deciding to
 load it. A bad description means the skill never fires (false negative) or
-fires on unrelated work (false positive). Today we have ~20 project skills
-across `.claude/skills` (tracked) and `.kilo/skills` (local canonical), and
-no way to measure whether any of them triggers correctly. Descriptions were
+fires on unrelated work (false positive). Today we have 52 project skills in
+`.claude/skills` (tracked canonical), mirrored byte-identical to the repo
+hosts (`.kilo`/`.devin`/`.agents`) and to the home-level hosts
+(`tools/sync-user-skills.py`), and no way to measure whether any of them
+triggers correctly. Descriptions were
 written ad hoc; five shipped with none at all.
 
 This spec defines a harness that answers two questions per skill:
@@ -53,8 +55,10 @@ tools/skill-evals/
 ```
 
 `.claude/skills/<name>/` stays the tracked canonical copy;
-`.kilo` / `.devin` / `.agents` remain byte-identical local mirrors (verified
-by hash — the runner asserts this, see below).
+`.kilo` / `.devin` / `.agents` (repo) and every home-level host remain
+byte-identical mirrors (verified by hash — the runner asserts this, see
+below). `tools/sync-skill-mirrors.py` writes the repo mirrors and
+`tools/sync-user-skills.py` writes the home-level hosts.
 
 ## Query bank format (`queries.json`)
 

@@ -88,7 +88,9 @@ Gate/CI (`run via D:\conda-envs\nma-studio-cuda\Scripts\python.exe`):
 `check-text-encoding.py`, `check-glsl-compile.py`, `snapshot-audio-routes.py`,
 `validate-knowledge-tags.py`, `report-nesting.py`, `report-path-orphans.py`,
 `docs-tracker.py`, `docs-triage.py`, `agent-contribution-report.py`,
-`clean-caches.py`, `commit-and-push.py`.
+`clean-caches.py`, `commit-and-push.py`, `check-skill-mirrors.py` (repo skill
+mirrors), `sync-skill-mirrors.py` / `sync-user-skills.py` (write repo mirrors /
+home-level host mirrors from `.claude/skills/`).
 
 Domain subdirs: `mcp/` (MCP bridges), `go*/` (Go sidecars), `music-gen/`,
 `blender/`, `ollama/`, `vision/`, `audio-analysis/`, `model-reliability/`,

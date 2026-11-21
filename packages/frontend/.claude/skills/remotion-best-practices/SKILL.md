@@ -1,6 +1,10 @@
 ---
 name: remotion-best-practices
-description: Router for all Remotion skills
+description: >-
+  Router for all Remotion skills in this repo. Load when a task involves
+  Remotion — creating a video/composition, React markup, timing,
+  animations, captions, maps, multimedia, rendering, or porting/upgrading
+  a Remotion project — even if the user does not say "Remotion" by name.
 version: 4.0.539
 ---
 

@@ -1,9 +1,10 @@
 # Quarantined skills
 
 Skills in this directory are **NOT loadable**. They were moved out of the
-agent skills roots (`.claude/skills/` canonical, `.kilo/skills/`,
-`.devin/skills/`, `.agents/skills/` mirrors) because they failed repo
-policy review. They are kept here for the record only.
+agent skills roots (`.claude/skills/` canonical; repo mirrors `.kilo/skills/`,
+`.devin/skills/`, `.agents/skills/`; home-level mirrors written by
+`tools/sync-user-skills.py`) because they failed repo policy review. They are
+kept here for the record only.
 
 **They must not be mirrored back** into any `skills/` path without an
 owner-approved rewrite.

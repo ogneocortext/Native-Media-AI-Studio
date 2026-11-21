@@ -67,11 +67,26 @@
 > is the handoff — there is no "update it next commit."
 > Format and rules: `docs/plans/tasks/README.md`.
 >
-> **Project skills** live in `.claude/skills/` (tracked canonical; mirrored
-> to `.kilo/`, `.devin/`, `.agents/` — keep copies in sync). A skill that
-> exists in any mirror but not in `.claude/skills/` is a docs-gate failure
-> (`tools/check-skill-mirrors.py` enforces mirror completeness and
-> identity). Key ones:
+> **Project skills** live in `.claude/skills/` — the tracked canonical set
+> (52 skills). Every agent host reads its own directory, so canonical is
+> mirrored to `.kilo/`, `.devin/` and `.agents/` (Kilo, Devin, Cline and
+> friends), and `packages/frontend/{.claude,.agents,agent}/skills` carry a
+> deliberate subset — the Remotion skills — so an agent launched inside the
+> frontend package gets the same instructions as one at the repo root. (The
+> frontend `.claude` entries are junctions into its `.agents`.) A second
+> mirror set covers hosts launched from the home directory (`~/.claude`,
+> `~/.codex`, `~/.gemini`, `~/.copilot`, `~/.continue`, `~/.factory`,
+> `~/.openclaw`, `~/.kilocode`, `~/.kilo`, `~/.codeium/windsurf`,
+> `~/.gemini/antigravity`): `tools/sync-user-skills.py` writes the canonical
+> set into each host's own `skills/` dir, because those hosts never see the
+> repo. Host-local skills that are not canonical (`.codex`'s `.system` /
+> `codex-primary-runtime`, `.copilot`'s `browseros-neo`) are left untouched.
+> **Add a skill by writing `.claude/skills/<name>/SKILL.md`, then run
+> `python tools/sync-skill-mirrors.py` (repo mirrors) AND
+> `python tools/sync-user-skills.py` (home hosts) — never copy by hand.** A
+> skill that exists in any mirror but not in canonical, or whose bytes differ,
+> is a docs-gate failure (`tools/check-skill-mirrors.py` for repo mirrors,
+> `tools/sync-user-skills.py --check` for home hosts). Key ones:
 > `autonomous-session` (unattended-operation protocol + skill-chaining
 > router — load for multi-step work), `visual-qa-loop` (screenshot →
 > vision-analyze → research → improve → re-verify), `gates-commit-push`
