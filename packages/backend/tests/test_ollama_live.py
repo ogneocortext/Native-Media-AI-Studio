@@ -85,12 +85,19 @@ def _is_remote(model: dict) -> bool:
     return bool(model.get("remote_host") or model.get("remote_model"))
 
 
-def _smallest_local_model() -> str | None:
+def _smallest_local_model(*, need_tools: bool = False) -> str | None:
     """Cheapest local text model, so the suite stays quick.
 
     Remote models are excluded by `remote_host`/`remote_model`, not by name,
     so a remote entry cannot be selected and turn the suite into a paid
     network call.
+
+    `need_tools=True` restricts the choice to models that advertise the
+    `tools` capability. Ollama 0.40.17 validates `tools` against the model's
+    capabilities and answers HTTP 400 ("<model> does not support tools")
+    instead of silently ignoring them, so the tool-call test must not pick a
+    vision-only model such as `moondream` - the smallest local model overall,
+    which is exactly what a plain size sort returns.
     """
     try:
         with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=10) as r:
@@ -101,6 +108,8 @@ def _smallest_local_model() -> str | None:
         m for m in models
         if not _is_remote(m) and "embed" not in m.get("name", "")
     ]
+    if need_tools:
+        local = [m for m in local if "tools" in (m.get("capabilities") or [])]
     if not local:
         return None
     return min(local, key=lambda m: int(m.get("size", 0)))["name"]
@@ -111,6 +120,20 @@ def model() -> str:
     name = _smallest_local_model()
     if not name:
         pytest.skip("no local Ollama model available")
+    return name
+
+
+@pytest.fixture(scope="module")
+def tool_model() -> str:
+    """Smallest local model that advertises the `tools` capability.
+
+    Separate from `model` because 0.40.17 rejects `tools` on a model without
+    that capability (HTTP 400), and the smallest local model overall is
+    vision-only on this host.
+    """
+    name = _smallest_local_model(need_tools=True)
+    if not name:
+        pytest.skip("no local tool-capable Ollama model available")
     return name
 
 
@@ -226,14 +249,19 @@ def test_empty_messages_is_accepted_by_the_server(model):
     assert body.get("message", {}).get("content", "") == ""
 
 
-def test_tool_call_arguments_arrive_as_a_dict(model):
+def test_tool_call_arguments_arrive_as_a_dict(tool_model):
     """`execute_tool_call` does `**arguments`, which requires a dict.
 
     If a server ever returned a JSON *string* here, every tool call would raise
     TypeError. This pins the shape the adapter depends on.
+
+    Uses `tool_model`, not `model`: Ollama 0.40.17 answers HTTP 400
+    "<model> does not support tools" for a model that does not advertise the
+    capability, so the smallest local model (vision-only here) cannot serve
+    this test.
     """
     body = _post({
-        "model": model,
+        "model": tool_model,
         "messages": [{"role": "user", "content": "What is 2+2? Use the calculator."}],
         "stream": False,
         "think": False,

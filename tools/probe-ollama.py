@@ -12,6 +12,12 @@ its `thinking` controls (values + default) and `capabilities` are the
 authoritative answer to "does this model support think", replacing the
 response-shape inference this tool used to rely on.
 
+On 0.40.17 the server validates `tools` against the model's advertised
+capabilities and answers HTTP 400 ("<model> does not support tools") instead
+of silently dropping the definitions as earlier releases did. The tool-call
+probe therefore selects a local model that advertises `tools`, and records
+the 400 as a finding rather than crashing on it.
+
 Read-only apart from short inference calls. Point it at any Ollama with
 `--url`; it never mutates anything.
 
@@ -38,6 +44,15 @@ def post(url: str, payload: dict, timeout: float) -> dict:
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
+
+
+def post_or_report(url: str, payload: dict, timeout: float) -> dict:
+    """post(), but returns {"_http_error": code, "_body": body} on failure."""
+    try:
+        return post(url, payload, timeout)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")
+        return {"_http_error": e.code, "_body": body}
 
 
 def get(url: str, timeout: float) -> dict:
@@ -128,6 +143,22 @@ def main() -> int:
         model = min(candidates, key=size_of)
     print(f"probing with: {model}")
 
+    # 0.40.17 rejects `tools` on a model that does not advertise the
+    # capability ("registry.ollama.ai/library/X does not support tools",
+    # HTTP 400) instead of silently ignoring them as earlier releases did.
+    # The smallest local text model is often vision-only (moondream), so the
+    # tool-call probe below must pick a model that actually carries `tools`
+    # -- otherwise the probe crashes rather than reporting.
+    tool_candidates = [
+        m.get("name", "")
+        for m in models
+        if not is_remote(m) and "tools" in (m.get("capabilities") or [])
+    ]
+    # Smallest first: this repo runs on 8 GB, and the smallest tool-capable
+    # model is both the fastest to load and the one that fits alongside
+    # whatever else is resident.
+    tool_model = min(tool_candidates, key=size_of) if tool_candidates else None
+
     t0 = time.perf_counter()
     resp = post(
         f"{base}/api/chat",
@@ -168,11 +199,22 @@ def main() -> int:
         print(f"  /api/show -> {type(e).__name__}: {e}")
 
     if not args.fast:
+        if not tool_model:
+            print(
+                "\nchat with tools: SKIPPED - no local model advertises "
+                "the `tools` capability"
+            )
+            return 0
+        if tool_model != model:
+            print(
+                f"\nnote: tool-call probe uses {tool_model}, not {model} - "
+                f"0.40.17 rejects `tools` on models without the capability"
+            )
         t0 = time.perf_counter()
-        tooled = post(
+        tooled = post_or_report(
             f"{base}/api/chat",
             {
-                "model": model,
+                "model": tool_model,
                 "messages": [{"role": "user", "content": "What is 2+2? Use the calculator."}],
                 "stream": False,
                 "think": False,
@@ -195,6 +237,12 @@ def main() -> int:
             args.timeout,
         )
         elapsed = time.perf_counter() - t0
+        if "_http_error" in tooled:
+            # 0.40.17 answer for a model without the `tools` capability.
+            # Recorded, not raised: this is the server's behaviour.
+            print(f"\nchat with tools: HTTP {tooled['_http_error']} in {elapsed:.1f}s")
+            print(f"  server said     : {tooled['_body'][:160]}")
+            return 0
         tmsg = tooled.get("message", {})
         calls = tmsg.get("tool_calls")
         print(f"\nchat with tools: {elapsed:.1f}s")

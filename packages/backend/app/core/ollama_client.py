@@ -23,6 +23,22 @@ Ollama 0.40.14 compatibility note (2026-11-03):
    - All callers pass ``temperature`` explicitly in ``extra``/``options``
      where it matters, so explicit values continue to override model
      defaults under 0.40.14. No code change required for 0.40.14.
+
+Ollama 0.40.17 compatibility note (2026-11-21, verified live):
+   - ``/api/chat`` now **validates ``tools`` against the model's advertised
+     capabilities** and returns HTTP 400 ``<model> does not support tools``
+     instead of silently ignoring the definitions. Callers must gate on
+     ``capabilities`` (via ``get_model_capabilities`` / the ``supports_tools``
+     flag) before attaching tools; the adapter already does this in
+     ``ollama_adapter._supports_tools``.
+   - Tool-parameter JSON-Schema keywords Ollama does not model (``minimum``,
+     ``maximum``, ``exclusiveMinimum``/``exclusiveMaximum``, ``multipleOf``,
+     ``default``, ``format``, ``pattern``, ``minLength``/``maxLength``,
+     ``minItems``/``maxItems``, ``const``) are now **preserved and reach the
+     model** instead of being dropped at parse time (upstream #17142).
+     Constraints no longer need duplicating into the parameter description.
+   - No endpoints added or removed; ``details.runner`` is still ``ggml``/
+     ``llamacpp`` on this Windows build.
 """
 
 from __future__ import annotations

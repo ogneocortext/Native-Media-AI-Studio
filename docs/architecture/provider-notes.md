@@ -185,8 +185,8 @@ not a candidate.
   `qwen3-vl:2b`/`minicpm-v:8b` vision fallbacks and `qwen3.5:9b` text
   model were pruned 2026-10-22 (decision-log D37/D46/D47;
   `vision.py` `FALLBACK_MODEL = None`). Server upgraded
-  to **0.40.14** on 2026-11-03 (verified via
-  `GET /api/version`). No API surface change since 0.40.0 — the
+  to **0.40.17** on 2026-11-21 (verified live via
+  `GET /api/version` -> `{"version":"0.40.17"}`, 15 models, D81). No API surface change since 0.40.0 — the
   endpoints this repo calls (`/api/tags`, `/api/show`, `/api/chat`,
   `/api/generate`, `/api/embed`) are unchanged, so the `think: false`
   guidance and capability handling stand. Notable for this studio:
@@ -200,6 +200,21 @@ not a candidate.
   were never affected by this change — and all callers explicitly pass
   `temperature`, so behavior is unchanged. Explicit values still override
   model defaults under 0.40.14.
+  **0.40.17 changes (verified live 2026-11-21, D81):** (a) `/api/chat`
+  now **validates `tools` against the model's advertised capabilities**
+  and answers HTTP 400 `<model> does not support tools` instead of
+  silently dropping the definitions. The backend already gates this
+  (`ollama_adapter._supports_tools`), but any new standalone caller must
+  check `capabilities` first — this is a hard error now, not a no-op.
+  (b) Tool-parameter JSON-Schema keywords Ollama does not model
+  (`minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`,
+  `multipleOf`, `default`, `format`, `pattern`, `minLength`, `maxLength`,
+  `minItems`, `maxItems`, `const`) are now **preserved and reach the
+  model** instead of being dropped at parse time (upstream #17142).
+  Verified live: a tool parameter carrying `minimum: 0 / maximum: 11 /
+  default: 5` was described back correctly by the model and `99` was
+  rejected as out of range. Previously those bounds never reached the
+  model, so a constraint had to be duplicated into the description.
 - **First used:** 2026-09 (see
   `docs/knowledge-library/ollama-thinking-structured-outputs.md`).
 - **Strong at:** vision analysis within the 8 GB VRAM
@@ -213,6 +228,11 @@ not a candidate.
 - **Quirks (needs explicit instruction for):**
   `/api/generate` does not honor `think: false`
   reliably for Qwen3.5/DeepSeek — use `/api/chat`.
+  On 0.40.17, sending `tools` to a model that does not advertise
+  `tools` in `/api/show` `capabilities` is a **400 error**, not a
+  silent no-op (`registry.ollama.ai/library/<model>:latest does not
+  support tools`). Verified with `moondream:latest` (caps:
+  completion, vision) vs `qwen3.5:4b` (caps include tools).
   On 0.40.0, `/api/show` reports the authoritative
   per-model `thinking` controls and `capabilities`,
   and `/api/tags` entries carry `capabilities` plus

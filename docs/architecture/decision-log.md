@@ -12,7 +12,7 @@
 > **Recommendation** where one exists. **Quick index** is the navigation
 > layer for readers who should not load the whole log.
 >
-> Current scope: D1–D80 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D81 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 > Start at **Quick index** below: one line per entry, then open only the
 > entries you need.
 > (D69 was originally numbered D55 — a duplicate; renumbered 2026-11-05.)
@@ -106,6 +106,7 @@ line here is an incomplete decision.
 - `D78` **Promote all type-aware ESLint rules from warn to error after T-LINT-01 zero-warning sweep** (2026-11-08) — Six parallel subagents eliminated every warning by root cause (typed fetch/JSON/SSE boundaries, honest optionals, dead-check removal, promise…
 - `D79` **NSFW is a per-item tag plus a server-enforced visibility gate** (2026-11-20) — The flag is the existing `nsfw` **tag** — no schema change and no second store of item metadata.
 - `D80` **One canonical skill set for every agent host, repo and home** (2026-11-21) — `.claude/skills/` (52 skills) is the only canonical set; `tools/sync-skill-mirrors.py` writes the repo mirrors and `tools/sync-user-skills.py` writes every home-level host, with both as hard docs gates.
+- `D81` **Ollama 0.40.17: tools are validated against capabilities, tool schema keywords survive** (2026-11-21) — Adopt by upgrade plus one probe fix; `/api/chat` now 400s on `tools` for a model without the capability.
 
 **Open / in evaluation / resolved questions**
 
@@ -2353,3 +2354,61 @@ line here is an incomplete decision.
   `packages/frontend` still sees only what is relevant there. The home-level
   sync is machine-local and never committed — a fresh machine runs
   `python tools/sync-user-skills.py` once. See T-AGT-14.
+
+### D81 — Ollama 0.40.17: tools are validated against capabilities, tool schema keywords survive (2026-11-21)
+
+- **Status:** Decided
+- **Context:** The local server and CLI were upgraded to **0.40.17**
+  (verified live 2026-11-21: `GET /api/version` returns
+  `{"version":"0.40.17"}`; 15 models, 5 of them `:cloud` proxies).
+  Two changes in this release touch this repo's Ollama surface, and both
+  were characterised against the running server rather than read from
+  the changelog (D22):
+  (a) `/api/chat` now **validates `tools` against the model's advertised
+  capabilities**. Sending tools to a model whose `/api/show`
+  `capabilities` lack `tools` returns HTTP 400
+  `<model> does not support tools` instead of silently ignoring the
+  definitions. Measured: `moondream:latest` (caps: completion, vision)
+  → 400 `registry.ollama.ai/library/moondream:latest does not support
+  tools`; `qwen3.5:4b` (caps include tools) → 200 with a parsed
+  `tool_calls`.
+  (b) Tool-parameter JSON-Schema keywords Ollama does not model are now
+  **preserved and reach the model** instead of being dropped at unmarshal
+  time (upstream #17142). Measured: a parameter carrying
+  `minimum: 0 / maximum: 11 / default: 5` was described back correctly by
+  the model, which then rejected `99` as out of range. Before this, those
+  bounds never reached the model and had to be duplicated into the
+  parameter description.
+- **Decision:** Adopt by upgrade, plus two tool fixes. The backend is
+  already correct on (a): `ollama_adapter._supports_tools` gates tools on
+  `is_tool_capable_model()` and logs when it strips them, so the new 400
+  path is unreachable from the app. Two **callers** were not correct,
+  because both selected the smallest local text model — `moondream`,
+  which is vision-only — and then sent `tools` to it:
+  `tools/probe-ollama.py` (a working characterization script became a
+  traceback) and `packages/backend/tests/test_ollama_live.py`
+  (`test_tool_call_arguments_arrive_as_a_dict` failed with HTTP 400; the
+  other nine live tests were unaffected). Both now select the smallest
+  local model whose `capabilities` include `tools` (`llama3.2:3b` here);
+  the probe additionally records a 400 as a finding rather than raising.
+  No adapter, route, or schema change is required; (b) is a strict
+  improvement that needs no caller change.
+- **Files:** tools/probe-ollama.py (capability-aware tool probe, `post_or_report`),
+  packages/backend/tests/test_ollama_live.py (`tool_model` fixture),
+  config/hardware-profile.json (`_ollama_0.40_notes.notes_0.40_17`),
+  packages/backend/app/core/ollama_client.py (0.40.17 compatibility note),
+  docs/architecture/provider-notes.md (Ollama section),
+  .claude/skills/ollama-model-ops/SKILL.md (+ mirrors).
+- **Consequences:** Any caller that attaches `tools` must check
+  `capabilities` first — the server enforces it now, so this is a 400
+  rather than a silent no-op. A test or script that picks "the smallest
+  local model" is not good enough on this host: the smallest is vision-only
+  (`moondream`), so anything exercising tools must filter on the `tools`
+  capability explicitly. Tool schemas may now carry numeric and
+  string bounds directly; the old workaround of restating every constraint
+  in the parameter description is redundant and can drift. The 0.40.14
+  sampler note stands (this repo calls native `/api/chat` and
+  `/api/generate`, never the OpenAI-compatible routes). Re-run
+  `tools/probe-ollama.py` after the next upgrade; it is the record of what
+  the server actually serves. No model re-pulls: same GGUF quants,
+  `details.runner` still `ggml`/`llamacpp`.

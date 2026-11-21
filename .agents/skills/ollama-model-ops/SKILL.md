@@ -19,8 +19,18 @@ description: >-
 
 ## Environment
 
-- Ollama v0.40.5 (background model upgrades paused in this version — do not try to
-  force them; that is what wedged the stack before).
+- Ollama **v0.40.17** (verified live 2026-11-21: `GET /api/version` ->
+  `{"version":"0.40.17"}`). Background model upgrades were paused in 0.40.5 —
+  do not try to force them; that is what wedged the stack before. Two 0.40.17
+  behaviours to know:
+  - **`tools` are validated against capabilities.** `/api/chat` returns
+    HTTP 400 `<model> does not support tools` for a model whose `/api/show`
+    `capabilities` lack `tools` (verified: `moondream` -> 400, `qwen3.5:4b`
+    -> 200). Check `capabilities` before attaching tools; the backend adapter
+    already does this, standalone callers must too.
+  - **Tool schema keywords now reach the model.** `minimum`/`maximum`/
+    `default`/`pattern`/`minLength`/... are preserved instead of dropped, so
+    numeric bounds no longer need restating in the parameter description.
 - GPU: GTX 1070 Ti, 8 GB (Pascal sm_61). 3 resident models ≈ 6.8 GB VRAM.
 - Env (set in `.kilo/kilo.jsonc` MCP servers): `OLLAMA_CONTEXT_LENGTH=16384`,
   `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_GPU=true`, `OLLAMA_GPU_HOST=cuda`,

@@ -393,3 +393,44 @@ Rules: `docs/plans/tasks/README.md`
   warm describe 1.5 s, qwen/gemma timings recorded above.
 - **Acceptance:** satisfied — tier routing live and documented.
 - **Last session:** Devin, 2026-11-08 — implemented + measured + committed.
+
+### T-MOD-13 — Ollama 0.40.17 characterization: capability-validated tools, schema keywords preserved
+- **Status:** done
+- **Goal:** Record what 0.40.17 actually does, the way D35/D36/D43 did for
+  earlier upgrades — measured against the live server, not read from the
+  changelog (D22). The desktop client and CLI are on 0.40.17; the server
+  had to be started directly because the desktop app's bundled server never
+  reached ready state (its own log: "ollama server not ready after
+  retries").
+- **Measured (2026-11-21, live at 127.0.0.1:11434):**
+  - `GET /api/version` -> `{"version":"0.40.17"}`; 15 models (10 local,
+    5 `:cloud` proxies).
+  - **`/api/chat` validates `tools` against capabilities.** `moondream:latest`
+    (caps: completion, vision) + tools -> **HTTP 400**
+    `registry.ollama.ai/library/moondream:latest does not support tools`.
+    `qwen3.5:4b` (caps include tools) + same tools -> 200 with parsed
+    `tool_calls`. Earlier releases silently ignored the definitions.
+  - **Tool schema keywords survive.** A parameter carrying
+    `minimum: 0 / maximum: 11 / default: 5` was described back correctly by
+    the model, which then refused `99` as out of range. Previously those
+    keywords were dropped at unmarshal time (upstream #17142).
+  - `/api/embed` -> 768-dim (unchanged); `/api/show` capabilities and
+    `details.runner` (`ggml`/`llamacpp`) unchanged; `/api/health` still 404.
+- **Changes:** tools/probe-ollama.py crashed on 0.40.17 (it sent `tools` to
+  `moondream`, the smallest local text model, which is vision-only). It now
+  selects the smallest local model whose `capabilities` include `tools`
+  (`llama3.2:3b` here) and records a 400 as a finding via a new
+  `post_or_report` helper instead of raising. The backend adapter needed no
+  change — `ollama_adapter._supports_tools` already gates tools on
+  `capabilities`.
+- **Files:** tools/probe-ollama.py, config/hardware-profile.json
+  (`_ollama_0.40_notes.notes_0.40_17`), packages/backend/app/core/ollama_client.py
+  (0.40.17 note), docs/architecture/provider-notes.md,
+  .claude/skills/ollama-model-ops/SKILL.md (+ mirrors), CHANGELOG.md,
+  docs/architecture/decision-log.md (D81).
+- **Acceptance:** `python tools/probe-ollama.py` exits 0 against 0.40.17 and
+  reports the tool-call result; D81 indexed; `check-decision-index.py`
+  PASS; docs gate green.
+- **Last session:** Kilo, 2026-11-21 — measured live, fixed the probe,
+  documented, D81. Verified: probe exits 0, tool_calls list returned,
+  0.40.17 confirmed by `GET /api/version`.
