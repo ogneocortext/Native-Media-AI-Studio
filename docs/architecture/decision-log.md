@@ -12,7 +12,7 @@
 > **Recommendation** where one exists. **Quick index** is the navigation
 > layer for readers who should not load the whole log.
 >
-> Current scope: D1–D82 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D83 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 > Start at **Quick index** below: one line per entry, then open only the
 > entries you need.
 > (D69 was originally numbered D55 — a duplicate; renumbered 2026-11-05.)
@@ -108,6 +108,7 @@ line here is an incomplete decision.
 - `D80` **One canonical skill set for every agent host, repo and home** (2026-11-21) — `.claude/skills/` (52 skills) is the only canonical set; `tools/sync-skill-mirrors.py` writes the repo mirrors and `tools/sync-user-skills.py` writes every home-level host, with both as hard docs gates.
 - `D81` **Ollama 0.40.17: tools are validated against capabilities, tool schema keywords survive** (2026-11-21) — Adopt by upgrade plus one probe fix; `/api/chat` now 400s on `tools` for a model without the capability.
 - `D82` **Never flip a text file's line endings; write through `tools/_ioutil.write_text_like()`** (2026-11-21) — `Path.write_text` on Windows turns LF into CRLF and turns a one-line edit into a whole-file diff; new gate `tools/check-line-endings.py`.
+- `D83` **Stated facts in AGENTS.md are checked, not trusted** (2026-11-21) — new gate `tools/check-doc-facts.py` fails when a number or model in AGENTS.md no longer matches the repo.
 
 **Open / in evaluation / resolved questions**
 
@@ -2464,3 +2465,52 @@ line here is an incomplete decision.
   to catch a flip in both directions and to repair to a byte-perfect restore
   when only the endings changed, and to produce a minimal (2-line) diff when
   the edit also changed content.
+
+### D83 — Stated facts in AGENTS.md are checked, not trusted (2026-11-21)
+
+- **Status:** Decided
+- **Context:** AGENTS.md is loaded into **every request from every agent**, so a
+  wrong fact in it is not cosmetic: it is paid on each turn and it misdirects
+  whoever trusts it. A stale number does not merely misinform, it costs a tool
+  call to discover the truth and several more to recover from acting on it.
+
+  An audit on 2026-11-21 found three such facts. The docs-tree sentence claimed
+  "197 markdown files across 13 directories" when the real values were **293
+  across 27** — an agent trusting the number would believe its search was
+  exhaustive after finding 197. The model inventory table was missing
+  `hf.co/lmstudio-community/Bonsai-27B-GGUF:Q1_0` entirely: a 4.7 GB local model
+  on disk, absent from the one file an agent reads before choosing a model, so a
+  reasonable agent would conclude it did not exist and try to pull it. The same
+  table carried two duplicate pairs (`gemma4:e2b-it-qat` and `llama3.2:3b` each
+  listed twice), the signature of a hand-edited table that had drifted.
+
+  AGENTS.md already carried the principle for a different count — "count lives
+  in `knowledge-tracker.md`, not here (R3)" — but nothing enforced it, so the
+  same class of defect kept reappearing.
+
+- **Decision:** Fix the three facts, then make the class checkable.
+  `tools/check-doc-facts.py` is a new hard gate in `check-all.py`. It verifies
+  only claims that can be checked mechanically, so it cannot cry wolf: the
+  doc-tree numbers against a live count (approximate claims like "~290" are
+  allowed a 10% tolerance, because the point is to catch an order-of-magnitude
+  drift, not to demand an exact number that goes stale again next commit), and
+  the model table against `ollama list` in both directions — every documented
+  model must exist, and every **local** model on disk must be documented (cloud
+  proxies are exempt, since they are documented in a separate list). It also
+  fails on duplicate table rows. `ollama list` is skipped when the binary is
+  absent, so the doc-count checks still run on a machine without Ollama.
+
+  The docs-tree number in AGENTS.md is now deliberately approximate with the
+  reason stated inline and a command to recount it, so the next drift is a
+  one-line fix rather than an investigation.
+
+- **Files:** tools/check-doc-facts.py (new), tools/check-all.py (gate
+  registration), AGENTS.md (stale count, model table rebuilt, missing models
+  added), docs/knowledge-library/custom-agent-design.md (broken relative link).
+- **Consequences:** A wrong fact in AGENTS.md now fails the docs gate instead of
+  costing a downstream agent a discovery cycle. The gate runs in ~0.3 s. Adding a
+  model means adding a row, or the gate says so. Verified by reintroducing each
+  of the three original defects: the stale count and the missing Bonsai row both
+  fail with exit 1 and name the fix; a duplicate row inside the table is caught.
+  An out-of-table append is not caught, because the parser scopes to the table
+  block — a duplicate outside it is not a duplicate row.

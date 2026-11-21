@@ -420,3 +420,36 @@ Code: `packages/backend/app/agents/`
   check-all.py as a hard gate (verified it fails on injected drift, exit 1,
   and repairs to 0). Final state: 52 skills across 12 home hosts + 3 repo
   mirrors, all byte-identical; `check-all.py` all passed.
+
+### T-AGT-15 — Stale facts in AGENTS.md (doc count, model inventory) + doc-facts gate
+- **Status:** done
+- **Goal:** Remove facts from AGENTS.md that the repository can disprove. That
+  file is loaded into every request from every agent, so a wrong fact is a tax on
+  every turn and it sends the agent down the wrong path.
+- **Found (2026-11-21 audit):** (1) the docs-tree sentence claimed "197 markdown
+  files across 13 directories"; the real values were 293 across 27. (2) The model
+  inventory table was missing `hf.co/lmstudio-community/Bonsai-27B-GGUF:Q1_0`, a
+  4.7 GB local model on disk. (3) The same table had duplicate rows for
+  `gemma4:e2b-it-qat` and `llama3.2:3b`. (4) A broken relative link in
+  `docs/knowledge-library/custom-agent-design.md` (`../AGENTS.md` from a file two
+  levels deep). The doc count is the costly one: an agent that trusts 197 stops
+  looking, or hunts for 16 directories that do not exist.
+- **Changes:** the doc-count sentence is now deliberately approximate (~290/~27)
+  with the reason stated inline and a recount command, so the next drift is a
+  one-line fix. The model table is rebuilt from `ollama list`: 10 unique rows,
+  Bonsai added, `deepseek-v4.1-flash:cloud` added to the cloud list, duplicates
+  removed. The link is corrected to `../../AGENTS.md`.
+- **New gate:** tools/check-doc-facts.py, wired into check-all.py as a hard check.
+  Verifies the doc-tree numbers against a live count (approximate claims get 10%
+  tolerance) and the model table against `ollama list` in both directions, plus
+  duplicate rows. Skips the ollama half when the binary is absent, so the doc
+  checks always run. Runs in ~0.3 s.
+- **Files:** tools/check-doc-facts.py (new), tools/check-all.py, AGENTS.md,
+  docs/knowledge-library/custom-agent-design.md,
+  docs/architecture/decision-log.md (D83).
+- **Acceptance:** `python tools/check-doc-facts.py --verbose` exits 0 and reports
+  "10 models + doc count verified"; `check-all.py` shows `[PASS] doc facts`.
+- **Last session:** Kilo, 2026-11-21 - audited, fixed, gated. Verified the gate
+  catches each original defect: stale count -> exit 1 naming the real 293/27;
+  Bonsai row removed -> exit 1 naming it as installed-but-undocumented; a
+  duplicate row inside the table -> caught.

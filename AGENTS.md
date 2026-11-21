@@ -107,8 +107,12 @@
 > `tools/model-reliability/observed.jsonl` -- that observed layer is tracked and
 > is the only handoff state a new agent cannot rebuild for itself.
 >
-> **Finding documentation:** the tree is 197 markdown files across 13
-> directories, so searching blind returns the wrong document. `docs/README.md`
+> **Finding documentation:** the tree is ~290 markdown files across ~27
+> directories, so searching blind returns the wrong document. (Deliberately
+> approximate: a hardcoded count here read 197/13 while the real values were
+> 293/27, which points an agent at the wrong number of places. Recount with
+> `python -c "import pathlib;print(len(list(pathlib.Path('docs').rglob('*.md'))))"`.)
+> `docs/README.md`
 > is the index; `docs/knowledge-library/index.md` is the entry point for the
 > research library (count lives in `knowledge-tracker.md`, not here — R3). `docs/source-map.md` is a condensed "where is
 > what" quick reference for source files (backend, frontend, tests, config,
@@ -491,6 +495,29 @@ Non-ASCII is fine where it is the product (ASCII-art borders in
 `cli_output.py`, UI display strings, docs typography) — the gate bans the
 *broken* classes, not typography. When in doubt: ASCII.
 
+### Agent efficiency: what actually costs turns (D83)
+
+AGENTS.md is loaded into **every request from every agent**, so it is the one
+file where a wrong fact is paid repeatedly. Measured cost of the 2026-11-21
+audit: the docs-tree count was stale by 96 files and 14 directories, and the
+model table was missing an installed 4.7 GB model. Neither is a typo; each one
+costs a downstream agent a discovery cycle.
+
+- **Never hardcode a count that something else can compute.** Say "~290" with a
+  recount command, or point at the file that owns the number. An exact number in
+  prose is a deadline, not a fact.
+- **When you touch a table of installed things, re-derive it** from the source
+  (`ollama list`, `git ls-files`, the ports file) instead of editing a row.
+- **`tools/check-doc-facts.py` enforces both** and runs in ~0.3 s, so it is not
+  a reason to skip a gate run.
+
+The wider principle, from the 2026-11 measurement literature: an agent's cost is
+dominated by *repeated discovery and failed attempts*, not by the model's price.
+Concrete wastes this repo is built to avoid: rediscovering which interpreter to
+use (`run-gates.py` probes and caches its own), rediscovering which model to use
+(this table and `tools/model-reliability/roster.md`), and re-running gates that
+cannot be affected (`check-all.py --changed <files>` scopes them).
+
 ### Line endings: never flip a file's style (D82)
 
 **`Path.write_text()` on Windows silently converts every `\n` to `\r\n`.**
@@ -741,17 +768,16 @@ they are not part of this project and should never be invoked for repo tasks.
 | `gemma4:e2b-it-qat` | 4.3 GB | Vision (primary) | ✅ Installed | 2026-11-08 |
 | `moondream:latest` | 1.7 GB | Vision (lightweight) | ✅ Installed | 2026-11-08 |
 | `nomic-embed-text:v1.5` | 274 MB | Embedding (primary) | ✅ Installed | 2026-11-08 |
-| `embeddinggemma-2:270m` | 303 MB | Embedding (fallback) | ✅ Installed | 2026-11-08 |
 | `nomic-embed-text:latest` | 274 MB | Embedding (latest) | ✅ Installed | 2026-11-08 |
-| `gemma4:e2b-it-qat` | 4.3 GB | Vision (QAT quantized) | ✅ Installed | 2026-11-08 |
+| `embeddinggemma-2:270m` | 303 MB | Embedding (fallback) | ✅ Installed | 2026-11-08 |
 | `llama3.1:8b` | 4.9 GB | Chat/Reasoning | ✅ Installed | 2026-11-08 |
 | `qwen3.5:4b` | 3.4 GB | Chat/Reasoning | ✅ Installed | 2026-11-08 |
 | `llama3.2:3b` | 2.0 GB | Chat (lightweight) | ✅ Installed | 2026-11-08 |
 | `ibm/granite4.2:3b` | 2.2 GB | Chat/Reasoning | ✅ Installed | 2026-11-08 |
-| `llama3.2:3b` | 2.0 GB | Chat (lightweight) | ✅ Installed | 2026-11-08 |
+| `hf.co/lmstudio-community/Bonsai-27B-GGUF:Q1_0` | 4.7 GB | Chat/Reasoning (27B at Q1_0, extreme-quant GGUF; ~7.6 GB resident at 8K ctx) | ✅ Installed | 2026-11-21 |
 
 **Cloud/Atomic Chat Models (not local):**
-- `glm-5.3:cloud`, `muse-spark-open:cloud`, `minimax-m3.1-flash:cloud`, `beam:cloud` — Atomic Chat cloud
+- `glm-5.3:cloud`, `muse-spark-open:cloud`, `minimax-m3.1-flash:cloud`, `beam:cloud`, `deepseek-v4.1-flash:cloud` — Atomic Chat cloud (remote, no local VRAM)
 - `unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M` — Atomic Chat local GGUF (port 1337)
 
 ### ⛔ MANDATORY: Check Before Download Rules

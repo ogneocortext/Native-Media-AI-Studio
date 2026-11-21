@@ -16,6 +16,7 @@ Checks, in order of cost (cheapest first, so a fast failure surfaces early):
   8. tools/check-skill-mirrors.py       - every host's skills == .claude/skills
   8b. tools/sync-user-skills.py --check - home-level hosts carry the full set
   8c. tools/check-line-endings.py       - no file flips line endings vs HEAD
+  8d. tools/check-doc-facts.py          - AGENTS.md facts still match the repo
   9. tools/check-repo-layout.py         - generated output, duplicates, collisions
  10. tools/check-path-references.py     - stale repo-relative path references
  11. tools/report-nesting.py            - control-flow nesting vs baseline
@@ -98,6 +99,11 @@ CHECKS = [
     # whole-file diff. Six files were repaired by hand on 2026-11-21 for
     # exactly this; nothing caught it.
     ("line endings", "check-line-endings.py", [], False),
+    # AGENTS.md is loaded into every agent request, so a stale fact there
+    # costs a tool call to discover and misdirects whoever trusts it. Found
+    # 2026-11-21: doc count claimed 197/13 (actual 293/27) and the model
+    # table was missing an installed 4.7 GB model entirely.
+    ("doc facts", "check-doc-facts.py", [], False),
     ("repo layout", "check-repo-layout.py", [], False),
     # Dangling repo-relative path references: the moved-file signature
     # (target gone, same basename still tracked elsewhere). The only
@@ -151,6 +157,7 @@ CHECK_TIMEOUTS = {
     "check-skill-mirrors.py": 30,
     "sync-user-skills.py": 60,
     "check-line-endings.py": 60,
+    "check-doc-facts.py": 60,
 }
 
 # Max concurrent check workers. Checks are independent read-only scans, so
