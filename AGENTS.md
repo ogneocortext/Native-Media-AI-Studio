@@ -224,112 +224,22 @@ Native-Media-AI-Studio/
 
 ## Retrieval / embedding subsystem (`/api/retrieval`)
 
-Hybrid BM25 + vector search with local cross-encoder reranking. Nothing leaves
-the machine — all models run in the local Ollama instance.
+Hybrid BM25 + vector search with local cross-encoder reranking. **Nothing leaves
+the machine** - all models run in the local Ollama instance. **Ollama must be
+running** (`http://127.0.0.1:11434`) or embedding fails and search degrades to
+BM25-only.
 
-Endpoints:
+Endpoints: `GET /api/retrieval/status`, `POST /api/retrieval/index`,
+`POST /api/retrieval/search`. Python API in
+`packages/backend/app/core/ollama_client.py`: `embed_text()`,
+`embed_text_batch_concurrent()`, `_embed_model_available()`. Models:
+`nomic-embed-text:v1.5` (primary, 768-dim), `embeddinggemma-2:270m` (fallback),
+`BAAI/bge-reranker-v2-m3` (reranker).
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/api/retrieval/status` | Index status + model availability (`embedding_model_available` flag) |
-| `POST` | `/api/retrieval/index` | (Re)index docs corpus: chunk → embed → store in SQLite + memory |
-| `POST` | `/api/retrieval/search` | Hybrid search: BM25 + vector → RRF → rerank → top-k |
-
-Python API (`packages/backend/app/core/ollama_client.py`):
-
-| Function | Purpose |
-|----------|---------|
-| `embed_text(text, model=None, timeout=30)` | Embed one text via `/api/embed`; auto-warms, falls back to `embeddinggemma-2:270m` if primary fails |
-| `embed_text_batch_concurrent(texts, model=None, timeout=30)` | Embed multiple texts concurrently (bounded concurrency = 4); results in input order, `None` per failed slot |
-| `_embed_model_available(model, timeout=5)` | Check `/api/tags` to confirm a model is installed before calling |
-
-Models (configured in `config/settings.json`, `config/ports.json`):
-
-- Primary: `nomic-embed-text:v1.5` (768-dim, ~0.27 GB, always resident)
-- Fallback: `embeddinggemma-2:270m` (768-dim MRL-truncatable, ~0.29 GB)
-- Reranker: `BAAI/bge-reranker-v2-m3` (568 MB cross-encoder, loaded via HuggingFace transformers on first use; cached at `huggingface_cache/`)
-
-Key behaviors:
-
-- `embed_text()` resolves model priority: explicit arg → `config.embedding_model` → fallbacks. Warms up on first use (dummy call to load weights into GPU memory). Falls back through the model tuple if a call fails.
-- `embed_text_batch_concurrent()` resolves the model once, warms it, then issues up to `_EMBED_BATCH_CONCURRENCY` (4) `/api/embed` requests at once.
-- `vector_search()` in `services/retrieval_service.py` logs a warning if embedding returns no vector — search falls back to BM25-only, results are not silently degraded.
-- `/api/retrieval/status` cross-checks that `EMBED_MODEL` is installed in Ollama via `/api/tags`; if missing, logs a warning and sets `embedding_model_available: false`.
-
-Route registration: all three routers are registered in `main.py`. Register a new one there or its routes vanish silently. To check whether a route is registered, read `app.openapi()["paths"]`.
-
-## Agent cookbook: using retrieval/embedding from agent code
-
-### 1. Embed a single text (Python, in-process)
-
-```python
-from app.core.ollama_client import embed_text
-
-emb = await embed_text("my query text", expected_dim=768)
-if emb is None:
-    # All models failed — handle gracefully
-    emb = [0.0] * 768
-```
-
-`embed_text()` resolves the model (explicit arg → `config.embedding_model` → `embeddinggemma-2:270m` fallback), warms up on first use, and validates dimension. It never raises — returns `None` on total failure.
-
-### 2. Embed many texts concurrently
-
-```python
-from app.core.ollama_client import embed_text_batch_concurrent
-
-embs = await embed_text_batch_concurrent(["a", "b", "c"], expected_dim=768)
-# embs[i] is None if text i failed; all successful embeddings are 768-dim
-```
-
-### 3. Search the docs corpus (HTTP, cross-process)
-
-```python
-import httpx
-
-async def search_docs(query: str, limit: int = 5) -> list[dict]:
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            "http://127.0.0.1:8000/api/retrieval/search",
-            json={"query": query, "limit": limit, "vault_only": False},
-        )
-        r.raise_for_status()
-        return r.json()["results"]
-```
-
-Each result has `chunk_id`, `doc_path`, `doc_title`, `chunk_index`, `text`, `rerank_score` (0–1), and `matched_terms` (BM25 matches).
-
-### 4. Check model availability before searching
-
-```python
-from app.core.ollama_client import _embed_model_available
-
-if not await _embed_model_available("nomic-embed-text:v1.5"):
-    # Vector search will degrade to BM25-only — warn the user
-    ...
-```
-
-Or via HTTP: `GET /api/retrieval/status` returns `embedding_model_available: false` when the model is missing.
-
-### 5. Reindex the docs corpus
-
-```python
-async with httpx.AsyncClient() as client:
-    r = await client.post("http://127.0.0.1:8000/api/retrieval/index", json={"force_reindex": True})
-    r.raise_for_status()
-    info = r.json()  # {"chunks": 808, "docs": 211, ...}
-```
-
-### 6. Common pitfalls
-
-- **Don't use `qllama/bge-reranker-v2-m3` with transformers** — that's an Ollama model ID. The reranker loads `BAAI/bge-reranker-v2-m3` from HuggingFace. If transformers isn't installed, reranking degrades gracefully (input order preserved, 0.0 scores).
-- **Don't skip `expected_dim`** — `embeddinggemma-2:270m` produces 512-dim vectors, but the index stores 768-dim. Always pass `expected_dim=768` (or `EMBED_DIM` from `retrieval_service`) to catch mismatches early.
-- **Embedding models are excluded from chat selectors** — `EXCLUDED_FROM_CHAT` in `integrations_config.py` filters out `embed`/`rerank` task models. Don't try to chat with `nomic-embed-text:v1.5`.
-- **Ollama must be running** — the backend talks to `http://127.0.0.1:11434`. If it's down, embedding fails and search falls back to BM25-only.
-
-
-
-Bridges in `tools/mcp/` (stdio/REST). Tool counts as-of 2026-10-10 and go stale; authoritative list is each server's `tools/list` (or `server.registerTool`/`TOOL_DEFS` in source). `unity-mcp-bridge` ships disabled (needs Unity running). `context-store.mjs` is a library, not a server. See `docs/knowledge-library/` for full setup.
+**Full cookbook** - worked Python for each function, HTTP examples, common
+pitfalls (never use the Ollama-ID reranker with transformers, always pass
+`expected_dim=768`, embedding models are excluded from chat):
+`docs/agents/retrieval-cookbook.md`.
 
 ## MCP clients: which config holds the servers
 
@@ -616,6 +526,10 @@ in check-all.
 common way an agent wastes time here, so it is stated as protocol rather than
 left to judgement.
 
+- Start: `scripts\start-services.ps1` (backend + frontend, dynamic ports to
+  `config/ports.json`). Status: `scripts\manage-servers.ps1 -Action status`.
+  Interactive: `scripts\start-studio.ps1`. Ports: `scripts\check-ports.ps1`.
+
 Both dev servers hot-reload. The Vite dev server recompiles on save, and the
 backend runs under `watchfiles`, so **editing a file is enough** — the change is
 live before you finish reading the terminal. Restarting discards that, costs
@@ -757,154 +671,30 @@ console: a tool-launched `pwsh -Command` reports
 Unrelated tools on PATH (Android SDK, WSL) are noise from the OS environment —
 they are not part of this project and should never be invoked for repo tasks.
 
-## Local Model Inventory & Management Rules (Critical)
+## Local model inventory and management rules (critical)
 
-**Last verified: 2026-11-08** — Run `ollama list` before any model operation.
+**The inventory table, size/VRAM budgets and download rules are in
+`docs/agents/local-model-inventory.md`.** It is checked against `ollama list` by
+`tools/check-doc-facts.py`, so read it rather than trusting a copy here. Trust
+tiers - which model may be given which work - are in
+`tools/model-reliability/roster.md`.
 
-### Currently Installed Local Models (Ollama)
+The rules that matter most, and are repeated here because violating them is
+expensive:
 
-| Model | Size | Purpose | Status | Verified |
-|-------|------|---------|--------|----------|
-| `gemma4:e2b-it-qat` | 4.3 GB | Vision (primary) | ✅ Installed | 2026-11-08 |
-| `moondream:latest` | 1.7 GB | Vision (lightweight) | ✅ Installed | 2026-11-08 |
-| `nomic-embed-text:v1.5` | 274 MB | Embedding (primary) | ✅ Installed | 2026-11-08 |
-| `nomic-embed-text:latest` | 274 MB | Embedding (latest) | ✅ Installed | 2026-11-08 |
-| `embeddinggemma-2:270m` | 303 MB | Embedding (fallback) | ✅ Installed | 2026-11-08 |
-| `llama3.1:8b` | 4.9 GB | Chat/Reasoning | ✅ Installed | 2026-11-08 |
-| `qwen3.5:4b` | 3.4 GB | Chat/Reasoning | ✅ Installed | 2026-11-08 |
-| `llama3.2:3b` | 2.0 GB | Chat (lightweight) | ✅ Installed | 2026-11-08 |
-| `ibm/granite4.2:3b` | 2.2 GB | Chat/Reasoning | ✅ Installed | 2026-11-08 |
-| `hf.co/lmstudio-community/Bonsai-27B-GGUF:Q1_0` | 4.7 GB | Chat/Reasoning (27B at Q1_0, extreme-quant GGUF; ~7.6 GB resident at 8K ctx) | ✅ Installed | 2026-11-21 |
+- **Never download a model without verifying first.** Run `ollama list`, check
+  `config/settings.json`, check `roster.md`, check
+  `tools/model-reliability/observed.jsonl` - only then, if absent, download.
+  Multiple agents have re-pulled already-installed models, wasting bandwidth.
+- **One heavy model at a time** on this 8 GB GTX 1070 Ti. `ollama stop <model>`
+  when done. Set `OLLAMA_KEEP_ALIVE=5m`. Watch `nvidia-smi` before loading
+  anything over ~2 GB.
+- **Embeddings are cheap** (<1 GB) and safe alongside other work; vision
+  (`gemma4:e2b-it-qat`, ~4.5 GB) and 8B chat (`llama3.1:8b`, ~5 GB) are not -
+  sequential only.
 
-**Cloud/Atomic Chat Models (not local):**
-- `glm-5.3:cloud`, `muse-spark-open:cloud`, `minimax-m3.1-flash:cloud`, `beam:cloud`, `deepseek-v4.1-flash:cloud` — Atomic Chat cloud (remote, no local VRAM)
-- `unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M` — Atomic Chat local GGUF (port 1337)
-
-### ⛔ MANDATORY: Check Before Download Rules
-
-**NEVER download a model without verifying first.** This is non-negotiable.
-
-1. **Run `ollama list`** — Confirm the model isn't already installed
-2. **Check `config/settings.json`** — Verify `embedding_model` and other configured models
-3. **Check `tools/model-reliability/roster.md`** — Verify tier and route compatibility
-4. **Check `tools/model-reliability/observed.jsonl`** — Recent evidence for the model/route
-5. **Only if absent** — Proceed with download using verified URLs from this doc
-
-**Violations observed:** Multiple agents downloaded `gemma4:e2b-it-qat`, `nomic-embed-text`, `dexed`, `surge-xt` despite being pre-installed. This wastes bandwidth, corrupts configs, and wastes tokens.
-
-### Model Selection Criteria (Task-Based)
-
-| Task Category | Primary Model | Fallback | Route | VRAM Budget |
-|---------------|---------------|----------|-------|-------------|
-| **Vision (primary)** | `gemma4:e2b-it-qat` (4.3 GB) | `qwen3.5:4b` (3.4 GB) | Local/Ollama | ~4.5 GB |
-| **Vision (lightweight/opt-in)** | `moondream:latest` (1.7 GB) | — | Local/Ollama | ~2 GB |
-| **Embedding (primary)** | `nomic-embed-text:v1.5` (274 MB) | `embeddinggemma-2:270m` | Local/Ollama | ~0.5 GB |
-| **Chat/Reasoning (heavy)** | `llama3.1:8b` (4.9 GB) | `qwen3.5:4b` (3.4 GB) | Local/Ollama | ~5 GB |
-| **Chat/Reasoning (light)** | `qwen3.5:4b` (3.4 GB) | `llama3.2:3b` (2.0 GB) | Local/Ollama | ~3.5 GB |
-| **Embedding (fallback)** | `embeddinggemma-2:270m` (303 MB) | `nomic-embed-text:latest` | Local/Ollama | ~0.5 GB |
-| **Vision (lightweight/alt)** | `moondream:latest` (1.7 GB) — opt-in only, never auto-routed | — | Local/Ollama | ~2 GB |
-| **Chat (Atomic Chat)** | `unsloth/Qwen3_5-4B-GGUF` | — | Atomic Chat (port 1337) | CPU/GPU |
-
-**Route Selection Rules:**
-- **Local/Ollama** — Default for all local models (ports 11434)
-- **Atomic Chat (port 1337)** — Only for `unsloth/Qwen3_5-4B-GGUF` GGUF
-- **Cloud routes** — Only for cloud models explicitly listed (`glm-5.3:cloud`, etc.)
-
-### Resource Management Rules (Critical for 8GB VRAM / System RAM)
-
-**Hardware Constraints:**
-- **GPU:** GTX 1070 Ti (8 GB VRAM, Pascal sm_61)
-- **System RAM:** Monitor closely — **98% = crash threshold**
-- **CPU:** 80% sustained = thermal throttle risk
-
-**Process Management Rules:**
-1. **One heavy model at a time** — Unload before loading another >2 GB model
-2. **Ollama keep-alive** — Set `OLLAMA_KEEP_ALIVE=5m` to avoid repeated loads
-3. **Monitor before load** — Run `nvidia-smi` and check system RAM before loading >2 GB models
-4. **Unload explicitly** — `ollama stop <model>` when done with heavy models
-5. **Sequential processing** — Never run multiple heavy models simultaneously
-
-**VRAM Budget per Operation:**
-| Operation | Max VRAM | Action if Exceeded |
-|-----------|----------|-------------------|
-| Vision (gemma4:e2b) | ~4.5 GB | Stop, unload others |
-| Chat 8B (llama3.1:8b) | ~5 GB | Use qwen3.5:4b instead |
-| Embedding | <1 GB | Safe to run with others |
-| Embedding + Vision | ~5.5 GB | Sequential only |
-
-**Process Loading/Unloading Protocol:**
-```powershell
-# Before loading heavy model
-nvidia-smi  # Check VRAM
-ollama stop <other_heavy_model>  # Free VRAM
-ollama run gemma4:e2b-it-qat  # Load
-
-# After done
-ollama stop gemma4:e2b-it-qat  # Explicit unload
-```
-
-**Ollama Config for Stability:**
-```yaml
-# In Ollama config or env vars
-OLLAMA_KEEP_ALIVE=5m
-OLLAMA_MAX_LOADED_MODELS=1
-OLLAMA_FLASH_ATTENTION=1
-```
-
-### Model Tier Enforcement (from tools/model-reliability/roster.md)
-
-| Tier | Models | Usage Rule |
-|------|--------|------------|
-| **A — Delegate** | Nemotron 3.5 Super VL (kilo), StepFun Step 5, Ling 3.1 Flash, Devin | Real work, structural changes, refactors |
-| **B — Scoped** | DeepSeek V4.1 Flash, Sonnet 4.5/4.6, MiMo V2.6, Kilo Auto | Task-file items with explicit acceptance check |
-| **C — Supervised** | Beam 1.0, Flint, GPT-6 Luna | Boilerplate/docs only, every diff reviewed |
-| **Avoid** | Nemotron 3 Ultra/Nano/Super, Nemotron 3.5 Lightning, Kilo free listings | Do not use |
-
-**Route-specific trust** (from roster): Same model on different routes = different tier. Kilo-routed Nemotron 3.5 Super VL = Tier A; free listings = Avoid.
-
-### First-Contact Rule (from roster.md)
-
-**Every new model's first job = smallest open task file item with known acceptance check.**
-- Pass → Log outcome, provisional Tier B
-- Fail (capability) → Tier C
-- Fail (availability) → Tier Avoid
-
-### Agent Onboarding Protocol (for model rotation)
-
-When a new agent/model joins:
-1. **Run `ollama list`** — Verify local inventory
-2. **Check roster.md** — Confirm tier for assigned route
-3. **Run first-contact task** — Smallest open task file item
-4. **Log outcome** in `tools/model-reliability/observed.jsonl`
-5. **Update roster.md** if tier changes
-
-### Quick Reference: Which Model for What
-
-| Need | Command |
-|------|---------|
-| Vision analysis (primary) | `ollama run gemma4:e2b-it-qat` |
-| Quick vision (low VRAM) | `ollama run moondream:latest` |
-| Embeddings (primary) | `ollama run nomic-embed-text:v1.5` |
-| Chat/Reasoning (complex) | `ollama run llama3.1:8b` |
-| Chat/Reasoning (fast) | `ollama run qwen3.5:4b` |
-| Embeddings (fallback) | `ollama run embeddinggemma-2:270m` |
-| Quick chat (low VRAM) | `ollama run llama3.2:3b` |
-| Atomic Chat | `atomic-chat` (port 1337) |
-
-### Services
-
-- Start: `scripts\start-services.ps1` (backend + frontend, dynamic ports → `config/ports.json`).
-- Status: `scripts\manage-servers.ps1 -Action status`
-- Interactive: `scripts\start-studio.ps1`
-- Ports: `scripts\check-ports.ps1`
-
-Atomic Chat starts automatically with `start-services -Services all` (it's in the default service list). It runs on port 1337 (`atomic_chat_url` in `config/ports.json`) and serves your unsloth Qwen GGUF model (`unsloth/Qwen3_5-4B-GGUF-Qwen3_5-4B-Q4_K_M`). Ollama runs separately on port 11434. The backend chat endpoint routes through Atomic Chat when `atomic_chat_enabled` is true, falling back to Ollama on error.
-
-### Critical Notes
-
-- **Never commit/hand-edit** compiled `vite.config.js` / `vite.config.d.ts` in `packages/frontend/` — it shadows `vite.config.ts`.
-
-- **Installation policy:** AI models must only install applications the user has explicitly requested. Before any download or install, first check what is already installed on this machine (e.g. Atomic Chat, Ollama, Unity, ComfyUI, Blender, Remotion). Do not re-download, re-install, or suggest alternatives to software the user maintains themselves. Atomic Chat is already installed and self-maintained — do not download `Atomic.Chat_2.1.2_x64-setup.exe` or any other installer without an explicit user request.
+Full inventory, per-model selection criteria and the VRAM budget table:
+`docs/agents/local-model-inventory.md`.
 
 ## Music Video Pipeline
 

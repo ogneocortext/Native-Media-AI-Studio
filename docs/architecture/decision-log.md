@@ -12,7 +12,7 @@
 > **Recommendation** where one exists. **Quick index** is the navigation
 > layer for readers who should not load the whole log.
 >
-> Current scope: D1–D83 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D84 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 > Start at **Quick index** below: one line per entry, then open only the
 > entries you need.
 > (D69 was originally numbered D55 — a duplicate; renumbered 2026-11-05.)
@@ -109,6 +109,7 @@ line here is an incomplete decision.
 - `D81` **Ollama 0.40.17: tools are validated against capabilities, tool schema keywords survive** (2026-11-21) — Adopt by upgrade plus one probe fix; `/api/chat` now 400s on `tools` for a model without the capability.
 - `D82` **Never flip a text file's line endings; write through `tools/_ioutil.write_text_like()`** (2026-11-21) — `Path.write_text` on Windows turns LF into CRLF and turns a one-line edit into a whole-file diff; new gate `tools/check-line-endings.py`.
 - `D83` **Stated facts in AGENTS.md are checked, not trusted** (2026-11-21) — new gate `tools/check-doc-facts.py` fails when a number or model in AGENTS.md no longer matches the repo.
+- `D84` **AGENTS.md stays a router, not a library** (2026-11-21) — reference material moved to `docs/agents/`; ~3.0k tokens/request saved, zero lines lost.
 
 **Open / in evaluation / resolved questions**
 
@@ -2514,3 +2515,49 @@ line here is an incomplete decision.
   fail with exit 1 and name the fix; a duplicate row inside the table is caught.
   An out-of-table append is not caught, because the parser scopes to the table
   block — a duplicate outside it is not a duplicate row.
+
+### D84 — AGENTS.md stays a router, not a library (2026-11-21)
+
+- **Status:** Decided
+- **Context:** AGENTS.md is loaded into every request from every agent, so its
+  size is a per-turn cost paid by all of them. It had grown to 981 lines / 58,713
+  bytes (~14.2k tokens) against the 200-line guidance from the Nov-2026
+  efficiency research (LeanOps; the VS Code team's AGENTS.md work). Most of that
+  bulk was reference material that is needed only when working in a specific
+  area: the retrieval/embedding cookbook (109 lines, unique to AGENTS.md) and the
+  local model inventory with its VRAM budget tables (149 lines, changing whenever
+  a model is pulled or pruned).
+
+  D83 established that wrong facts in this file are checked; D84 addresses the
+  other half of the cost - the file being large in the first place. The two
+  concerns compound: a 14k-token file is both expensive and more likely to carry
+  something stale, because nobody reads all of it when making an edit.
+
+- **Decision:** Keep in AGENTS.md only what an agent needs to *decide*, and move
+  what it needs to *look up*. The retrieval cookbook and the model inventory moved
+  to `docs/agents/`. Each section in AGENTS.md keeps its load-bearing rules plus a
+  pointer: the "nothing leaves the machine" and "Ollama must be running" rules for
+  retrieval, and the three rules that are expensive to violate (never download
+  without verifying, one heavy model at a time, embeddings are cheap) for models.
+  A compact `### Services` block keeps the six `scripts/*.ps1` references that
+  `tools/check-repo-layout.py` extracts from this file as its source of truth.
+
+  `tools/check-doc-facts.py` now follows the pointer: it reads the model table
+  from `docs/agents/local-model-inventory.md` when AGENTS.md defers to it, and
+  reports a missing table or a broken pointer as a failure rather than silently
+  skipping the check.
+
+  Result: 58,713 -> 46,312 bytes (981 -> 771 lines), ~14.2k -> ~11.2k tokens,
+  a **21% reduction / ~3.0k tokens per request**. Verified line-by-line that all
+  749 original content lines still exist, either in AGENTS.md or in a new doc -
+  the reflow moved text, it did not delete any.
+
+- **Files:** AGENTS.md, docs/agents/retrieval-cookbook.md (new),
+  docs/agents/local-model-inventory.md (new), tools/check-doc-facts.py,
+  docs/README.md.
+- **Consequences:** An agent that needs the retrieval API or the VRAM budget reads
+  one extra file, but only when it needs it - the common case (decide what to do,
+  not how to embed) got 3k tokens cheaper. The model inventory is now verified in
+  its new home rather than in AGENTS.md, so a model added to `ollama list` still
+  fails the gate until it is documented. Adding a section to AGENTS.md is now
+  something to justify: if it is reference material, it belongs in `docs/agents/`.

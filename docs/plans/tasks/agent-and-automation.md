@@ -453,3 +453,38 @@ Code: `packages/backend/app/agents/`
   catches each original defect: stale count -> exit 1 naming the real 293/27;
   Bonsai row removed -> exit 1 naming it as installed-but-undocumented; a
   duplicate row inside the table -> caught.
+
+### T-AGT-16 — Reflow AGENTS.md: move reference material to docs/agents/
+- **Status:** done
+- **Goal:** AGENTS.md is loaded into every request from every agent, so its size
+  is a per-turn cost. It had grown to 981 lines / 58,713 bytes (~14.2k tokens)
+  against the 200-line guidance. The bulk was reference material needed only when
+  working in one area.
+- **Moved:** the retrieval/embedding cookbook (109 lines, unique to AGENTS.md)
+  and the local model inventory with its VRAM budget tables (149 lines, changes
+  whenever a model is pulled) into new files under `docs/agents/`. AGENTS.md keeps
+  each section's load-bearing rules plus a pointer: for retrieval, "nothing leaves
+  the machine" and "Ollama must be running"; for models, the three rules that are
+  expensive to violate (never download without verifying, one heavy model at a
+  time, embeddings are cheap). A compact `### Services` block keeps the six
+  `scripts/*.ps1` references that `tools/check-repo-layout.py` extracts from this
+  file.
+- **Gate change:** `tools/check-doc-facts.py` now follows the pointer - it reads
+  the model table from `docs/agents/local-model-inventory.md` when AGENTS.md
+  defers to it, and reports a missing table or broken pointer as a failure rather
+  than silently skipping the check. It caught my own first attempt (table moved,
+  gate still looking in AGENTS.md) before commit.
+- **Result:** 58,713 -> 46,312 bytes; 981 -> 771 lines; ~14.2k -> ~11.2k tokens;
+  **21% reduction, ~3.0k tokens per request** (~30k per 10 turns, ~300k per 100).
+  Verified line-by-line that all 749 original content lines still exist in
+  AGENTS.md or a new doc - nothing was deleted, only relocated.
+- **Files:** AGENTS.md, docs/agents/retrieval-cookbook.md (new),
+  docs/agents/local-model-inventory.md (new), tools/check-doc-facts.py,
+  docs/README.md, docs/architecture/decision-log.md (D84).
+- **Acceptance:** `python tools/check-doc-facts.py --verbose` reads the table from
+  docs/agents/local-model-inventory.md and exits 0; `check-all.py` 17/17 pass;
+  the 749-line content audit reports 0 missing.
+- **Last session:** Kilo, 2026-11-21 - measured, moved, gated, verified. The
+  line-endings gate caught a CRLF flip in my own patch (repaired with --fix), and
+  check-doc-facts caught the model table having moved without the gate following
+  it - both fixed before commit.

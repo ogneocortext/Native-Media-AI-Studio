@@ -61,6 +61,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 AGENTS = ROOT / "AGENTS.md"
 
+# AGENTS.md is the always-loaded file, so it must stay small; reference material
+# it used to carry has moved into docs/agents/. The model table lives in
+# local-model-inventory.md, so the inventory cross-check reads that file when
+# AGENTS.md points at it. Following a pointer rather than hardcoding a path keeps
+# this working if the table moves again - and if the pointer is wrong, the check
+# finds no table and reports nothing, which is why the pointer itself is verified.
+MODEL_INVENTORY_DOC = ROOT / "docs" / "agents" / "local-model-inventory.md"
+
 # Docs-count claims look like: "the tree is 197 markdown files across 13
 # directories". The number may be approximate ("~290").
 #
@@ -200,7 +208,20 @@ def main() -> int:
         print("note: AGENTS.md states no doc-tree size to verify")
 
     # --- 2. model inventory ----------------------------------------------
-    names, dupes = parse_model_table(text)
+    # The table may live in AGENTS.md or in the doc it defers to.
+    inventory_text = text
+    if "| Model | Size |" not in text:
+        if MODEL_INVENTORY_DOC.is_file():
+            inventory_text = MODEL_INVENTORY_DOC.read_text(encoding="utf-8")
+            if args.verbose:
+                print(f"note: reading model table from {MODEL_INVENTORY_DOC.relative_to(ROOT).as_posix()}")
+        else:
+            problems.append(
+                "model inventory: AGENTS.md has no model table and "
+                f"{MODEL_INVENTORY_DOC.relative_to(ROOT).as_posix()} does not exist"
+            )
+            inventory_text = ""
+    names, dupes = parse_model_table(inventory_text)
     if dupes:
         problems.append(f"model table: duplicate rows for {', '.join(dupes)}")
 
