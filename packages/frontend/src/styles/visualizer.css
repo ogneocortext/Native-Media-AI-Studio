@@ -1,56 +1,84 @@
 /* ============================================================
-   VISUALIZER STYLES
+   VISUALIZER STYLES — Professional dark theme (2026)
+   ------------------------------------------------------------
+   Design principles:
+   • Deep moody background (oklch ~10-18% with slight chroma),
+     never pure black — lets the canvas visuals own the frame.
+   • ONE accent color (electric blue-violet oklch 65% 0.2 270)
+     plus one creation accent (magenta oklch 65% 0.25 310).
+     Never rainbow; never decorate with hue.
+   • Glassmorphism done right: backdrop-filter, subtle borders,
+     elevation through oklch lightness steps, not just opacity.
+   • Restraint over spectacle — chrome recedes; the canvas wins.
+   ============================================================ */
 
-   Stage z-index ladder (inside .viz-canvas-wrap unless noted):
-     10  stage content fallbacks (layer-hidden, style picker base)
-     20  mode crossfade veil — pointer-events: none
-     25  letterbox bars — pointer-events: none
-     30  playhead seek strip, backend badge
-     40  stage chrome — quick presets, latency card, loading overlay,
-         AI preset row
-     100 test/debug panel
-     150 overlay scrim (position: fixed, viewport)
-     160 interactive chrome above the scrim — topbar, shader HUD
-         (fx overlay only; hidden during more/shortcuts overlays)
-     200 topbar dropdown menus (more, shortcuts)
+/* --- Stage z-index ladder (inside .viz-canvas-wrap unless noted) ---
+   10  stage content fallbacks (layer-hidden, style picker base)
+   20  mode crossfade veil — pointer-events: none
+   25  letterbox bars — pointer-events: none
+   30  playhead seek strip, backend badge
+   40  stage chrome — quick presets, latency card, loading overlay,
+       AI preset row
+   100 test/debug panel
+   150 overlay scrim (position: fixed, viewport)
+   160 interactive chrome above the scrim — topbar, shader HUD
+       (fx overlay only; hidden during more/shortcuts overlays)
+   200 topbar dropdown menus (more, shortcuts)
    ============================================================ */
 
 /* --- Page layout ---
    Flex column pinned to the viewport: topbar / stage(+inspector) / transport /
-   spectrum all stay on screen — previously the 100vh canvas pushed the
-   transport and meters below the fold. */
+   spectrum all stay on screen.
+   ============================================================ */
 .viz-page {
   position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  background: #050507;
-  color: #eaeaea;
+  background: var(--viz-bg-base);
+  color: var(--viz-text-1);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 
-  /* ===== Chrome design tokens (T-VIZ-48) =====
-     One accent, one control spec, one elevation ladder. The interactive
-     accent is --color-primary (blue); violet is reserved for AI/creation
-     surfaces (viz-ai-*) so the two never compete. All stage/topbar/
-     inspector chrome consumes these instead of hardcoded rgba values. */
-  --viz-accent: var(--color-primary);
-  --viz-accent-soft: color-mix(in oklch, var(--color-primary) 16%, transparent);
-  --viz-accent-border: color-mix(in oklch, var(--color-primary) 45%, transparent);
+  /* ===== Design tokens (OKLCH, dark theme) =====
+     One accent, one creation accent, one control spec, one elevation ladder.
+     --viz-accent (blue-violet): interactive — links, focus rings, primary buttons.
+     --viz-accent-2 (magenta): creation/AI energy — generation progress, presets.
+     All chrome consumes these tokens instead of hardcoded rgba values.
+     ============================================================ */
+  --viz-bg-base: oklch(10.5% 0.008 260);
+  --viz-bg-surface: oklch(15% 0.01 260);
+  --viz-bg-surface-hover: oklch(19% 0.012 260);
+  --viz-bg-surface-raised: oklch(24% 0.014 260);
+  --viz-bg-elevated: oklch(29% 0.014 260);
+
+  --viz-accent: oklch(65% 0.2 270);
+  --viz-accent-soft: color-mix(in oklch, var(--viz-accent) 18%, transparent);
+  --viz-accent-border: color-mix(in oklch, var(--viz-accent) 45%, transparent);
+  --viz-accent-glow: oklch(65% 0.2 270 / 0.35);
+
+  --viz-accent-2: oklch(65% 0.25 310);
+  --viz-accent-2-soft: color-mix(in oklch, var(--viz-accent-2) 18%, transparent);
+  --viz-accent-2-border: color-mix(in oklch, var(--viz-accent-2) 45%, transparent);
+
   --viz-surface: oklch(100% 0 0 / 0.04);
   --viz-surface-hover: oklch(100% 0 0 / 0.08);
   --viz-surface-raised: oklch(18% 0.012 260 / 0.94);
   --viz-border: oklch(100% 0 0 / 0.09);
   --viz-border-subtle: oklch(100% 0 0 / 0.06);
   --viz-border-strong: oklch(100% 0 0 / 0.16);
-  --viz-text-1: var(--text-primary);
-  --viz-text-2: var(--text-secondary);
-  --viz-text-3: var(--text-tertiary);
+  --viz-text-1: oklch(95% 0 0);
+  --viz-text-2: oklch(68% 0 0);
+  --viz-text-3: oklch(45% 0 0);
   --viz-radius-ctl: 7px;
   --viz-radius-panel: 10px;
   --viz-elev-1: 0 1px 2px oklch(0% 0 0 / 0.35);
   --viz-elev-2: 0 10px 28px oklch(0% 0 0 / 0.5);
   --viz-elev-3: 0 20px 50px oklch(0% 0 0 / 0.55);
   --viz-ctl-h: 30px;
+
+  font-family: var(--font-sans, "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 }
 
 .viz-content {
@@ -68,7 +96,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: #050507;
+  background: var(--viz-bg-base);
   /* Query container so stage chrome can react to the STAGE width, not the
      viewport: opening the 320px inspector shrinks this box ~25% while the
      viewport media queries stay blind to it (T-VIZ-49). */
@@ -77,19 +105,17 @@
 
 /* --- Loading spinner --- */
 .viz-loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #1a1a2e;
-  border-top: 3px solid #8b5cf6;
+  width: 44px;
+  height: 44px;
+  border: 3px solid color-mix(in oklch, var(--viz-text-3) 25%, transparent);
+  border-top: 3px solid var(--viz-accent);
   border-radius: 50%;
-  animation: viz-spin 0.8s linear infinite;
-  margin-bottom: 12px;
+  animation: viz-spin 0.7s linear infinite;
+  margin-bottom: 1rem;
 }
 
 @keyframes viz-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 /* --- Loading overlay (3D mode, track loading) --- */
@@ -100,7 +126,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(5, 5, 7, 0.85);
+  background: color-mix(in oklch, var(--viz-bg-base) 92%, transparent);
   z-index: 40;
 }
 
@@ -112,7 +138,13 @@
   justify-content: center;
   height: 100%;
   padding: 2rem;
-  background: #050507;
+  background:
+    radial-gradient(
+      55% 42% at 50% 34%,
+      color-mix(in oklch, var(--viz-accent) 9%, transparent),
+      transparent 70%
+    ),
+    var(--viz-bg-base);
 }
 
 .viz-empty-card {
@@ -120,38 +152,45 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  max-width: 420px;
-  padding: 2.5rem 2rem;
-  background: rgba(30, 30, 40, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 1rem;
-  backdrop-filter: blur(8px);
+  max-width: 440px;
+  padding: 3rem 2rem;
+  background: color-mix(in oklch, var(--viz-bg-surface) 85%, transparent);
+  border: 1px solid var(--viz-border);
+  border-radius: var(--viz-radius-panel);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    var(--viz-elev-2),
+    inset 0 1px 0 color-mix(in oklch, var(--viz-text-1) 7%, transparent);
 }
 
 .viz-empty-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  margin-bottom: 1rem;
-  background: linear-gradient(135deg, #8b5cf6, #d946ef);
-  border-radius: 50%;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 1.25rem;
+  background: linear-gradient(135deg, var(--viz-accent), var(--viz-accent-2));
+  border-radius: 1rem;
   color: #ffffff;
+  box-shadow:
+    0 0 24px var(--viz-accent-glow),
+    inset 0 1px 0 color-mix(in oklch, #ffffff 30%, transparent);
 }
 
 .viz-empty-card h3 {
   margin: 0 0 0.75rem 0;
-  font-size: 1.25rem;
+  font-size: 1.375rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--viz-text-1);
+  letter-spacing: -0.01em;
 }
 
 .viz-empty-sub {
   margin: 0 0 1.5rem 0;
-  font-size: 0.95rem;
-  color: #94a3b8;
-  line-height: 1.5;
+  font-size: 1rem;
+  color: var(--viz-text-2);
+  line-height: 1.6;
 }
 
 .viz-empty-steps {
@@ -166,26 +205,27 @@
   align-items: flex-start;
   gap: 0.75rem;
   margin-bottom: 0.75rem;
-  font-size: 0.9rem;
-  color: #cbd5e1;
+  font-size: 0.925rem;
+  color: var(--viz-text-2);
 }
 
 .viz-empty-n {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
-  background: #8b5cf6;
-  color: #ffffff;
+  background: var(--viz-accent-soft);
+  border: 1px solid var(--viz-accent-border);
+  color: var(--viz-accent);
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   border-radius: 50%;
 }
 
 .viz-empty-steps b {
-  color: #ffffff;
+  color: var(--viz-text-1);
 }
 
 .viz-empty-actions {
@@ -198,22 +238,27 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.625rem 1.25rem;
-  background: linear-gradient(135deg, #8b5cf6, #d946ef);
+  padding: 0.6875rem 1.375rem;
+  background: linear-gradient(135deg, var(--viz-accent), var(--viz-accent-2));
   color: #ffffff;
   border: none;
-  border-radius: 0.5rem;
-  font-weight: 500;
-  font-size: 0.9rem;
+  border-radius: 0.625rem;
+  font-weight: 600;
+  font-size: 0.95rem;
   cursor: pointer;
   transition:
-    transform 0.15s,
-    opacity 0.15s;
+    transform 0.15s ease,
+    opacity 0.15s ease,
+    box-shadow 0.15s ease;
+  box-shadow:
+    0 0 0 0 color-mix(in oklch, var(--viz-accent) 50%, transparent),
+    inset 0 1px 0 color-mix(in oklch, #ffffff 22%, transparent);
 }
 
 .viz-empty-cta:hover {
   transform: translateY(-1px);
   opacity: 0.95;
+  box-shadow: 0 8px 24px color-mix(in oklch, var(--viz-accent) 45%, transparent);
 }
 
 .viz-empty-cta:active {
@@ -224,27 +269,30 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.625rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  color: #cbd5e1;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.5rem;
-  font-size: 0.9rem;
+  padding: 0.6875rem 1.125rem;
+  background: color-mix(in oklch, var(--viz-text-1) 8%, transparent);
+  color: var(--viz-text-2);
+  border: 1px solid var(--viz-border);
+  border-radius: 0.625rem;
+  font-size: 0.95rem;
   text-decoration: none;
   cursor: pointer;
-  transition: all 0.15s;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .viz-empty-link:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.2);
+  background: color-mix(in oklch, var(--viz-text-1) 12%, transparent);
+  color: var(--viz-text-1);
+  border-color: var(--viz-border-strong);
 }
 
 .viz-empty-tip {
   margin: 0;
-  font-size: 0.8rem;
-  color: #64748b;
+  font-size: 0.825rem;
+  color: var(--viz-text-3);
   font-style: italic;
 }
 
@@ -253,8 +301,8 @@
   align-items: center;
   gap: 0.5rem;
   margin: 0 0 1rem;
-  font-size: 0.85rem;
-  color: #94a3b8;
+  font-size: 0.875rem;
+  color: var(--viz-text-2);
 }
 
 .viz-empty-spin {
@@ -262,9 +310,7 @@
 }
 
 @keyframes viz-empty-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 .viz-empty-error {
@@ -273,11 +319,11 @@
   gap: 0.5rem;
   margin: 0 0 1rem;
   padding: 0.5rem 0.75rem;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: color-mix(in oklch, var(--color-danger) 18%, transparent);
+  border: 1px solid color-mix(in oklch, var(--color-danger) 30%, transparent);
   border-radius: 0.5rem;
-  font-size: 0.8rem;
-  color: #fbbf24;
+  font-size: 0.825rem;
+  color: oklch(72% 0.2 25);
 }
 
 .viz-empty-error svg {
@@ -287,18 +333,18 @@
 .viz-empty-retry {
   margin-left: auto;
   padding: 0.25rem 0.75rem;
-  background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.4);
+  background: color-mix(in oklch, var(--color-danger) 15%, transparent);
+  color: oklch(72% 0.2 25);
+  border: 1px solid color-mix(in oklch, var(--color-danger) 40%, transparent);
   border-radius: 0.375rem;
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s ease;
 }
 
 .viz-empty-retry:hover {
-  background: rgba(245, 158, 11, 0.25);
+  background: color-mix(in oklch, var(--color-danger) 25%, transparent);
 }
 
 /* --- Playhead --- */
@@ -308,7 +354,7 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in oklch, var(--viz-text-1) 8%, transparent);
   pointer-events: auto;
   z-index: 30;
 }
@@ -316,7 +362,7 @@
 .viz-playhead-track {
   position: absolute;
   inset: 0;
-  background: var(--viz-accent, #8b5cf6);
+  background: var(--viz-accent);
   transform: scaleX(0);
   transform-origin: left;
   height: 100%;
@@ -329,7 +375,7 @@
   transform: translateY(-50%);
   width: 10px;
   height: 10px;
-  background: var(--viz-accent, #8b5cf6);
+  background: var(--viz-accent);
   border: 2px solid #ffffff;
   border-radius: 50%;
   pointer-events: none;
@@ -340,7 +386,7 @@
   top: -20px;
   transform: translateX(-50%);
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--viz-text-3);
   white-space: nowrap;
 }
 
@@ -354,19 +400,19 @@
 }
 
 .viz-loop-region {
-  background: color-mix(in oklch, var(--viz-accent, #8b5cf6) 15%, transparent);
+  background: color-mix(in oklch, var(--viz-accent) 15%, transparent);
 }
 
 .viz-loop-anchor {
-  background: rgba(56, 189, 248, 0.3);
-  border-left: 2px solid #38bdf8;
+  background: rgba(200, 120, 255, 0.3);
+  border-left: 2px solid #c084fc;
 }
 
 /* --- AI preset row --- */
 .viz-ai-preset-row {
   position: absolute;
-  bottom: 1.5rem;
-  left: 1rem;
+  bottom: 1.75rem;
+  left: 1.5rem;
   z-index: 40;
 }
 
@@ -374,25 +420,31 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.875rem;
-  background: rgba(139, 92, 246, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  padding: 0.5625rem 0.9375rem;
+  background: color-mix(in oklch, var(--viz-accent-2) 15%, transparent);
+  border: 1px solid color-mix(in oklch, var(--viz-accent-2) 35%, transparent);
   border-radius: 2rem;
-  color: #c4b5fd;
+  color: color-mix(in oklch, var(--viz-accent-2) 85%, transparent);
   font-size: 0.8rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .viz-style-btn.active {
-  background: rgba(139, 92, 246, 0.25);
-  border-color: #8b5cf6;
-  color: #ffffff;
+  background: color-mix(in oklch, var(--viz-accent-2) 25%, transparent);
+  border-color: var(--viz-accent-2);
+  color: var(--viz-accent-2);
+  box-shadow: 0 0 16px color-mix(in oklch, var(--viz-accent-2) 35%, transparent);
 }
 
 .viz-style-btn:hover {
-  background: rgba(139, 92, 246, 0.35);
+  background: color-mix(in oklch, var(--viz-accent-2) 30%, transparent);
+  border-color: color-mix(in oklch, var(--viz-accent-2) 55%, transparent);
 }
 
 .viz-style-name {
@@ -410,19 +462,19 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1rem;
-  background: rgba(153, 27, 27, 0.9);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: color-mix(in oklch, var(--color-danger) 18%, transparent);
+  border: 1px solid color-mix(in oklch, var(--color-danger) 30%, transparent);
   border-radius: 0.5rem;
-  color: #ffffff;
+  color: #fff;
   font-size: 0.85rem;
   max-width: 90vw;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--viz-elev-2);
 }
 
 .viz-error-bar button {
   margin-left: 0.5rem;
   padding: 0.25rem 0.625rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in oklch, var(--viz-text-1) 10%, transparent);
   border: none;
   border-radius: 0.25rem;
   color: #ffffff;
@@ -431,7 +483,7 @@
 }
 
 .viz-error-bar button:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: color-mix(in oklch, var(--viz-text-1) 20%, transparent);
 }
 
 /* --- Backend badge --- */
@@ -440,16 +492,14 @@
   top: 0.75rem;
   right: 0.75rem;
   z-index: 30;
-  /* Flex row: Tailwind's preflight makes <svg> display:block, which stacked
-     the RenderStatsBadge icons/text vertically into a tall narrow column. */
   display: flex;
   align-items: center;
   font-variant-numeric: tabular-nums;
   padding: 0.25rem 0.625rem;
-  background: rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: color-mix(in oklch, var(--color-success) 18%, transparent);
+  border: 1px solid color-mix(in oklch, var(--color-success) 30%, transparent);
   border-radius: 2rem;
-  color: #6ee7b7;
+  color: #86efac;
   font-size: 0.7rem;
   font-weight: 500;
   text-transform: uppercase;
@@ -468,17 +518,9 @@
   z-index: 25;
 }
 
-.viz-letterbox.top {
-  top: 0;
-}
-
-.viz-letterbox.bottom {
-  bottom: 0;
-}
-
-.viz-letterbox.on {
-  height: 12vh;
-}
+.viz-letterbox.top { top: 0; }
+.viz-letterbox.bottom { bottom: 0; }
+.viz-letterbox.on { height: 12vh; }
 
 /* --- Layer hidden --- */
 .viz-layer-hidden {
@@ -487,7 +529,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #64748b;
+  color: var(--viz-text-3);
   font-size: 0.85rem;
   z-index: 10;
 }
@@ -505,7 +547,7 @@
 .viz-overlay-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: color-mix(in oklch, var(--viz-text-1) 35%, transparent);
   z-index: 150;
   backdrop-filter: blur(2px);
 }
@@ -515,33 +557,25 @@
   pointer-events: none;
 }
 
-/* Compact stage readout (AudioLatencyCard variant="chip"). The panel
-   wrapper is pointer-events-none so the canvas stays clickable; the chip
-   re-enables events for its tooltip and the audio-ctx retry click. */
 .viz-latency-chip {
   pointer-events: auto;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   padding: 0.2rem 0.55rem;
-  background: rgba(16, 16, 22, 0.72);
-  border: 1px solid var(--viz-border, rgba(255, 255, 255, 0.14));
+  background: color-mix(in oklch, var(--viz-text-1) 8%, transparent);
+  border: 1px solid var(--viz-border);
   border-radius: 2rem;
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
-  color: #cbd5e1;
+  color: var(--viz-text-2);
   cursor: default;
   backdrop-filter: blur(8px);
 }
 
-/* ===== Quick preset bar (stage chrome) =====
-   Semantic replacement for the old Tailwind-styled bar — utilities beat
-   the components layer, so restyling via CSS required dropping the
-   utility classes in QuickPresetBar.tsx. One control spec: pills share
-   the chrome radius/border/surface tokens; the active pill takes the
-   accent tint, matching .viz-icon-btn.active and .viz-mode-btn.active. */
+/* ===== Quick preset bar (stage chrome) ===== */
 .viz-preset-bar {
   display: flex;
   align-items: center;
@@ -578,8 +612,8 @@
   letter-spacing: 0.03em;
   cursor: pointer;
   transition:
-    background 0.15s,
-    color 0.15s;
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .viz-mode-pill:hover {
@@ -605,17 +639,13 @@
   gap: 2px;
   overflow-x: auto;
   scrollbar-width: none;
-  /* Extra end padding so the last pill never sits flush against the
-     clipped edge; scroll-snap keeps pills aligned while scrolling. */
   padding-block: 2px;
   padding-inline-end: 8px;
   scroll-snap-type: x proximity;
   max-inline-size: 100%;
 }
 
-.viz-preset-pills::-webkit-scrollbar {
-  display: none;
-}
+.viz-preset-pills::-webkit-scrollbar { display: none; }
 
 .viz-preset-pill {
   display: flex;
@@ -632,9 +662,9 @@
   scroll-snap-align: start;
   cursor: pointer;
   transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s;
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .viz-preset-pill:hover {
@@ -649,8 +679,6 @@
   font-weight: 600;
 }
 
-/* Per-preset identifier dot — kept as a data cue (Serato-pad style),
-   small enough not to fight the single-accent chrome. */
 .viz-preset-dot {
   inline-size: 7px;
   block-size: 7px;
@@ -680,11 +708,11 @@
   left: 1rem;
   z-index: 100;
   width: 320px;
-  background: rgba(20, 20, 30, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in oklch, var(--viz-bg-surface-raised) 95%, transparent);
+  border: 1px solid var(--viz-border);
   border-radius: 0.5rem;
   padding: 1rem;
-  color: #e2e8f0;
+  color: var(--viz-text-1);
   font-size: 0.85rem;
   backdrop-filter: blur(8px);
 }
@@ -700,10 +728,10 @@
   flex: 1;
   min-width: 120px;
   padding: 0.375rem 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in oklch, var(--viz-text-1) 8%, transparent);
+  border: 1px solid var(--viz-border);
   border-radius: 0.25rem;
-  color: #e2e8f0;
+  color: var(--viz-text-1);
   font-size: 0.8rem;
 }
 
@@ -712,31 +740,31 @@
   flex-direction: column;
   gap: 0.2rem;
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--viz-text-3);
 }
 
 .viz-test-panel button {
   padding: 0.375rem 0.75rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in oklch, var(--viz-text-1) 8%, transparent);
+  border: 1px solid var(--viz-border);
   border-radius: 0.25rem;
-  color: #e2e8f0;
+  color: var(--viz-text-1);
   font-size: 0.8rem;
   cursor: pointer;
 }
 
 .viz-test-panel button:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in oklch, var(--viz-text-1) 12%, transparent);
 }
 
 .viz-test-state {
   margin-top: 0.75rem;
   padding: 0.5rem;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: color-mix(in oklch, var(--viz-text-1) 8%, transparent);
+  border: 1px solid var(--viz-border);
   border-radius: 0.25rem;
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--viz-text-2);
   overflow: auto;
   max-height: 200px;
 }
@@ -751,20 +779,9 @@
   height: 40px;
 }
 
-/* ===== App-chrome clearance =====
-   .layout-topbar (connection dot + notification bell) is an absolutely-
-   positioned overlay at the viewport's top-right (layout.css, z-20). The
-   visualizer toolbar's rightmost controls occupy the same band, so keep
-   them clear of it - without this the More/shortcuts/snapshot buttons sit
-   under the bell and cannot be clicked. */
-.viz-actions {
-  padding-inline-end: 5.5rem;
-}
-
 /* --- Topbar row ---
-   VizTopbar renders a plain row inside the single .viz-topbar header (the
-   header element cannot legally nest inside another header). This restores
-   the flex layout the nested .viz-topbar rule used to give it. */
+   VizTopbar renders a plain row inside the single .viz-topbar header.
+   This restores the flex layout. */
 .viz-topbar-row {
   display: flex;
   align-items: center;
@@ -774,10 +791,7 @@
   min-inline-size: 0;
 }
 
-/* --- Renderer stats stack (3D) ---
-   Lives inside .viz-latency-panel under the latency card: the backend
-   label and live RenderStatsBadge flow vertically there, so the badges'
-   own absolute positioning is neutralized. */
+/* --- Renderer stats stack (3D) --- */
 .viz-latency-panel .viz-stats-stack {
   display: flex;
   flex-direction: column;
@@ -788,31 +802,19 @@
 
 .viz-latency-panel .viz-backend-badge {
   position: static;
-  /* The panel is shrink-to-fit; without nowrap the stats badge wraps its
-     "FPS / calls / tris" text into a tall narrow column (T-VIZ-47). */
   white-space: nowrap;
 }
 
-/* Narrow stages: the centered preset bar's left edge reaches under the
-   telemetry stack once the canvas is ~<1200px — which happens BOTH at
-   small viewports AND at 1600px when the inspector docks (canvas-wrap
-   shrinks ~320px while viewport media queries see nothing). The chip
-   stays; the full latency card lives in the inspector regardless.
-   Container query keys off the real stage width (T-VIZ-49). */
+/* Narrow stages: container query keys off the real stage width. */
 @container (max-width: 1200px) {
-  .viz-latency-panel .viz-stats-stack {
-    display: none;
-  }
+  .viz-latency-panel .viz-stats-stack { display: none; }
 }
-/* Viewport fallback for engines without container-query support. */
 @media (max-width: 1360px) {
-  .viz-latency-panel .viz-stats-stack {
-    display: none;
-  }
+  .viz-latency-panel .viz-stats-stack { display: none; }
 }
 
 /* ===== Stage chrome auto-hide =====
-   While playing (and not pinned), the decorative stage overlays fade out
+   While playing (and not pinned), decorative stage overlays fade out
    so the visuals own the frame. Pointer movement over .viz-canvas-wrap
    reveals them again; the playhead stays — it is the seek surface. */
 .viz-latency-panel,
@@ -821,11 +823,7 @@
   transition: opacity 0.3s ease;
 }
 
-/* The preset bar's positioned wrapper keeps pointer-events:auto, so an
-   opacity-0 bar would still swallow canvas clicks — remove it outright. */
-.viz-chrome-hidden .viz-quick-preset-bar {
-  display: none;
-}
+.viz-chrome-hidden .viz-quick-preset-bar { display: none; }
 
 .viz-chrome-hidden .viz-latency-panel,
 .viz-chrome-hidden .viz-ai-preset-row,
@@ -843,13 +841,11 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--viz-surface-raised);
+  background: var(--viz-bg-surface-raised);
   border-left: 1px solid var(--viz-border-subtle);
   backdrop-filter: blur(10px);
 }
 
-/* StylePicker lives in the inspector Scene tab now — its stage rules
-   (absolute top-right column) are neutralized there. */
 .viz-inspector .viz-style-picker {
   position: static;
   max-height: none;
@@ -866,9 +862,7 @@
   scrollbar-width: none;
 }
 
-.viz-inspector-tabs::-webkit-scrollbar {
-  display: none;
-}
+.viz-inspector-tabs::-webkit-scrollbar { display: none; }
 
 .viz-inspector-tab {
   flex: 1 0 auto;
@@ -886,8 +880,8 @@
   letter-spacing: 0.02em;
   cursor: pointer;
   transition:
-    background 0.15s,
-    color 0.15s;
+    background 0.15s ease,
+    color 0.15s ease;
   white-space: nowrap;
 }
 
@@ -918,13 +912,9 @@
   padding: 0.75rem;
 }
 
-.viz-inspector-panel[hidden] {
-  display: none;
-}
+.viz-inspector-panel[hidden] { display: none; }
 
-.viz-inspector-panel > * {
-  min-width: 0;
-}
+.viz-inspector-panel > * { min-width: 0; }
 
 .viz-inspector-empty {
   color: var(--viz-text-3);
@@ -970,8 +960,8 @@
   font-size: 11px;
   cursor: pointer;
   transition:
-    background 0.15s,
-    color 0.15s;
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .viz-inspector-mixer-toggle:hover {
@@ -996,8 +986,7 @@
   gap: 0.75rem;
 }
 
-/* Cross-page handoff card (e.g. Mixer tab → Remix Studio). Reads as a
-   navigational shortcut, not a panel control. */
+/* Cross-page handoff card (e.g. Mixer tab → Remix Studio). */
 .viz-inspector-linkcard {
   display: flex;
   align-items: center;
@@ -1014,12 +1003,12 @@
   text-align: left;
   cursor: pointer;
   transition:
-    background 0.15s,
-    border-color 0.15s;
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .viz-inspector-linkcard:hover {
-  background: color-mix(in oklch, var(--color-primary) 24%, transparent);
+  background: color-mix(in oklch, var(--viz-accent) 24%, transparent);
   border-color: var(--viz-accent);
 }
 
@@ -1042,7 +1031,7 @@
     right: 0;
     bottom: 0;
     z-index: 60;
-    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.5);
+    box-shadow: -12px 0 32px oklch(0% 0 0 / 0.5);
   }
 }
 
@@ -1076,7 +1065,520 @@
 .viz-audio-player {
   margin-top: 0;
   padding: 0.4rem 0.75rem 0.6rem;
-  background: var(--viz-surface-raised);
+  background: var(--viz-bg-surface-raised);
   border-top: 1px solid var(--viz-border-subtle);
   flex-shrink: 0;
+}
+
+.viz-spectrum {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+/* ===== Spectrum meters =====
+   .spec-* classes were only ever styled inside the standalone
+   three-js-studio.html — on the app page the tracks rendered as bare
+   text with zero-height fills (vision audit: "unstyled and appears
+   broken"). Meter spec: recessed track, glowing per-band fill, tabular
+   value readout. The band color arrives as --spec-color so the glow can
+   derive from it. */
+.spec-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-inline-size: 140px;
+  flex: 1;
+  max-inline-size: 220px;
+}
+
+.spec-label {
+  inline-size: 46px;
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--viz-text-3);
+}
+
+.spec-track {
+  flex: 1;
+  block-size: 5px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--viz-text-1) 9%, transparent);
+  overflow: hidden;
+}
+
+.spec-fill {
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--spec-color, var(--viz-accent));
+  box-shadow: 0 0 10px
+    color-mix(in oklch, var(--spec-color, var(--viz-accent)) 55%, transparent);
+  transition: width 90ms linear;
+}
+
+.spec-value {
+  inline-size: 26px;
+  flex-shrink: 0;
+  text-align: end;
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--viz-text-2);
+}
+
+.viz-beat {
+  display: flex;
+  align-items: center;
+}
+
+.viz-beat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--viz-text-3);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--viz-text-1) 12%, transparent);
+  transition:
+    background 0.1s ease,
+    box-shadow 0.1s ease,
+    transform 0.1s ease;
+}
+
+.viz-beat-dot.active {
+  background: var(--viz-accent);
+  box-shadow:
+    0 0 10px var(--viz-accent-glow),
+    inset 0 0 0 1px color-mix(in oklch, #ffffff 25%, transparent);
+  transform: scale(1.15);
+}
+
+.viz-upload {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: color-mix(in oklch, var(--viz-bg-base) 92%, transparent);
+  backdrop-filter: blur(4px);
+  z-index: 30;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.viz-upload:hover {
+  background: color-mix(in oklch, var(--viz-bg-base) 88%, transparent);
+}
+
+.viz-upload:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.viz-upload.drag-over {
+  background: color-mix(in oklch, var(--viz-bg-elevated) 90%, transparent);
+  border: 1px dashed color-mix(in oklch, var(--viz-accent) 60%, transparent);
+}
+
+.viz-upload svg { color: #404040; }
+.viz-upload.drag-over svg { color: var(--viz-accent); }
+.viz-upload span {
+  color: #808080;
+  font-size: 0.9rem;
+}
+.viz-upload-hint {
+  font-size: 0.75rem;
+  color: #555;
+}
+.viz-upload.quiet {
+  background: color-mix(in oklch, var(--viz-bg-base) 58%, transparent);
+}
+.viz-upload.quiet.drag-over {
+  background: color-mix(in oklch, var(--viz-bg-elevated) 78%, transparent);
+}
+
+.viz-focus-mode .viz-bottombar { display: none; }
+
+/* --- StylePicker scrollbar --- */
+.viz-style-picker::-webkit-scrollbar { width: 4px; }
+.viz-style-picker::-webkit-scrollbar-track { background: transparent; }
+.viz-style-picker::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+/* --- Lyrics --- */
+.viz-lyrics-enhanced.section-transition {
+  animation: section-fade-in 0.4s ease-out;
+}
+
+.viz-lyrics-enhanced[data-section="DROP"] .kinetic-active-line,
+.viz-lyrics-enhanced[data-section="FINAL DROP"] .kinetic-active-line {
+  animation: drop-explode 0.5s ease-out;
+}
+
+.viz-lyrics-enhanced[data-section="BUILD-UP"] {
+  animation: build-up-intensity 1.5s ease-in-out infinite;
+}
+
+.viz-lyrics-enhanced[data-section="CHORUS"],
+.viz-lyrics-enhanced[data-section="FINAL CHORUS"] {
+  animation: chorus-glow 2s ease-in-out infinite;
+}
+
+.viz-lyrics-enhanced[data-section="VERSE"] {
+  animation: verse-breathe 4s ease-in-out infinite;
+}
+
+.viz-lyrics-enhanced[data-section="INTRO"],
+.viz-lyrics-enhanced[data-section="OUTRO"] {
+  animation: intro-fade 3s ease-in-out infinite;
+}
+
+.viz-lyrics-enhanced .phrase-pulse {
+  animation: phrase-pulse-anim 0.3s ease-out;
+}
+
+.viz-lyrics-enhanced .kinetic-active-line {
+  position: relative;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.4;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: scale(calc(1 + var(--audio-amplitude, 0) * 0.06));
+  filter: brightness(calc(1 + var(--audio-amplitude, 0) * 0.25));
+}
+
+.viz-lyrics-enhanced .viz-lyrics-section {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
+  opacity: 0.8;
+  transition: all 0.3s ease;
+}
+
+.viz-lyrics-enhanced .viz-lyrics-next {
+  font-size: 0.9rem;
+  font-weight: 400;
+  margin-top: 0.5rem;
+  transition:
+    opacity 0.4s ease,
+    color 0.3s ease;
+}
+
+.viz-lyrics-enhanced .kinetic-active-line.beat-reactive {
+  animation: beat-scale 0.15s ease-out;
+}
+
+.viz-lyric-word {
+  display: inline-block;
+  transition: all 0.3s ease;
+}
+
+@media (max-width: 900px) {
+  .viz-preset-badge { display: none; }
+}
+
+.viz-ai-preset-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.3));
+  border-color: #6366f1;
+  color: #a5b4fc;
+  animation: ai-pulse 2s ease-in-out infinite;
+}
+.viz-ai-preset-btn svg { color: #818cf8; }
+
+/* --- File browser --- */
+.viz-file-browser-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: oklch(0% 0 0 / 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.viz-file-browser {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(560px, 100%);
+  max-block-size: min(70vh, 640px);
+  background: var(--viz-bg-surface-raised);
+  border: 1px solid var(--viz-border);
+  border-radius: 14px;
+  box-shadow: var(--viz-elev-3);
+  overflow: hidden;
+}
+
+.viz-file-browser-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  border-block-end: 1px solid var(--viz-border);
+}
+
+.viz-file-browser-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--viz-text-1);
+}
+.viz-file-browser-title svg { color: var(--viz-accent); }
+
+.viz-file-browser-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 30px;
+  block-size: 30px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--viz-text-2);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.viz-file-browser-close:hover {
+  background: var(--viz-surface-hover);
+  color: var(--viz-text-1);
+}
+
+.viz-file-browser-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1.1rem;
+  border-block-end: 1px solid var(--viz-border);
+}
+
+.viz-file-browser-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-inline-size: 0;
+}
+.viz-file-browser-search > svg {
+  position: absolute;
+  inset-inline-start: 0.6rem;
+  color: var(--viz-text-2);
+  pointer-events: none;
+}
+.viz-file-browser-search input {
+  inline-size: 100%;
+  padding: 0.45rem 0.6rem 0.45rem 2rem;
+  background: color-mix(in oklch, var(--viz-text-1) 8%, transparent);
+  border: 1px solid var(--viz-border);
+  border-radius: 8px;
+  color: var(--viz-text-1);
+  font-size: 0.85rem;
+}
+.viz-file-browser-search input:focus-visible {
+  outline: 2px solid var(--viz-accent);
+  outline-offset: 1px;
+}
+.viz-file-browser-count {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--viz-text-2);
+  white-space: nowrap;
+}
+
+.viz-file-browser-list {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.5rem;
+  list-style: none;
+}
+
+.viz-file-browser-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  inline-size: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--viz-text-1);
+  font-size: 0.85rem;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.viz-file-browser-card:hover,
+.viz-file-browser-card:focus-visible {
+  background: var(--viz-surface-hover);
+  border-color: var(--viz-border);
+}
+
+.viz-file-browser-card-name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.viz-file-browser-card-folder {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--viz-text-2);
+}
+.viz-file-browser-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--viz-text-2);
+}
+
+.viz-file-browser-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  font-size: 0.85rem;
+  color: var(--viz-text-2);
+  text-align: center;
+}
+
+.viz-file-browser-retry {
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--viz-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--viz-accent);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.viz-file-browser-retry:hover {
+  background: var(--viz-surface-hover);
+}
+
+.viz-file-browser-spinner {
+  animation: viz-spin 1s linear infinite;
+}
+
+.viz-file-browser-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1.1rem;
+  border-block-start: 1px solid var(--viz-border);
+  font-size: 0.75rem;
+}
+.viz-file-browser-foot-link {
+  color: var(--viz-accent);
+  text-decoration: none;
+}
+.viz-file-browser-foot-link:hover {
+  text-decoration: underline;
+}
+.viz-file-browser-foot-note {
+  color: var(--viz-text-2);
+}
+
+/* --- keyframes referenced by restored rules --- */
+
+@keyframes viz-act-in {
+  0% { opacity: 0; transform: translateY(10px); }
+  12% { opacity: 1; transform: translateY(0); }
+  78% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+
+@keyframes viz-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes section-fade-in {
+  0% { opacity: 0.5; transform: translateX(-50%) scale(0.95); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+
+@keyframes drop-explode {
+  0% {
+    transform: scale(1.3);
+    filter: brightness(2);
+    text-shadow:
+      0 0 30px var(--section-glow),
+      0 0 60px var(--section-energy),
+      0 0 90px var(--section-glow);
+  }
+  40% {
+    transform: scale(0.95);
+    filter: brightness(1.2);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes build-up-intensity {
+  0% { filter: brightness(0.9); transform: translateX(-50%) scale(0.98); }
+  50% { filter: brightness(1.1); transform: translateX(-50%) scale(1.01); }
+  100% { filter: brightness(0.9); transform: translateX(-50%) scale(0.98); }
+}
+
+@keyframes chorus-glow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.2); }
+}
+
+@keyframes verse-breathe {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 1; }
+}
+
+@keyframes intro-fade {
+  0%, 100% { opacity: 0.7; filter: brightness(0.8); }
+  50% { opacity: 1; filter: brightness(1); }
+}
+
+@keyframes phrase-pulse-anim {
+  0% {
+    transform: scale(1.08);
+    filter: brightness(1.4);
+    text-shadow:
+      0 0 20px var(--section-glow),
+      0 0 40px var(--section-energy),
+      0 0 60px var(--section-glow);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes beat-scale {
+  0% { transform: scale(calc(1 + var(--beat-intensity, 0.5) * 0.08)); }
+  100% { transform: scale(1); }
+}
+
+@keyframes ai-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(99, 102, 241, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(99, 102, 241, 0.6); }
 }

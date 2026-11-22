@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, type CSSProperties } from "react";
 
 export const SpectrumBar = memo(function SpectrumBar({
   label,
@@ -24,7 +24,10 @@ export const SpectrumBar = memo(function SpectrumBar({
         {label}
       </span>
       <div className="spec-track" aria-hidden="true">
-        <div className="spec-fill" style={{ width: `${pct * 100}%`, background: color }} />
+        <div
+          className="spec-fill"
+          style={{ width: `${pct * 100}%`, "--spec-color": color } as CSSProperties}
+        />
       </div>
       <span className="spec-value" aria-hidden="true">
         {now}

@@ -205,21 +205,28 @@
 }
 .viz-analyze-btn {
   block-size: var(--viz-ctl-h, 30px);
-  padding: 0 0.75rem;
+  padding: 0 0.875rem;
   border-radius: var(--viz-radius-ctl, 7px);
-  border: 1px solid var(--viz-accent-border, color-mix(in oklch, var(--color-primary) 30%, transparent));
-  background: var(--viz-accent-soft, color-mix(in oklch, var(--color-primary) 10%, transparent));
-  color: var(--viz-accent, var(--color-primary));
+  border: 1px solid var(--viz-accent-border);
+  background: var(--viz-accent-soft);
+  color: var(--viz-accent);
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   transition:
-    background 0.15s,
-    border-color 0.15s;
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
 
   &:hover:not(:disabled) {
-    background: color-mix(in oklch, var(--color-primary) 24%, transparent);
+    background: color-mix(in oklch, var(--viz-accent) 24%, transparent);
+    box-shadow: 0 0 16px var(--viz-accent-glow);
+    transform: translateY(-1px);
+  }
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
   &:disabled {
     opacity: 0.5;
@@ -231,22 +238,28 @@
    blue, so the two accents never compete (T-VIZ-48). */
 .viz-enhance-btn {
   block-size: var(--viz-ctl-h, 30px);
-  padding: 0 0.75rem;
+  padding: 0 0.875rem;
   border-radius: var(--viz-radius-ctl, 7px);
-  border: 1px solid rgba(168, 85, 247, 0.4);
-  background: rgba(168, 85, 247, 0.14);
-  color: #c084fc;
+  border: 1px solid var(--viz-accent-2-border);
+  background: var(--viz-accent-2-soft);
+  color: var(--viz-accent-2);
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   transition:
-    background 0.15s,
-    border-color 0.15s;
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
 
   &:hover:not(:disabled) {
-    background: rgba(168, 85, 247, 0.24);
-    border-color: rgba(168, 85, 247, 0.6);
+    background: color-mix(in oklch, var(--viz-accent-2) 24%, transparent);
+    box-shadow: 0 0 16px color-mix(in oklch, var(--viz-accent-2) 35%, transparent);
+    transform: translateY(-1px);
+  }
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
   &:disabled {
     opacity: 0.5;
@@ -408,10 +421,11 @@
   color: var(--viz-text-2, var(--text-secondary));
   cursor: pointer;
   transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s,
-    box-shadow 0.15s;
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
 
   &:hover {
     background: var(--viz-surface-hover, oklch(100% 0 0 / 0.06));
@@ -1101,23 +1115,24 @@
   border: 1px solid var(--viz-border, rgba(255, 255, 255, 0.05));
 }
 .viz-settings {
-  width: 260px;
+  width: 320px;
   flex-shrink: 0;
-  background: var(--viz-surface-raised, rgba(18, 18, 18, 0.95));
-  border-left: 1px solid var(--viz-border-subtle, rgba(255, 255, 255, 0.05));
+  background: var(--viz-bg-surface-raised);
+  border-left: 1px solid var(--viz-border-subtle);
   padding: 1rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  box-shadow: var(--viz-elev-1);
 }
 .viz-settings-section h4 {
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--text-tertiary);
+  color: var(--viz-text-3);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.75rem 0;
 }
 .viz-slider-row {
   display: flex;
@@ -1133,11 +1148,27 @@
 }
 .viz-slider-row input[type="range"] {
   flex: 1;
-  accent-color: var(--viz-accent, #6366f1);
+  accent-color: var(--viz-accent);
+  height: 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.viz-slider-row input[type="range"]::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--viz-accent);
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--viz-accent-glow);
+}
+.viz-slider-row input[type="range"]:hover::-webkit-slider-thumb {
+  transform: scale(1.1);
+  box-shadow: 0 0 12px var(--viz-accent-glow);
 }
 .viz-slider-row span {
   font-size: 0.65rem;
-  color: var(--text-tertiary);
+  color: var(--viz-text-3);
   width: 28px;
   text-align: right;
   font-family: monospace;
@@ -1177,25 +1208,27 @@
   width: 100%;
   padding: 0.5rem;
   border-radius: var(--viz-radius-ctl, 6px);
-  border: 1px solid var(--viz-border-subtle, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--viz-border-subtle);
   background: transparent;
-  color: var(--viz-text-3, #a0a0a0);
+  color: var(--viz-text-3);
   font-size: 0.7rem;
   cursor: pointer;
-  transition: all 0.15s;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
   margin-top: 0.5rem;
 }
 .viz-reset:hover {
-  background: var(--viz-surface-hover, rgba(255, 255, 255, 0.04));
-  color: var(--viz-text-1, #e0e0e0);
+  background: var(--viz-surface-hover);
+  color: var(--viz-text-1);
 }
 .viz-bottombar {
   display: flex;
   align-items: center;
   gap: 1rem;
   padding: 0.5rem 1rem;
-  background: var(--viz-surface-raised, rgba(18, 18, 18, 0.95));
-  border-top: 1px solid var(--viz-border-subtle, rgba(255, 255, 255, 0.05));
+  background: var(--viz-bg-surface-raised);
+  border-top: 1px solid var(--viz-border-subtle);
   flex-shrink: 0;
 }
 .viz-spectrum {
@@ -1209,15 +1242,22 @@
   align-items: center;
 }
 .viz-beat-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: var(--border-subtle);
-  transition: all 0.1s;
+  background: var(--viz-text-3);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--viz-text-1) 12%, transparent);
+  transition:
+    background 0.1s ease,
+    box-shadow 0.1s ease,
+    transform 0.1s ease;
 }
 .viz-beat-dot.active {
-  background: var(--color-primary);
-  box-shadow: 0 0 8px var(--color-primary);
+  background: var(--viz-accent);
+  box-shadow:
+    0 0 10px var(--viz-accent-glow),
+    inset 0 0 0 1px color-mix(in oklch, #ffffff 25%, transparent);
+  transform: scale(1.15);
 }
 .viz-upload {
   position: absolute;
@@ -1227,42 +1267,42 @@
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  background: rgba(10, 10, 12, 0.9);
+  background: color-mix(in oklch, var(--viz-bg-base) 92%, transparent);
   backdrop-filter: blur(4px);
   z-index: 30;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s ease;
 }
 .viz-upload:hover {
-  background: rgba(10, 10, 12, 0.8);
+  background: color-mix(in oklch, var(--viz-bg-base) 88%, transparent);
 }
 .viz-upload:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .viz-upload.drag-over {
-  background: rgba(20, 20, 32, 0.88);
-  border: 1px dashed color-mix(in oklch, var(--color-primary) 60%, transparent);
+  background: color-mix(in oklch, var(--viz-bg-elevated) 90%, transparent);
+  border: 1px dashed color-mix(in oklch, var(--viz-accent) 60%, transparent);
 }
 .viz-upload svg {
-  color: #404040;
+  color: var(--viz-text-3);
 }
 .viz-upload.drag-over svg {
-  color: var(--color-primary);
+  color: var(--viz-accent);
 }
 .viz-upload span {
-  color: #808080;
+  color: var(--viz-text-2);
   font-size: 0.9rem;
 }
 .viz-upload-hint {
   font-size: 0.75rem;
-  color: #555;
+  color: var(--viz-text-3);
 }
 .viz-upload.quiet {
-  background: rgba(10, 10, 12, 0.55);
+  background: color-mix(in oklch, var(--viz-bg-base) 58%, transparent);
 }
 .viz-upload.quiet.drag-over {
-  background: rgba(20, 20, 32, 0.75);
+  background: color-mix(in oklch, var(--viz-bg-elevated) 78%, transparent);
 }
 .viz-focus-mode .viz-bottombar {
   display: none;
@@ -1337,20 +1377,20 @@
   width: 100%;
   padding: 6px 8px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-  color: #a1a1aa;
+  border: 1px solid var(--viz-border);
+  background: color-mix(in oklch, var(--viz-text-1) 8%, transparent);
+  color: var(--viz-text-2);
   font-size: 0.7rem;
   margin-bottom: 0.5rem;
   outline: none;
   box-sizing: border-box;
 }
 .viz-preset-search:focus {
-  border-color: rgba(99, 102, 241, 0.4);
-  color: #e0e0e0;
+  border-color: var(--viz-accent);
+  color: var(--viz-text-1);
 }
 .viz-preset-search::placeholder {
-  color: #52525b;
+  color: var(--viz-text-3);
 }
 .viz-lyric-word {
   display: inline-block;
@@ -1367,13 +1407,13 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.3));
-  border-color: #6366f1;
-  color: #a5b4fc;
+  background: color-mix(in oklch, var(--viz-accent-2) 15%, transparent);
+  border: 1px solid var(--viz-accent-2-border);
+  color: var(--viz-accent-2);
   animation: ai-pulse 2s ease-in-out infinite;
 }
 .viz-ai-preset-btn svg {
-  color: #818cf8;
+  color: var(--viz-accent-2);
 }
 .viz-file-browser-backdrop {
   position: fixed;
@@ -1708,3 +1748,7 @@
     box-shadow: 0 0 16px rgba(99, 102, 241, 0.6);
   }
 }
+
+
+
+

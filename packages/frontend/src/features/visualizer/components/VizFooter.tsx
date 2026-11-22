@@ -16,9 +16,9 @@ export function VizFooter({ audioData }: VizFooterProps) {
   return (
     <footer className="viz-bottombar">
       <div className="viz-spectrum">
-        <SpectrumBar label="Bass" value={audioData.bass} color="#6366f1" />
-        <SpectrumBar label="Mid" value={audioData.mid} color="#a855f7" />
-        <SpectrumBar label="Treble" value={audioData.treble} color="#ec4899" />
+        <SpectrumBar label="Bass" value={audioData.bass} color="oklch(74% 0.14 215)" />
+        <SpectrumBar label="Mid" value={audioData.mid} color="var(--viz-accent)" />
+        <SpectrumBar label="Treble" value={audioData.treble} color="var(--viz-accent-2)" />
       </div>
       <div className="viz-beat">
         <div className={`viz-beat-dot ${audioData.beat ? "active" : ""}`} aria-hidden="true" />

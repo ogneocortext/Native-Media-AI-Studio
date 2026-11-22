@@ -177,6 +177,110 @@ def parse_model_table(text: str) -> tuple[list[str], list[str]]:
     return names, dupes
 
 
+# Interpreter -> (path to probe, label). Missing paths are skipped, not failed.
+# (probe path, label, distinguishing fragment to locate the claim)
+# The fragment matters: both paths end in "python.exe", so locating the claim by
+# file name alone makes every probe match the first python.exe in the document.
+_PROBES = {
+    "python3.14": (r"C:\Python314\python.exe", "Python 3.14", "Python314"),
+    "nma-studio-cuda": (r"D:\conda-envs\nma-studio-cuda\Scripts\python.exe",
+                        "Python 3.11 (nma-studio-cuda)", "nma-studio-cuda"),
+}
+
+
+def _probe_pwsh() -> str | None:
+    """Return the PowerShell 7 version, or None when pwsh is unavailable."""
+    import shutil
+    exe = shutil.which("pwsh") or shutil.which("pwsh.exe")
+    if not exe:
+        candidate = Path(r"C:\kilo\pwsh7\pwsh.exe")
+        if candidate.is_file():
+            exe = str(candidate)
+    if not exe:
+        return None
+    try:
+        proc = subprocess.run(
+            [exe, "-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=25,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return proc.stdout.strip() or None if proc.returncode == 0 else None
+
+
+def _check_pwsh(text: str, *, verbose: bool) -> list[str]:
+    """Compare the pwsh version stated in AGENTS.md against the installed one."""
+    actual = _probe_pwsh()
+    if not actual:
+        return []
+    out: list[str] = []
+    # AGENTS.md states it as "pwsh **7.6.6**" or "pwsh 7.6.6+"
+    m = re.search(r"pwsh(?:\s*\*\*)?\s*(\d+\.\d+\.\d+)", text)
+    if not m:
+        m = re.search(r"PowerShell\s*\*\*?\s*(\d+\.\d+\.\d+)", text)
+    if not m:
+        return []
+    claimed = m.group(1)
+    if claimed != actual:
+        out.append(
+            f"tool version: AGENTS.md says PowerShell is {claimed} "
+            f"but pwsh reports {actual}"
+        )
+    elif verbose:
+        print(f"OK   tool version: PowerShell {claimed} matches")
+    return out
+
+
+def _probe_version(path: Path) -> str | None:
+    """Return the version string a Python interpreter reports, or None."""
+    if not path.is_file():
+        return None
+    try:
+        proc = subprocess.run(
+            [str(path), "-c", "import sys; print(sys.version.split()[0])"],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=20,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.strip() or None
+
+
+def _check_tool_versions(text: str, *, verbose: bool) -> list[str]:
+    """Compare version numbers stated in AGENTS.md against the local reality.
+
+    Matches a path and a version in the same table row or sentence, e.g.
+    "`C:\\Python314\\python.exe` (3.14.7)". A claim with no version beside a
+    probeable path is ignored, and an unprobeable path is skipped, so the check
+    cannot invent a failure.
+    """
+    out: list[str] = []
+    for raw, label, fragment in _PROBES.values():
+        path = Path(raw)
+        actual = _probe_version(path)
+        if actual is None:
+            continue
+        # Find "<fragment>" ... "<version>" within a short window.
+        for m in re.finditer(re.escape(fragment), text):
+            window = text[m.start(): m.start() + 160]
+            vm = re.search(r"(\d+)\.(\d+)\.(\d+)", window)
+            if not vm:
+                continue
+            claimed = vm.group(0)
+            if claimed != actual:
+                out.append(
+                    f"tool version: AGENTS.md says {label} is {claimed} "
+                    f"but {path.name} reports {actual}"
+                )
+            elif verbose:
+                print(f"OK   tool version: {label} {claimed} matches")
+            break
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--verbose", action="store_true", help="show every verified fact")
@@ -246,6 +350,13 @@ def main() -> int:
                 )
         if args.verbose:
             print(f"OK   model table: {len(names)} documented, {len(installed)} installed checked")
+
+    # --- 3. tool version claims ------------------------------------------
+    # AGENTS.md states interpreter versions as fact; a stale one sends an agent
+    # down the wrong path when diagnosing a version-sensitive failure. Only
+    # versions that can be probed locally are checked, so this never cries wolf.
+    problems.extend(_check_tool_versions(text, verbose=args.verbose))
+    problems.extend(_check_pwsh(text, verbose=args.verbose))
 
     if problems:
         print(f"FAIL: {len(problems)} stale fact(s) in AGENTS.md")
