@@ -45,6 +45,19 @@ interface Props {
 const BONE_NAMES = ["Hips", "Spine", "Head", "ArmL", "ArmR", "ForeArmR"] as const;
 type BoneName = (typeof BONE_NAMES)[number];
 
+/** Shared 4-step toon ramp — one texture for every toon material. */
+let toonGradient: THREE.DataTexture | null = null;
+function getToonGradient(): THREE.DataTexture {
+  if (!toonGradient) {
+    toonGradient = new THREE.DataTexture(new Uint8Array([80, 140, 205, 255]), 4, 1, THREE.RedFormat);
+    toonGradient.minFilter = THREE.NearestFilter;
+    toonGradient.magFilter = THREE.NearestFilter;
+    toonGradient.generateMipmaps = false;
+    toonGradient.needsUpdate = true;
+  }
+  return toonGradient;
+}
+
 export function VisualizerCharacter({
   audioData,
   visible,
@@ -61,6 +74,7 @@ export function VisualizerCharacter({
   const groupRef = useRef<THREE.Group>(null);
   const bonesRef = useRef<Partial<Record<BoneName, THREE.Object3D>>>({});
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const toonMatsRef = useRef<THREE.MeshToonMaterial[]>([]);
   const calmRef = useRef(prefersReducedMotion);
   calmRef.current = prefersReducedMotion;
 
@@ -82,6 +96,31 @@ export function VisualizerCharacter({
     const box2 = new THREE.Box3().setFromObject(clone);
     const c = box2.getCenter(new THREE.Vector3());
     clone.position.set(-c.x, -box2.min.y, -c.z);
+
+    // Flat PBR materials read as unfinished against the viz scene — swap to
+    // toon-shaded equivalents keyed by base color so the stylized low-poly
+    // look is deliberate rather than placeholder. Created materials are
+    // tracked in toonMatsRef for disposal on unmount/remount.
+    const gradient = getToonGradient();
+    const toonByColor = new Map<number, THREE.MeshToonMaterial>();
+    const created: THREE.MeshToonMaterial[] = [];
+    clone.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      const src = o.material as THREE.Material | THREE.Material[];
+      const list = Array.isArray(src) ? src : [src];
+      const next = list.map((m) => {
+        const hex = (m as THREE.MeshStandardMaterial).color.getHex();
+        let toon = toonByColor.get(hex);
+        if (!toon) {
+          toon = new THREE.MeshToonMaterial({ color: hex, gradientMap: gradient });
+          toonByColor.set(hex, toon);
+          created.push(toon);
+        }
+        return toon;
+      });
+      o.material = Array.isArray(src) ? next : next[0];
+    });
+    toonMatsRef.current = created;
 
     const bones: Partial<Record<BoneName, THREE.Object3D>> = {};
     clone.traverse((o) => {
@@ -114,6 +153,8 @@ export function VisualizerCharacter({
       mixer.stopAllAction();
       mixer.uncacheRoot(model);
       mixerRef.current = null;
+      for (const m of toonMatsRef.current) m.dispose();
+      toonMatsRef.current = [];
     };
   }, [model, gltf]);
 
@@ -193,6 +234,15 @@ export function VisualizerCharacter({
       visible={visible}
     >
       <primitive object={model} />
+      {/* Rim light from behind-top — toon shading has no specular, so this
+          is what separates the silhouette from the dark viz background. */}
+      <pointLight
+        position={[0.4, 2.1, -1.3]}
+        intensity={9}
+        distance={7}
+        decay={2}
+        color="#86b8ff"
+      />
     </group>
   );
 }
