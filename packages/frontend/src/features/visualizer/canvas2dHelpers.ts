@@ -131,6 +131,21 @@ export function dampLambda(k: number): number {
   return -60 * Math.log(1 - k);
 }
 
+/**
+ * Damped display-height step shared by the bar-style modes (T-VIZ-53).
+ *
+ * `prev < 0` is the "uninitialized" sentinel — display arrays are filled
+ * with -1 on allocation, so the first frame snaps straight to `target`
+ * instead of easing up from 0. `dt <= 0` also snaps: a frozen clock (unit
+ * tests, a same-millisecond double render) would otherwise pin the value
+ * forever, since `damp` with dt=0 returns `current` unchanged. Real rAF
+ * frames always carry dt > 0, so the smooth path is unaffected.
+ */
+export function dampDisplay(prev: number, target: number, lambda: number, dt: number): number {
+  if (prev < 0 || dt <= 0) return target;
+  return damp(prev, target, lambda, dt);
+}
+
 // ============================================================================
 // 2026 visualization research additions
 // ============================================================================

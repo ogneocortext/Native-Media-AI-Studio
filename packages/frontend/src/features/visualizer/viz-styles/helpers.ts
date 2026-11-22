@@ -90,8 +90,19 @@ export function getSectionIntensity(section: string): number {
 export function getStemEnergy(
   stems: StemAnalysisData | undefined,
   elapsed: number,
+  out?: { vocals: number; drums: number; bass: number; other: number },
 ): { vocals: number; drums: number; bass: number; other: number } {
-  if (!stems) return { vocals: 0, drums: 0, bass: 0, other: 0 };
+  // `out` lets the per-frame callers reuse one object instead of allocating a
+  // fresh result every frame — this ran at 60 fps in every style that has
+  // stems wired up, pure GC churn for a 4-field record.
+  const target = out ?? { vocals: 0, drums: 0, bass: 0, other: 0 };
+  if (!stems) {
+    target.vocals = 0;
+    target.drums = 0;
+    target.bass = 0;
+    target.other = 0;
+    return target;
+  }
 
   function sampleOne(curve: number[] | undefined, duration: number | undefined): number {
     if (!curve || curve.length === 0 || !Number.isFinite(elapsed) || !duration || duration <= 0)
@@ -103,10 +114,9 @@ export function getStemEnergy(
     return Math.min(1, Math.max(0, curve[idx] ?? 0));
   }
 
-  return {
-    vocals: sampleOne(stems.vocals?.energy_curve, stems.vocals?.duration),
-    drums: sampleOne(stems.drums?.energy_curve, stems.drums?.duration),
-    bass: sampleOne(stems.bass?.energy_curve, stems.bass?.duration),
-    other: sampleOne(stems.other?.energy_curve, stems.other?.duration),
-  };
+  target.vocals = sampleOne(stems.vocals?.energy_curve, stems.vocals?.duration);
+  target.drums = sampleOne(stems.drums?.energy_curve, stems.drums?.duration);
+  target.bass = sampleOne(stems.bass?.energy_curve, stems.bass?.duration);
+  target.other = sampleOne(stems.other?.energy_curve, stems.other?.duration);
+  return target;
 }

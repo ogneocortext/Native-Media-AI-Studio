@@ -36,12 +36,14 @@ export function PpanikBlobField({ stems, audioElapsedRef, audioData }: VizProps)
     beat: false,
     beatPhase: 0,
   });
+  // Reused per-frame so getStemEnergy doesn't allocate a fresh record at 60 fps.
+  const stemScratch = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   useFrame(() => {
     if (!groupRef.current) return;
     const elapsed = audioElapsedRef?.current ?? 0;
     const live = audioData.current;
-    const stemEnergy = getStemEnergy(stems, elapsed);
+    const stemEnergy = getStemEnergy(stems, elapsed, stemScratch.current);
 
     // Prefer the real spectral bands; fall back to analysed stem curves when
     // stems haven't been separated yet. Both are real audio — never a clock.

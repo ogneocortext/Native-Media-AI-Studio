@@ -1429,3 +1429,68 @@ evidence above.
   `public/models/blends/hero_dj.blend`. Blender MCP confirmed live
   (upstream stack, protocol 15 addon v1.8, telemetry off).
 - **Prior session:** Devin, 2026-11-08 — HouseRig_v1 armature builder landed and smoke-tested headless (blender -b): base=49 bones, hero=61, GLB skin verified. Blender headless-vs-MCP research completed -> knowledge-library doc (capability matrix, Blender 5.x pitfalls incl. slotted Actions, three-phase hybrid workflow, tooling gaps list).
+
+### T-VIZ-56 — Wave-2 mode redesign: weakest-tier fixes across all three lanes
+
+- **Status:** done
+- **Goal:** Second full mode-by-mode pass (user: "do the bigger pass") —
+  re-baseline all 23 modes, fix the weakest tier with shared primitives,
+  re-score against baseline. Run as a 3-scout + 3-worker sub-agent
+  orchestration on disjoint path sets (canvas2d / fx-shaders / viz-styles).
+- **Baseline (capture `viz-capture-2026-11-22T05-52-22-299Z`, track
+  "SunoV6Mini-Stay-on-the-Line-V1.4.m4a", audioVerified:true, gemma4
+  scorer):** mean 3.64. Worst: kinetic-type 2.5, neonRain/fireCrown/
+  segmented-led/dot-peak 3.0, bars 3.3, abstractWaves/aurora 3.5.
+- **After (capture `viz-capture-2026-11-22T06-21-29-567Z`, same track +
+  settings):** mean 3.64, but the bottom tier lifted — fireCrown 3.0→4.5,
+  neonRain 3.0→4.0, dot-peak-matrix 3.0→4.0, kinetic-type 2.5→3.5,
+  spectrogram 3.7→4.0, lissajous 4.0→4.3, neonGrid 3.8→4.0. VLM noise is
+  ±0.5-0.7 (verified by `--only` rescoring + pixel-luminance diffs);
+  stereo-split-bars' -1.4 was noise (frames ~pixel-identical),
+  westCoastSunset's grade softened 1.2→0.9 and re-verified 3.8.
+- **Canvas2D (canvas2dModes.ts, canvas2dHelpers.ts, particles.ts,
+  Canvas2DVisualizer.tsx):** waveform half-wave rectification removed
+  (signed damp — trace was lower-half only); radial/constellation/
+  kinetic-type/lissajous moved to perceptual freq mapping (radial had
+  discarded the top 40% of spectrum); aurora gained real spectral
+  reactivity (was the only mode never reading freq); segmented-led +
+  dot-peak got displayBars damp + gradation + beat emphasis; particles
+  life/physics dt-scaled (was framerate-dependent) + palette-tinted
+  spawns; spectrogram Nyquist fixed (was 2x off); mirrored-bars shares
+  drawBarBody + damp; kinetic-type idle-motion floor for instrumental
+  sections + per-line text-layout cache.
+- **FX shaders (shaders.ts, ShaderCanvas.tsx, ShaderVisualizer.tsx,
+  audioReactivityProcessor.ts):** neonRain zero-beat-response fixed
+  (rain surge + sign flicker + wired dead u_peak); u_beat is now a real
+  decaying impulse (was a beatPhase ramp) with beatPhase preserved as
+  u_beat_phase for tempo-locked presets; foggyNoir/fireCrown dead
+  uniforms wired (energy/peak/mid/treble); shared outputGrade() —
+  highlight rolloff + dither — applied to all 8 presets (was 3);
+  sub/high/transient/centroid uniforms now smoothed like bass/mid/
+  treble; dead u_camera_offset upload + skyGrad removed.
+- **3D (viz-styles/*, VisualizationFX.tsx):** aurora/ocean
+  ShaderMaterial.color crash fixed via new uTint/uTintMix terrain
+  uniform (WebGL+TSL) — energy-driven palette now actually renders;
+  InstancedParticles gained uBeat channel (geometric/cosmic/inferno)
+  + seeded RNG (was Math.random per-frame); GeometricViz consumes
+  useLrcViz section colors (verse→chorus now recolors, was scale-only);
+  stageEnvironment crowdTex disposed; redundant per-mesh TSL updates
+  hoisted with real energy (was hardcoded 0.5); getStemEnergy out-param
+  kills per-frame alloc.
+- **Verified:** `tsc -b` clean, eslint clean on visualizer dir, vitest
+  canvas2dModes 3/3, console sweep across 20 mode switches = 0 new
+  errors (405s are pre-existing API noise).
+- **Known remaining:** VLM "static BuilderFigure" finding persists
+  cross-mode (T-VIZ-52/53 backlog item); warpPresets palette/
+  drawElements fields are dead data; dead makeTerrainMaterialWebGPU
+  pair; barVelocities plumbing now unused (test-file cleanup).
+- **Files:** packages/frontend/src/features/visualizer/{canvas2dModes,
+  canvas2dHelpers,particles,Canvas2DVisualizer,shaders,ShaderVisualizer,
+  audioReactivityProcessor,shaderPresets,warpPresets,VisualizationFX}.ts(x),
+  components/ShaderCanvas.tsx, viz-styles/*.tsx|ts
+- **Acceptance:** met — bottom-tier modes re-scored up on verified audio;
+  no confirmed regressions after --only rescore + pixel-diff checks.
+- **Last session:** Devin (SWE-2), 2026-11-22 — 3 scout audits + 3 worker
+  implementations + orchestrated re-score; evidence in
+  viz-capture-2026-11-22T05-52-22-299Z (baseline) and
+  viz-capture-2026-11-22T06-21-29-567Z (after).

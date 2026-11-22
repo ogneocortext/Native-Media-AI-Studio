@@ -102,7 +102,7 @@ export function FrequencyRings({
 
     // Map stems to visual channels: bass → camera shake/rotation, drums → pulse,
     // vocals → color shift, other → palette modulation.
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     // Get track features (computed once per frame, shared across all visualizations)
     const features = getTrackFeatures();
@@ -118,6 +118,19 @@ export function FrequencyRings({
         : beatPulse.current;
     // Energy-driven hue: cool at rest → warm when loud
     const eHue = energyHue(features.energy);
+
+    // Shared node material — update once per frame, not once per node.
+    // (The old code wrote the same uniforms 36×/frame inside the loop; the
+    // last write won, so hoisting is behavior-identical.) nodeMat is only
+    // non-null on WebGPU.
+    if (nodeMat) {
+      updateAudioReactiveMaterialTSL(
+        nodeMat,
+        { bass, mid, treble, energy: features.energy },
+        vizParams.glowIntensity,
+      );
+    }
+
     if (!sceneFrozen)
       rotRef.current +=
         0.004 *
@@ -147,13 +160,7 @@ export function FrequencyRings({
         stemEnergyRef.current.drums * 0.2 +
         snap * 0.25;
       node.scale.setScalar(baseScale + beatScale);
-      if (isWebGPU && nodeMat) {
-        updateAudioReactiveMaterialTSL(
-          nodeMat,
-          { bass, mid, treble, energy: 0.5 },
-          vizParams.glowIntensity,
-        );
-      } else {
+      if (!nodeMat) {
         const m = node.material as THREE.MeshStandardMaterial;
         // Rolloff-capped emissive so loud frames keep node detail
         m.emissiveIntensity =
@@ -233,7 +240,7 @@ export function FrequencyRings({
       if (isWebGPU && shockMat) {
         updateAudioReactiveMaterialTSL(
           shockMat,
-          { bass, mid, treble, energy: 0.5 },
+          { bass, mid, treble, energy: features.energy },
           vizParams.glowIntensity,
         );
       } else {

@@ -85,11 +85,11 @@ export function VinylDisc({
 
   useFrame((_s, delta) => {
     const t = _s.clock.elapsedTime;
-    const { bass, treble, peak, beat } = audioData.current;
+    const { bass, treble, peak, beat, energy } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
     const dt60 = Math.min(delta, 0.1) * 60;
 
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     // Beat-synced rotation kick (2026): the disc's spin
     // accelerates on the beat, then releases — a record
@@ -111,7 +111,11 @@ export function VinylDisc({
           t * 0.5 * vizParams.rotationSpeed * speedMul * (1 + bass + snap * 0.8);
       discRef.current.scale.setScalar(vizParams.scale * stemScale * (1 + snap * 0.05));
       if (isWebGPU && discMat) {
-        updateAudioReactiveMaterialTSL(discMat, { bass, mid: 0, treble }, vizParams.glowIntensity);
+        updateAudioReactiveMaterialTSL(
+          discMat,
+          { bass, mid: 0, treble, energy },
+          vizParams.glowIntensity,
+        );
       } else {
         const m = discRef.current.material as THREE.MeshStandardMaterial;
         m.emissiveIntensity =

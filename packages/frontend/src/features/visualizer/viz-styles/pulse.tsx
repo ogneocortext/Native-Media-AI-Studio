@@ -49,7 +49,7 @@ export function PulseRings({
     const dt60 = Math.min(delta, 0.1) * 60;
 
     // Map stems to visual channels: drums → scale/pulse, other → palette shift
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     // Beat-quantized emission (2026): rings are born on the beat,
     // not continuously. The snap spikes the innermost ring on the
@@ -60,6 +60,20 @@ export function PulseRings({
     const snap =
       audioData.current.beatPhase != null ? beatSnap(audioData.current.beatPhase) : beatPulse;
 
+    // Shared ring material — update once per frame, not once per ring.
+    // (Was 12×/frame inside the loop; the per-ring `glow` differed but the
+    // shared material kept only the last write anyway, so driving it from
+    // the innermost ring's phase is equivalent.) ringMat is WebGPU-only.
+    if (ringMat) {
+      const ring0Phase = (t * 0.3 * speedMul) % 1;
+      const glow = (1 - ring0Phase) * vizParams.glowIntensity * 2 * (1 + snap * 0.5);
+      updateAudioReactiveMaterialTSL(
+        ringMat,
+        { bass, mid: 0, treble: 0, energy: audioData.current.energy },
+        glow,
+      );
+    }
+
     ringRefs.current.forEach((ring, i) => {
       if (!ring) return;
       const speed = 0.3 + i * 0.05;
@@ -69,10 +83,7 @@ export function PulseRings({
       // Rings emit sharply on the beat, then drift out
       const emit = Math.max(0.1, phase * 8 * stemScale * (1 + snap * 0.6));
       ring.scale.setScalar(emit);
-      if (isWebGPU && ringMat) {
-        const glow = (1 - phase) * vizParams.glowIntensity * 2 * (1 + snap * 0.5);
-        updateAudioReactiveMaterialTSL(ringMat, { bass, mid: 0, treble: 0, energy: 0.5 }, glow);
-      } else {
+      if (!ringMat) {
         const m = ring.material as THREE.MeshStandardMaterial;
         m.opacity = (1 - phase) * (0.5 + bass * 0.4 + stemEnergyRef.current.drums * 0.3);
         m.emissiveIntensity = rolloff(
@@ -164,13 +175,23 @@ export function SpectrumBars({
 
   useFrame((_s, delta) => {
     if (!groupRef.current) return;
-    const { bass, mid, treble, peak, beatPhase } = audioData.current;
+    const { bass, mid, treble, peak, beatPhase, energy } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
     const dt60 = Math.min(delta, 0.1) * 60;
     // Beat-quantized height kick (2026): bars jump on the grid
     const snap = beatPhase != null ? beatSnap(beatPhase) : 0;
     if (!sceneFrozen)
       rotRef.current += 0.004 * vizParams.rotationSpeed * speedMul * (1 + peak + snap * 0.5);
+
+    // Shared bar material — update once per frame, not once per bar
+    // (was 48×/frame inside the loop; barMat is WebGPU-only).
+    if (barMat) {
+      updateAudioReactiveMaterialTSL(
+        barMat,
+        { bass, mid, treble, energy },
+        vizParams.glowIntensity,
+      );
+    }
 
     barRefs.current.forEach((bar, i) => {
       if (!bar) return;
@@ -182,13 +203,7 @@ export function SpectrumBars({
       const h = Math.max(0.01, smoothH.current[i]);
       bar.scale.set(1, h, 1);
       bar.position.y = h / 2 - 1.5;
-      if (isWebGPU && barMat) {
-        updateAudioReactiveMaterialTSL(
-          barMat,
-          { bass, mid, treble, energy: 0.5 },
-          vizParams.glowIntensity,
-        );
-      } else {
+      if (!barMat) {
         const m = bar.material as THREE.MeshPhysicalMaterial;
         // Frequency-range color mapping (2026): bass → warm red,
         // mid → green, treble → blue. Reads the spectrum at a

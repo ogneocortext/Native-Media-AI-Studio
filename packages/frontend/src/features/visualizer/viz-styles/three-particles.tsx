@@ -80,7 +80,7 @@ export function ThreeParticlesDemo({ audioData, sceneFrozen, stems, audioElapsed
     const d = audioData.current;
     const dt60 = Math.min(delta, 0.1) * 60;
 
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     // Beat-reactive emission burst (2026): the emitter
     // rate spikes on the beat, so particles are born in

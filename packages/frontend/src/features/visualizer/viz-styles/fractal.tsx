@@ -51,7 +51,7 @@ export function FractalViz({
     const speedMul = prefersReducedMotion ? 0.35 : 1;
     const dt60 = Math.min(delta, 0.1) * 60;
 
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     const beatTarget =
       beat || features.onset > 0.5 || stemEnergyRef.current.drums > 0.5 ? 1.0 : 0.0;
@@ -69,6 +69,16 @@ export function FractalViz({
         vizParams.rotationSpeed *
         speedMul *
         (1 + bass * 2 + stemEnergyRef.current.bass * 0.4 + stemEnergyRef.current.vocals * 0.2);
+
+    // Shared ring material — update once per frame, not once per ring
+    // (was 7×/frame inside the loop; ringMat is WebGPU-only).
+    if (ringMat) {
+      updateAudioReactiveMaterialTSL(
+        ringMat,
+        { bass, mid, treble, energy: features.energy },
+        vizParams.glowIntensity + stemEnergyRef.current.other * 0.5,
+      );
+    }
 
     ringRefs.current.forEach((ring, i) => {
       if (!ring) return;
@@ -91,13 +101,7 @@ export function FractalViz({
         stemEnergyRef.current.vocals * 0.08;
       ring.rotation.z =
         Math.sin(t * 0.5 * speedMul + i * 0.5) * treble * 0.8 + stemEnergyRef.current.drums * 0.12;
-      if (isWebGPU && ringMat) {
-        updateAudioReactiveMaterialTSL(
-          ringMat,
-          { bass, mid, treble, energy: 0.5 },
-          vizParams.glowIntensity + stemEnergyRef.current.other * 0.5,
-        );
-      } else {
+      if (!ringMat) {
         const m = ring.material as THREE.MeshStandardMaterial;
         m.emissiveIntensity =
           0.3 +

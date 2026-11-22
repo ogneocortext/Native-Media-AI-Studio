@@ -1,6 +1,6 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
-import type * as THREE from "three";
+import * as THREE from "three";
 import type { VizProps } from "./types";
 import {
   makeTerrainMaterial,
@@ -11,6 +11,17 @@ import {
 } from "../VisualizationFX";
 import { useDisposeOnUnmount, getStemEnergy, isWebGPURendererInstance } from "./helpers";
 import { beatSnap, energyHue } from "./vizMotion";
+
+// Scratch tint colors — written per frame, passed to the terrain uniforms.
+// Two of them: the main and secondary curtains tint to different hues, and a
+// shared scratch would alias (the second setHSL would rewrite the first).
+// (The old code called material.color.setHSL on a ShaderMaterial, which has
+// no .color: TypeError every frame on WebGL, silent no-op on WebGPU.)
+const tintScratchA = new THREE.Color();
+const tintScratchB = new THREE.Color();
+// Stable wrapper objects — the update helpers only read .color/.mix.
+const tintMain = { color: tintScratchA, mix: 0.3 };
+const tint2 = { color: tintScratchB, mix: 0.45 };
 
 // =============================================================================
 // AURORA — Flowing ribbon/curtain (dreamy)
@@ -96,14 +107,19 @@ export function AuroraRibbon({
     const { bass, mid, treble, energy, beatPhase } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
 
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     // Beat-quantized displacement (2026): the curtain
     // ripples on the grid, not as a smooth tide.
     const snap = beatPhase != null ? beatSnap(beatPhase) : 0;
     // Energy-driven palette: the curtain warms with the
-    // track instead of staying a fixed green.
+    // track instead of staying a fixed green. Delivered through
+    // the terrain material's uTint uniform — the material is a
+    // ShaderMaterial (WebGL) / node material (WebGPU) with no
+    // .color to setHSL on.
     const eHue = energyHue(energy);
+    tintScratchA.setHSL(eHue, 0.6, 0.5);
+    tintScratchB.setHSL(eHue + 0.2, 0.7, 0.5);
 
     if (isWebGPU) {
       updateTerrainMaterialTSL(
@@ -111,6 +127,7 @@ export function AuroraRibbon({
         t,
         { bass, mid, treble, energy },
         vizParams.glowIntensity * 0.8 * (1 + snap * 0.4),
+        tintMain,
       );
     } else {
       updateTerrainMaterial(
@@ -118,6 +135,7 @@ export function AuroraRibbon({
         t,
         { bass, mid, treble, energy },
         vizParams.glowIntensity * 0.8 * (1 + snap * 0.4),
+        tintMain,
       );
     }
     meshRef.current.rotation.x = -Math.PI / 3 + stemEnergyRef.current.drums * 0.05 + snap * 0.03;
@@ -133,6 +151,7 @@ export function AuroraRibbon({
           t * 0.7,
           { bass, mid, treble, energy },
           vizParams.glowIntensity * 0.5 * (1 + snap * 0.3),
+          tint2,
         );
       } else {
         updateTerrainMaterial(
@@ -140,15 +159,13 @@ export function AuroraRibbon({
           t * 0.7,
           { bass, mid, treble, energy },
           vizParams.glowIntensity * 0.5 * (1 + snap * 0.3),
+          tint2,
         );
       }
       ribbon2Ref.current.rotation.x = -Math.PI / 2.6 + stemEnergyRef.current.drums * 0.03;
       ribbon2Ref.current.rotation.z =
         t * 0.006 * vizParams.rotationSpeed * speedMul + stemEnergyRef.current.bass * 0.02;
       ribbon2Ref.current.position.z = -1.5;
-      // Tint the secondary curtain toward the energy hue
-      const m2 = ribbon2Ref.current.material as THREE.MeshStandardMaterial;
-      m2.color.setHSL(eHue + 0.2, 0.7, 0.5);
     }
   });
 

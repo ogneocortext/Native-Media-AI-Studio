@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { getGLTFLoader } from "../../../utils/gltfLoader";
 import type { AudioData } from "../types";
 import type { VizProps } from "./types";
+import { useDisposeOnUnmount } from "./helpers";
 
 /**
  * StageEnvironment — basement-club concert stage kit (T-VIZ-54).
@@ -199,6 +200,9 @@ function CrowdField({ audioData }: { audioData: React.MutableRefObject<AudioData
   // no per-instance matrix bookkeeping).
   const groupRef = useRef<THREE.Group>(null);
   const crowdTex = useMemo(makeCrowdTexture, []);
+  // CanvasTexture is a manual GPU resource — dispose on unmount like every
+  // other style's memo'd assets (was the only style missing this).
+  useDisposeOnUnmount(crowdTex);
   const seeds = useMemo(
     () =>
       // Fewer, spaced figures — 30 overlapping cards merged into a blob.

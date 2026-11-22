@@ -35,6 +35,8 @@ export function StemScene({
   const vocalWireRef = useRef<THREE.Mesh>(null);
   const otherRef = useRef<THREE.Group>(null);
   const drumsRef = useRef<THREE.InstancedMesh>(null);
+  // Reused per-frame so getStemEnergy doesn't allocate a fresh record at 60 fps.
+  const stemRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const mats = useMemo(
     () => ({
@@ -78,7 +80,7 @@ export function StemScene({
 
     // Per-stem energies; absent stems degrade to the mixed-signal split so the
     // scene is never empty on an unseparated track.
-    const stem = getStemEnergy(stems, elapsed);
+    const stem = getStemEnergy(stems, elapsed, stemRef.current);
     const hasStems =
       stems != null && (stems.vocals ?? stems.drums ?? stems.bass ?? stems.other) != null;
     const eDrums = hasStems ? stem.drums : Math.min(1, d.treble * 0.8 + d.energy * 0.3);

@@ -1,6 +1,6 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
-import type * as THREE from "three";
+import * as THREE from "three";
 import type { VizProps } from "./types";
 import {
   makeTerrainMaterial,
@@ -11,6 +11,13 @@ import {
 } from "../VisualizationFX";
 import { useDisposeOnUnmount, getStemEnergy, isWebGPURendererInstance } from "./helpers";
 import { beatSnap, energyHue } from "./vizMotion";
+
+// Scratch tint color — written per frame, passed to the terrain uniforms.
+// (The old code called material.color.setHSL on a ShaderMaterial, which has
+// no .color: TypeError every frame on WebGL, silent no-op on WebGPU.)
+const tintScratch = new THREE.Color();
+// Stable wrapper — the update helpers only read .color/.mix.
+const tint = { color: tintScratch, mix: 0.4 };
 
 // =============================================================================
 // OCEAN — Wave simulation with peaks and valleys
@@ -64,19 +71,24 @@ export function OceanWaves({
 
     // Map stems to visual channels: vocals → wave motion intensity,
     // other → palette modulation, drums → peak sharpness / rotation jitter.
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     const stemLift = 1 + stemEnergyRef.current.vocals * 0.6 + stemEnergyRef.current.bass * 0.2;
     // Beat-quantized swell (2026): waves crest on the grid
     const snap = beatPhase != null ? beatSnap(beatPhase) : 0;
-    // Energy-driven palette: teal at rest → warm when loud
+    // Energy-driven palette: teal at rest → warm when loud. Delivered
+    // through the terrain material's uTint uniform — the material is a
+    // ShaderMaterial (WebGL) / node material (WebGPU) with no .color to
+    // setHSL on.
     const eHue = energyHue(energy);
+    tintScratch.setHSL(eHue, 0.75, 0.5);
     if (isWebGPU) {
       updateTerrainMaterialTSL(
         mat as TerrainTSLMaterial,
         t,
         { bass, mid, treble, energy },
         vizParams.glowIntensity * 0.5 * stemLift * (1 + snap * 0.4),
+        tint,
       );
     } else {
       updateTerrainMaterial(
@@ -84,6 +96,7 @@ export function OceanWaves({
         t,
         { bass, mid, treble, energy },
         vizParams.glowIntensity * 0.5 * stemLift * (1 + snap * 0.4),
+        tint,
       );
     }
     meshRef.current.rotation.x = -Math.PI / 2.2 + snap * 0.02;
@@ -92,10 +105,6 @@ export function OceanWaves({
         t * 0.005 * vizParams.rotationSpeed * speedMul +
         stemEnergyRef.current.bass * 0.02 +
         snap * 0.01;
-    // Tint the wave field toward the energy hue so the
-    // ocean warms in loud sections instead of staying teal.
-    const m = meshRef.current.material as THREE.MeshStandardMaterial;
-    m.color.setHSL(eHue, 0.75, 0.5);
   });
 
   return (

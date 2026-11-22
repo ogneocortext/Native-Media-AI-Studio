@@ -10,8 +10,10 @@
  * lissajous, constellation, aurora.
  */
 import {
+  beatPhaseEnvelope,
   clamp,
   damp,
+  dampDisplay,
   dampLambda,
   drawGlowSprite,
   easeOutBack,
@@ -89,6 +91,20 @@ export interface BarModeState {
   smoothed: Uint8Array | null;
   particles: Particle[];
   lastMs: number | null;
+  /**
+   * Kinetic-type word-wrap + measureText cache. `measureText` ran per word
+   * per frame (~30+ calls) even though the layout only changes when the
+   * lyric line, its duration, or the font metrics change — key on those.
+   */
+  kineticLayout?: {
+    key: string;
+    spaceW: number;
+    lines: {
+      words: { text: string; start?: number; end?: number }[];
+      widths: number[];
+      fullW: number;
+    }[];
+  } | null;
 }
 
 const PEAK_DECAY = 0.985;
@@ -126,8 +142,13 @@ function computeBarTarget(
   return { targetNorm, smoothH, springRising: targetNorm > prevTarget };
 }
 
-/** Draw a single rounded bar with gradient, warm/cool mix, and reflection. */
-function drawBar(
+/**
+ * Shared bar body: gradient fill + warm/cool mix overlays. Used by
+ * `drawBar` (with reflection) and by mirrored-bars' upper bar, which
+ * previously re-implemented this block inline — the two copies had
+ * already drifted once (2026 audit).
+ */
+function drawBarBody(
   ctx: CanvasRenderingContext2D,
   dpr: number,
   x: number,
@@ -155,6 +176,22 @@ function drawBar(
     ctx.roundRect(x + 1, y, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
     ctx.fill();
   }
+}
+
+/** Draw a single rounded bar with gradient, warm/cool mix, and reflection. */
+function drawBar(
+  ctx: CanvasRenderingContext2D,
+  dpr: number,
+  x: number,
+  y: number,
+  bw: number,
+  bh: number,
+  radius: number,
+  gradient: CanvasGradient,
+  warmMix: number,
+  coolMix: number,
+): void {
+  drawBarBody(ctx, dpr, x, y, bw, bh, radius, gradient, warmMix, coolMix);
   if (bh > 1) {
     ctx.save();
     ctx.globalAlpha = 0.18;
@@ -354,6 +391,18 @@ export function renderMirroredBars(
   if (state.barPeaks?.length !== barCount) {
     state.barPeaks = new Array(barCount).fill(0);
   }
+  // T-VIZ-53 second-stage damp, same as renderBars — mirrored heights were
+  // tracked 1:1 with the enveloped spectrum, which read as stepped on
+  // dense mixes. displayBars is shared with bars (same 64 length); the -1
+  // sentinel makes frame 0 snap instead of ramping from zero.
+  if (state.displayBars?.length !== barCount) {
+    state.displayBars = new Array(barCount).fill(-1);
+  }
+  state.lastMs ??= modeCtx.nowMs();
+  const frameNow = modeCtx.nowMs();
+  const frameDt = Math.min(0.1, Math.max(0, frameNow - state.lastMs) / 1000);
+  state.lastMs = frameNow;
+  const dispLambda = dampLambda(0.35);
 
   const barGradients = modeCtx.getGradients("mirrored-bars", modeCtx.colors);
   const centerY = Math.round(h * 0.5);
@@ -369,9 +418,10 @@ export function renderMirroredBars(
   for (let i = 0; i < barCount; i++) {
     const rawV = sampleMappedBand(modeCtx.freq, freqMap, i) / 255;
     const boosted = boostedValue(rawV, modeCtx);
-    const targetH = boosted * maxBarH * modeCtx.energyMod;
-    // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
-    const bh = Math.max(0, targetH);
+    const dispTarget = clamp(boosted * modeCtx.energyMod, 0, 1.2);
+    const disp = dampDisplay(state.displayBars[i], dispTarget, dispLambda, frameDt);
+    state.displayBars[i] = disp;
+    const bh = Math.max(0, disp * maxBarH);
     // Falling peak: hold the high-water mark, decay slowly toward the bar.
     if (bh > state.barPeaks[i]) state.barPeaks[i] = bh;
     else state.barPeaks[i] = Math.max(bh, state.barPeaks[i] * PEAK_DECAY);
@@ -382,26 +432,22 @@ export function renderMirroredBars(
     const warmMix = i / barCount < 0.3 ? modeCtx.d.bass * 0.35 : 0;
     const coolMix = i / barCount > 0.7 ? modeCtx.d.treble * 0.35 : 0;
 
-    // Upper bar
+    // Upper bar — shared body keeps gradient + warm/cool overlays in one place.
     const upY = Math.round(centerY - bh);
     modeCtx.ctx.fillStyle = "rgba(0,0,0,0.25)";
     modeCtx.ctx.fillRect(x + 1 + 2 * dpr, upY + 2 * dpr, bw, bh);
-    modeCtx.ctx.fillStyle = barGradients[cIdx % barGradients.length];
-    modeCtx.ctx.beginPath();
-    modeCtx.ctx.roundRect(x + 1, upY, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
-    modeCtx.ctx.fill();
-    if (warmMix > 0.1) {
-      modeCtx.ctx.fillStyle = `rgba(255,120,40,${warmMix * 0.25})`;
-      modeCtx.ctx.beginPath();
-      modeCtx.ctx.roundRect(x + 1, upY, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
-      modeCtx.ctx.fill();
-    }
-    if (coolMix > 0.1) {
-      modeCtx.ctx.fillStyle = `rgba(60,160,255,${coolMix * 0.25})`;
-      modeCtx.ctx.beginPath();
-      modeCtx.ctx.roundRect(x + 1, upY, bw, bh + 2 * dpr, [radius, radius, 0, 0]);
-      modeCtx.ctx.fill();
-    }
+    drawBarBody(
+      modeCtx.ctx,
+      dpr,
+      x,
+      upY,
+      bw,
+      bh,
+      radius,
+      barGradients[cIdx % barGradients.length],
+      warmMix,
+      coolMix,
+    );
     // Lower mirrored bar
     const lowY = centerY;
     const lowH = bh * 0.6;
@@ -442,9 +488,22 @@ export function renderSegmentedLedBars(
   const baseY = Math.round(h * 0.92);
   const barGradients = modeCtx.getGradients("segmented-led-bars", modeCtx.colors);
 
-  if (state.barVelocities?.length !== barCount) {
-    state.barVelocities = new Array(barCount).fill(0);
+  // 2026: the old `state.barVelocities[i] = targetSegs` store was dead —
+  // written every frame, never read (and re-allocated every frame because
+  // the mode is not in the component's barVelocities sizing list). Replaced
+  // by the shared displayBars damp: segment count now eases instead of
+  // stepping, which was the scored "lack of visible motion".
+  if (state.displayBars?.length !== barCount) {
+    state.displayBars = new Array(barCount).fill(-1);
   }
+  state.lastMs ??= modeCtx.nowMs();
+  const frameNow = modeCtx.nowMs();
+  const frameDt = Math.min(0.1, Math.max(0, frameNow - state.lastMs) / 1000);
+  state.lastMs = frameNow;
+  const dispLambda = dampLambda(0.35);
+  // Phase-locked beat envelope — falls back to the flux onset envelope
+  // (beatEnv) when no beat grid is analysed.
+  const beatPulse = beatPhaseEnvelope(modeCtx.d.beatPhase) ?? modeCtx.beatEnv ?? 0;
 
   const freqLen = modeCtx.freq?.length ?? 1024;
   const freqMap = makeFreqMapper(
@@ -457,32 +516,50 @@ export function renderSegmentedLedBars(
   for (let i = 0; i < barCount; i++) {
     const v = sampleMappedBand(modeCtx.freq, freqMap, i) / 255;
     const boosted = boostedValue(v, modeCtx);
-    const targetSegs = boosted * segmentsPerBar * modeCtx.energyMod;
-    // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
-    state.barVelocities[i] = targetSegs;
-    const activeSegments = Math.max(0, Math.min(segmentsPerBar, Math.round(targetSegs)));
+    const dispTarget = clamp(boosted * modeCtx.energyMod, 0, 1.2);
+    const disp = dampDisplay(state.displayBars[i], dispTarget, dispLambda, frameDt);
+    state.displayBars[i] = disp;
+    // Fractional lit height: full segments plus a partial top segment, so
+    // the column grows continuously instead of jumping a whole LED at once.
+    const segFloat = disp * segmentsPerBar;
+    const fullSegs = Math.min(segmentsPerBar, Math.floor(segFloat));
+    const topFrac = Math.min(1, segFloat - fullSegs);
+    const litTop = Math.min(segmentsPerBar, fullSegs + (topFrac > 0.04 ? 1 : 0));
     const x = Math.round(i * barW);
     const bw = Math.round(barW) - 2;
     const cIdx = Math.floor((i / barCount) * modeCtx.colors.length);
-    for (let s = 0; s < segmentsPerBar; s++) {
+    const segColor = barGradients[cIdx % barGradients.length];
+    const segColorName = modeCtx.colors[cIdx % modeCtx.colors.length];
+    if (litTop === 0) continue; // dark column — nothing to save/restore for
+    modeCtx.ctx.save();
+    for (let s = 0; s < litTop; s++) {
+      // Per-segment gradation: the lit stack brightens toward the top LED
+      // (classic VU/LED-meter falloff) instead of one flat color.
+      const coverage = s < fullSegs ? 1 : topFrac;
+      const heightFrac = litTop > 1 ? (s + 1) / litTop : 1;
+      const isPeakSeg = s === litTop - 1;
+      // Beat response: the peak segment flares on the beat grid, not just
+      // on the boolean `beat` frame.
+      const beatBoost = isPeakSeg ? beatPulse * 0.45 + (modeCtx.d.beat ? 0.25 : 0) : 0;
+      modeCtx.ctx.globalAlpha = clamp((0.3 + 0.7 * heightFrac) * coverage + beatBoost, 0, 1);
       const y = baseY - (s + 1) * (segH + gap);
-      if (s >= activeSegments) continue;
-      modeCtx.ctx.fillStyle = barGradients[cIdx % barGradients.length];
+      modeCtx.ctx.fillStyle = segColor;
       modeCtx.ctx.beginPath();
       modeCtx.ctx.roundRect(x + 1, y, bw, segH, [1 * dpr, 1 * dpr, 1 * dpr, 1 * dpr]);
       modeCtx.ctx.fill();
-      if (modeCtx.d.beat && s === activeSegments - 1) {
+      if (isPeakSeg && (modeCtx.d.beat || beatPulse > 0.3)) {
         drawGlowSprite(
           modeCtx.ctx,
-          modeCtx.colors[cIdx % modeCtx.colors.length],
+          segColorName,
           x + 1 + bw / 2,
           y + segH / 2,
           bw + 14 * dpr,
           segH + 14 * dpr,
-          0.55,
+          clamp(0.3 + beatPulse * 0.4, 0, 0.8),
         );
       }
     }
+    modeCtx.ctx.restore();
   }
 }
 
@@ -738,44 +815,71 @@ export function renderDotPeakMatrix(
     modeCtx.analyser?.context.sampleRate,
   );
 
+  // 2026: damped display rows (was a dead barVelocities store + binary
+  // on/off quantization). Coverage alpha gives each dot a fractional
+  // brightness, so columns grow smoothly instead of stepping a whole row.
+  if (state.displayBars?.length !== cols) {
+    state.displayBars = new Array(cols).fill(-1);
+  }
+  state.lastMs ??= modeCtx.nowMs();
+  const frameNow = modeCtx.nowMs();
+  const frameDt = Math.min(0.1, Math.max(0, frameNow - state.lastMs) / 1000);
+  state.lastMs = frameNow;
+  const dispLambda = dampLambda(0.35);
+  const beatPulse = beatPhaseEnvelope(modeCtx.d.beatPhase) ?? modeCtx.beatEnv ?? 0;
+
+  // Inactive dots all share one style — batch them into a single path so
+  // the ~700 dark dots don't each pay a fillStyle+fill per frame.
+  const dimPath = new Path2D();
+
   for (let i = 0; i < cols; i++) {
     const v = sampleMappedBand(modeCtx.freq, freqMap, i) / 255;
     const boosted = boostedValue(v, modeCtx);
     const targetRows = boosted * rows * modeCtx.energyMod;
-    // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
-    if (state.barVelocities) state.barVelocities[i] = targetRows;
-    const activeRows = Math.max(0, Math.min(rows, Math.round(targetRows)));
+    const disp = dampDisplay(
+      state.displayBars[i],
+      clamp(targetRows, 0, rows),
+      dispLambda,
+      frameDt,
+    );
+    state.displayBars[i] = disp;
+    const litTop = Math.min(rows, Math.max(0, Math.ceil(disp - 0.001)));
     const cIdx = Math.floor((i / cols) * modeCtx.colors.length);
+    const litColor = barGradients[cIdx % barGradients.length];
     for (let r = 0; r < rows; r++) {
       const cx = Math.round(i * cellW + cellW / 2);
       const cy = Math.round(h - (r + 0.5) * cellH);
-      if (r < activeRows) {
-        modeCtx.ctx.fillStyle = barGradients[cIdx % barGradients.length];
-        modeCtx.ctx.beginPath();
-        modeCtx.ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
-        modeCtx.ctx.fill();
-        if (modeCtx.d.beat && r === activeRows - 1) {
-          drawGlowSprite(
-            modeCtx.ctx,
-            modeCtx.colors[cIdx % modeCtx.colors.length],
-            cx,
-            cy,
-            dotR * 5,
-            dotR * 5,
-            0.55,
-          );
-          modeCtx.ctx.beginPath();
-          modeCtx.ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
-          modeCtx.ctx.fill();
-        }
-      } else {
-        modeCtx.ctx.fillStyle = "rgba(255,255,255,0.08)";
-        modeCtx.ctx.beginPath();
-        modeCtx.ctx.arc(cx, cy, dotR * 0.6, 0, Math.PI * 2);
-        modeCtx.ctx.fill();
+      const coverage = clamp(disp - r, 0, 1);
+      if (coverage <= 0.02) {
+        dimPath.arc(cx, cy, dotR * 0.6, 0, Math.PI * 2);
+        continue;
+      }
+      // Gradation: the fractional top dot dims toward its coverage and lit
+      // dots sit a touch brighter near the peak row.
+      const peakBoost = r === litTop - 1 ? 0.15 : 0;
+      modeCtx.ctx.globalAlpha = clamp(0.3 + 0.7 * coverage + peakBoost, 0, 1);
+      modeCtx.ctx.fillStyle = litColor;
+      modeCtx.ctx.beginPath();
+      modeCtx.ctx.arc(cx, cy, dotR * (0.75 + 0.25 * coverage), 0, Math.PI * 2);
+      modeCtx.ctx.fill();
+      // Beat emphasis on the peak dot — continuous via beatPhaseEnvelope,
+      // not only the single boolean beat frame.
+      if (r === litTop - 1 && (modeCtx.d.beat || beatPulse > 0.25)) {
+        drawGlowSprite(
+          modeCtx.ctx,
+          modeCtx.colors[cIdx % modeCtx.colors.length],
+          cx,
+          cy,
+          dotR * 5,
+          dotR * 5,
+          clamp(0.3 + beatPulse * 0.45, 0, 0.85),
+        );
       }
     }
   }
+  modeCtx.ctx.globalAlpha = 1;
+  modeCtx.ctx.fillStyle = "rgba(255,255,255,0.08)";
+  modeCtx.ctx.fill(dimPath);
 }
 
 /**
@@ -850,7 +954,9 @@ export function renderWaveform(
     const targetAmp =
       v * h * 0.35 * (1 + energyMod * 0.85 + phraseFlash * 0.45 + d.bass * 0.25 + beatPhaseAnt);
     const prev = state.waveEnvelope[i];
-    state.waveEnvelope[i] = Math.max(0, damp(prev, targetAmp, lambda, dt));
+    // 2026: signed damp — the old Math.max(0, ...) half-wave rectified the
+    // trace, so only the positive half of the waveform ever rendered.
+    state.waveEnvelope[i] = damp(prev, targetAmp, lambda, dt);
     const y = h / 2 + state.waveEnvelope[i];
     const xOff = syncLineProgress * 14 * dpr * Math.sin(i * 0.01 + nowMs() * 0.001);
     if (i === 0) ctx.moveTo(x + xOff, y);
@@ -871,9 +977,11 @@ export function renderWaveform(
   ctx.lineWidth = 2.2 * dpr;
   ctx.stroke();
 
-  // Subtle gradient fill under the primary waveform for depth
+  // Subtle gradient fill under the primary waveform for depth. The gradient
+  // is now symmetric about the midline so the (previously clamped-away)
+  // negative half of the signed trace gets the same soft fill.
   ctx.globalAlpha = 0.12 + energyMod * 0.08;
-  const waveGrad = ctx.createLinearGradient(0, h / 2, 0, h);
+  const waveGrad = ctx.createLinearGradient(0, h * 0.1, 0, h * 0.9);
   waveGrad.addColorStop(0, withAlpha(colors[1], "00"));
   waveGrad.addColorStop(0.5, withAlpha(colors[1], "44"));
   waveGrad.addColorStop(1, withAlpha(colors[1], "00"));
@@ -891,15 +999,25 @@ export function renderWaveform(
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // Secondary harmonic faint line
+  // Secondary harmonic faint line — sampled through the same smoothed
+  // buffer and damped with the same lambda (was raw `wave[]` unsmoothed,
+  // which made the overlay shimmer independently of the primary trace).
+  // waveVelocities stores the damped harmonic amplitude per sample slot.
+  if (state.waveVelocities?.length !== wave.length) {
+    state.waveVelocities = new Array(wave.length).fill(0);
+  }
   ctx.strokeStyle = withAlpha(colors[2], "88");
   ctx.lineWidth = 1.2 * dpr;
   ctx.beginPath();
   for (let i = 0; i < wave.length; i += 2) {
     const x = i * slice;
     const idx2 = (i * 3) % wave.length;
-    const v2 = (wave[idx2] - 128) / 128;
-    const y2 = h / 2 + v2 * h * 0.18 * (1 + d.treble * 0.6) * 0.5;
+    const hv = (state.smoothed[idx2] - 128) / 128;
+    const hTarget = hv * h * 0.18 * (1 + d.treble * 0.6) * 0.5;
+    const hPrev = state.waveVelocities[i];
+    const hAmp = damp(hPrev, hTarget, lambda, dt);
+    state.waveVelocities[i] = hAmp;
+    const y2 = h / 2 + hAmp;
     if (i === 0) ctx.moveTo(x, y2);
     else ctx.lineTo(x, y2);
   }
@@ -938,33 +1056,51 @@ export function renderRadial(
   const baseR = Math.min(w, h) * 0.18;
   const sectionRot = sectionProgress * Math.PI * 0.5;
 
-  if (state.barVelocities?.length !== 64) {
-    state.barVelocities = new Array(64).fill(0);
-  }
-
   const freqLen = freq?.length ?? 1024;
   if (!freq) return;
+  // 2026: perceptual spoke sampling — the old `freq[floor(i/64*freqLen*0.6)]`
+  // ignored perceptualScale AND discarded the top 40% of the spectrum
+  // (treble spokes never moved). Same mapper the bar modes use now.
+  const freqMap = makeFreqMapper(
+    modeCtx.perceptualScale,
+    64,
+    freqLen,
+    modeCtx.analyser?.context.sampleRate,
+  );
+  // Second-stage display damp (T-VIZ-53 pattern from renderBars) — spoke
+  // lengths ease instead of tracking the enveloped spectrum 1:1.
+  if (state.displayBars?.length !== 64) {
+    state.displayBars = new Array(64).fill(-1);
+  }
+  state.lastMs ??= modeCtx.nowMs();
+  const frameNow = modeCtx.nowMs();
+  const frameDt = Math.min(0.1, Math.max(0, frameNow - state.lastMs) / 1000);
+  state.lastMs = frameNow;
+  const dispLambda = dampLambda(0.35);
+  const d = modeCtx.d;
+  // Phase-locked beat pulse (falls back to the flux onset envelope) — the
+  // old code pulsed only on phraseFlash, so radial ignored the beat grid.
+  const beatPulse = beatPhaseEnvelope(d.beatPhase) ?? modeCtx.beatEnv ?? 0;
+
   for (let i = 0; i < 64; i++) {
-    const v = freq[Math.floor((i / 64) * freqLen * 0.6)] / 255;
+    const v = sampleMappedBand(freq, freqMap, i) / 255;
+    const boosted = boostedValue(v, modeCtx);
+    const dispTarget = clamp(boosted * modeCtx.energyMod, 0, 1.2);
+    const disp = dampDisplay(state.displayBars[i], dispTarget, dispLambda, frameDt);
+    state.displayBars[i] = disp;
     const angle = (i / 64) * Math.PI * 2 + sectionRot;
     const r0 = baseR;
-    const d = modeCtx.d;
-    const beatPhaseAnt =
-      d.beatPhase !== undefined && d.beatPhase !== null && d.beatPhase < 0.5
-        ? (1 - d.beatPhase * 2) * 0.12
-        : 0;
     const targetR1 =
-      baseR + v * baseR * 1.2 * (1 + phraseFlash * 0.6 + energyMod * 0.4 + beatPhaseAnt);
-    // T-VIZ-15: freq arrives pre-enveloped — no per-mode spring.
+      baseR +
+      disp * baseR * 1.2 * (1 + phraseFlash * 0.4 + energyMod * 0.3 + beatPulse * 0.45);
     const r1 = Math.max(r0, targetR1);
-    state.barVelocities[i] = r1;
     const x0 = cx + Math.cos(angle) * r0;
     const y0 = cy + Math.sin(angle) * r0;
     const x1 = cx + Math.cos(angle) * r1;
     const y1 = cy + Math.sin(angle) * r1;
     ctx.strokeStyle = colors[i % colors.length];
-    ctx.lineWidth = 2 * dpr + v * 4 * dpr;
-    ctx.globalAlpha = 0.7 + v * 0.3;
+    ctx.lineWidth = 2 * dpr + v * 4 * dpr + beatPulse * 2 * dpr;
+    ctx.globalAlpha = 0.7 + v * 0.3 + beatPulse * 0.2;
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
@@ -973,8 +1109,7 @@ export function renderRadial(
   ctx.globalAlpha = 1;
 
   // Enhanced center anchor with glow and pulsing core
-  const d = modeCtx.d;
-  const coreR = baseR * 0.35 * (1 + phraseFlash * 0.5 + d.bass * 0.3);
+  const coreR = baseR * 0.35 * (1 + phraseFlash * 0.5 + d.bass * 0.3 + beatPulse * 0.4);
   const glowR = coreR * 3;
   const grd = ctx.createRadialGradient(cx, cy, coreR * 0.2, cx, cy, glowR);
   grd.addColorStop(0, withAlpha(colors[0], "cc"));
@@ -1026,6 +1161,8 @@ export function renderSpectrogram(
 
   // Draw new slice on the right — perceptual (log) frequency mapping
   const freqLen = freq?.length ?? 1024;
+  // Palette RGB decoded once per frame — was hexToRgb per pixel per row.
+  const paletteRgb = colors.map((c) => hexToRgb(c));
   for (let py = 0; py < specH; py++) {
     const t = py / specH; // 1 at top (high freq), 0 at bottom (low freq)
     const minLog = Math.log(1);
@@ -1038,8 +1175,8 @@ export function renderSpectrogram(
     const colorIdx = clamp(v * (colors.length - 1), 0, colors.length - 1);
     const ci = Math.floor(colorIdx);
     const cf = colorIdx - ci;
-    const c1 = hexToRgb(colors[ci % colors.length]);
-    const c2 = hexToRgb(colors[(ci + 1) % colors.length]);
+    const c1 = paletteRgb[ci % paletteRgb.length];
+    const c2 = paletteRgb[(ci + 1) % paletteRgb.length];
     const r = Math.round(c1[0] + (c2[0] - c1[0]) * cf);
     const g = Math.round(c1[1] + (c2[1] - c1[1]) * cf);
     const b = Math.round(c1[2] + (c2[2] - c1[2]) * cf);
@@ -1059,8 +1196,11 @@ export function renderSpectrogram(
   ctx.fillStyle = withAlpha(colors[0], "90");
   ctx.font = `${10 * dpr}px monospace`;
   ctx.textAlign = "right";
-  const nyquist = 22050; // assume 44.1kHz sample rate
-  const maxFreq = Math.floor(nyquist / 2);
+  // 2026: Nyquist comes from the live AudioContext — the old hardcoded
+  // 22050/2 capped the axis at 11 kHz and ignored the real sample rate
+  // (48 kHz devices were mislabeled by ~8%).
+  const nyquist = (modeCtx.analyser?.context.sampleRate ?? 44100) / 2;
+  const maxFreq = Math.floor(nyquist);
   const labelCount = 5;
   for (let i = 0; i <= labelCount; i++) {
     const freqHz = Math.round((maxFreq / labelCount) * i);
@@ -1094,12 +1234,23 @@ export function renderLissajous(
   const freqLen = freq?.length ?? 1024;
   const cx = w / 2;
   const cy = h / 2;
-  const bassIdx = Math.floor(freqLen * 0.1);
-  const midIdx = Math.floor(freqLen * 0.4);
-  const bassV = freq ? freq.slice(0, bassIdx).reduce((a, b) => a + b, 0) / (bassIdx * 255 || 1) : 0;
-  const midV = freq
-    ? freq.slice(bassIdx, midIdx).reduce((a, b) => a + b, 0) / ((midIdx - bassIdx) * 255 || 1)
-    : 0;
+  // 2026: band edges derived from Hz (250 Hz / 4 kHz — the same splits the
+  // shared envelope stage uses) instead of fixed 10%/40% bin fractions,
+  // and the two per-frame freq.slice() allocations are gone. On a 44.1 kHz
+  // /1024-bin analyser this narrows "bass" to true bass rather than the
+  // old ~2.2 kHz lump.
+  const sampleRate = modeCtx.analyser?.context.sampleRate ?? 44100;
+  const nyquist = sampleRate / 2;
+  const bassEnd = clamp(Math.floor((250 / nyquist) * freqLen), 1, freqLen - 1);
+  const midEnd = clamp(Math.floor((4000 / nyquist) * freqLen), bassEnd + 1, freqLen);
+  const bandAvg = (from: number, to: number): number => {
+    if (!freq) return 0;
+    let sum = 0;
+    for (let i = from; i < to; i++) sum += freq[i];
+    return sum / ((to - from) * 255 || 1);
+  };
+  const bassV = bandAvg(0, bassEnd);
+  const midV = bandAvg(bassEnd, midEnd);
   const ampX = w * 0.35 * (1 + bassV * 0.6 + energyMod * 0.3);
   const ampY = h * 0.35 * (1 + midV * 0.6 + energyMod * 0.3);
   const t = nowMs() * 0.001;
@@ -1156,57 +1307,51 @@ export function renderConstellation(
   void state;
   const { ctx, colors, freq, analyzedPunch } = modeCtx;
   const points: { x: number; y: number; v: number }[] = [];
-  const step = 8;
   const freqLen = freq?.length ?? 1024;
   if (!freq) return;
-  for (let i = 0; i < freqLen; i += step) {
-    const v = freq[i] / 255;
+  // 2026: scan through the perceptual mapper instead of a raw `i += 8`
+  // linear bin walk — nodes now spread across the audible spectrum the
+  // same way the bar modes do, and treble peaks are no longer starved.
+  const SCAN_BARS = 256;
+  const freqMap = makeFreqMapper(
+    modeCtx.perceptualScale,
+    SCAN_BARS,
+    freqLen,
+    modeCtx.analyser?.context.sampleRate,
+  );
+  for (let k = 0; k < SCAN_BARS; k++) {
+    const bin = Math.floor(freqMap(k));
+    if (bin < 0 || bin >= freqLen) continue;
+    const v = freq[bin] / 255;
     if (v > 0.18) {
-      const x = (i / freqLen) * w;
+      const x = (k / SCAN_BARS) * w;
       const y = h - v * h * 0.85;
       points.push({ x, y, v });
       if (points.length >= 64) break;
     }
   }
 
-  // Draw connections — spatial partition to reduce O(n²) complexity
+  // Draw connections — ≤64 points, so a plain O(n²) pass with an early
+  // distance reject is cheaper than the old per-frame spatial Map (string
+  // keys + array buckets allocated every frame for ~2k comparisons).
   ctx.strokeStyle = withAlpha(colors[0], "30");
   ctx.lineWidth = dpr;
   const maxPoints = points.length;
   const gridStep = 60 * dpr;
-  const grid = new Map<string, number[]>();
   for (let i = 0; i < maxPoints; i++) {
     const p = points[i];
-    const gx = Math.floor(p.x / gridStep);
-    const gy = Math.floor(p.y / gridStep);
-    const key = `${gx},${gy}`;
-    if (!grid.has(key)) grid.set(key, []);
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    grid.get(key)!.push(i);
-  }
-  for (let i = 0; i < maxPoints; i++) {
-    const p = points[i];
-    const gx = Math.floor(p.x / gridStep);
-    const gy = Math.floor(p.y / gridStep);
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const neighborKey = `${gx + dx},${gy + dy}`;
-        const neighbors = grid.get(neighborKey);
-        if (neighbors) {
-          for (const j of neighbors) {
-            if (j <= i) continue;
-            const other = points[j];
-            const dist = Math.hypot(p.x - other.x, p.y - other.y);
-            if (dist < gridStep) {
-              ctx.globalAlpha = (1 - dist / gridStep) * 0.4;
-              ctx.beginPath();
-              ctx.moveTo(p.x, p.y);
-              ctx.lineTo(other.x, other.y);
-              ctx.stroke();
-            }
-          }
-        }
-      }
+    for (let j = i + 1; j < maxPoints; j++) {
+      const other = points[j];
+      const dx = p.x - other.x;
+      const dy = p.y - other.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq >= gridStep * gridStep) continue;
+      const dist = Math.sqrt(distSq);
+      ctx.globalAlpha = (1 - dist / gridStep) * 0.4;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(other.x, other.y);
+      ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;
@@ -1240,7 +1385,7 @@ export function renderAurora(
 ): void {
   void dpr;
   void state;
-  const { ctx, colors, bg, phraseFlash, energyMod, nowMs } = modeCtx;
+  const { ctx, colors, bg, freq, phraseFlash, energyMod, nowMs, perceptualScale } = modeCtx;
   const t = nowMs() * 0.0003;
   const bandCount = 5;
   const bandW = w / bandCount;
@@ -1249,20 +1394,54 @@ export function renderAurora(
   const midEnergy = d.mid ?? 0;
   const energy = energyMod;
 
+  // 2026: spectral reactivity — the mode never read `freq`, so it scored
+  // react=3 (beat flash only). Three band energies through the shared
+  // perceptual mapper: lows drive curtain height/base glow, mids drive
+  // brightness, highs drive wave speed + shimmer detail.
+  let lowE = 0;
+  let midE = 0;
+  let highE = 0;
+  if (freq && freq.length > 0) {
+    const freqMap = makeFreqMapper(
+      perceptualScale,
+      24,
+      freq.length,
+      modeCtx.analyser?.context.sampleRate,
+    );
+    const bandAvg = (from: number, to: number): number => {
+      let sum = 0;
+      for (let k = from; k < to; k++) sum += sampleMappedBand(freq, freqMap, k);
+      return sum / ((to - from) * 255 || 1);
+    };
+    lowE = bandAvg(0, 8);
+    midE = bandAvg(8, 16);
+    highE = bandAvg(16, 24);
+  }
+  const specEnergy = (lowE + midE + highE) / 3;
+  // Phase-locked beat pulse for the core (was phraseFlash only).
+  const beatPulse = beatPhaseEnvelope(d.beatPhase) ?? modeCtx.beatEnv ?? 0;
+
   for (let b = 0; b < bandCount; b++) {
     const bx = b * bandW;
-    const warpX = b * 0.37 + t * 0.4;
+    // Highs hurry the curtains; energy keeps a floor on the drift.
+    const warpX = b * 0.37 + t * (0.4 + highE * 0.7 + energy * 0.25);
     const hue = (b / bandCount + t * 0.05) % 1;
-    const sat = 0.55 + bassEnergy * 0.4;
-    const lightBase = 0.25 + midEnergy * 0.35;
+    const sat = clamp(0.55 + bassEnergy * 0.4 + lowE * 0.2, 0, 1);
+    const lightBase = clamp(0.25 + midEnergy * 0.35 + midE * 0.25, 0, 1);
     const rgb = hslToRgb(hue, sat, lightBase);
     const steps = Math.max(1, Math.floor(bandW));
     for (let s = 0; s < steps; s++) {
       const x = bx + (s / steps) * bandW;
       const nx = x / w;
       const warp = fbm(nx * 3 + warpX, b * 0.5, t, 4);
-      const curtainY = h * 0.15 + warp * h * 0.55 * (1 + energy * 0.6);
-      const alpha = 0.12 + warp * 0.25 + energy * 0.15;
+      // Lows lift the curtain height and base glow; overall spectrum energy
+      // adds a little amplitude on top of the energyMod term.
+      const curtainY =
+        h * 0.15 + warp * h * 0.55 * (1 + energy * 0.6 + lowE * 0.9 + specEnergy * 0.3);
+      // Highs add a fast shimmer term so the top of the spectrum reads as
+      // detail rather than just louder curtains.
+      const shimmer = highE * 0.16 * Math.sin(nx * 42 + t * 7 + b);
+      const alpha = 0.12 + warp * 0.25 + energy * 0.15 + shimmer + highE * warp * 0.12;
       ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${clamp(alpha, 0, 0.7)})`;
       ctx.fillRect(x, curtainY, Math.ceil(bandW / steps), h - curtainY);
     }
@@ -1281,9 +1460,11 @@ export function renderAurora(
   ctx.fillStyle = topGrd;
   ctx.fillRect(0, 0, w, h * 0.3);
 
-  // Enhanced center anchor with glow and pulsing core
+  // Enhanced center anchor with glow and pulsing core — beat grid pulse
+  // added (was phraseFlash only, so the core ignored the analysed beat).
   const baseR = Math.min(w, h) * 0.18;
-  const coreR = baseR * 0.35 * (1 + phraseFlash * 0.5 + modeCtx.d.bass * 0.3);
+  const coreR =
+    baseR * 0.35 * (1 + phraseFlash * 0.5 + modeCtx.d.bass * 0.3 + beatPulse * 0.45 + lowE * 0.3);
   const glowR = coreR * 3;
   const grd = ctx.createRadialGradient(w / 2, h / 2, coreR * 0.2, w / 2, h / 2, glowR);
   grd.addColorStop(0, withAlpha(colors[0], "cc"));
@@ -1364,7 +1545,6 @@ export function renderKineticType(
   modeCtx: BarModeContext,
   state: BarModeState,
 ): void {
-  void state;
   const {
     ctx,
     bg,
@@ -1376,6 +1556,8 @@ export function renderKineticType(
     motionScale,
     beatEnv,
     energyMod,
+    nowMs,
+    perceptualScale,
   } = modeCtx;
   const d = modeCtx.d;
   const vocalEnergy = ((d.mid ?? 0) + d.treble) / 2;
@@ -1384,16 +1566,23 @@ export function renderKineticType(
   ctx.fillRect(0, 0, w, h);
 
   // ── Minimal reactive ground: thin mirrored spectrum baseline ──────────
+  // 2026: perceptual mapper + single-bin samples (was a linear i*step bin
+  // walk that ignored perceptualScale), plus a beatEnv lift so the ground
+  // moves on the beat grid even mid-verse.
   const groundY = h * 0.8;
   const bars = 48;
   const barW = w / bars;
   ctx.fillStyle = withAlpha(colors[1], "33");
   if (freq) {
-    const step = Math.max(1, Math.floor(freq.length / bars));
+    const freqMap = makeFreqMapper(
+      perceptualScale,
+      bars,
+      freq.length,
+      modeCtx.analyser?.context.sampleRate,
+    );
+    const groundLift = 0.5 + vocalEnergy + (beatEnv ?? 0) * 0.5;
     for (let i = 0; i < bars; i++) {
-      let v = 0;
-      for (let j = 0; j < step; j++) v += freq[i * step + j] ?? 0;
-      v = (v / step / 255) * h * 0.06 * (0.5 + vocalEnergy);
+      const v = (sampleMappedBand(freq, freqMap, i) / 255) * h * 0.06 * groundLift;
       if (v > 0.5) ctx.fillRect(i * barW + 1, groundY - v, barW - 2, v);
     }
   }
@@ -1408,13 +1597,28 @@ export function renderKineticType(
     const label = (sectionName ?? "").toLowerCase();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    // 2026: the card used to sit perfectly static for whole instrumental
+    // passages (the scored "dead mode" capture). Slow breathe + beat-grid
+    // lift + a few px of drift keep it alive without breaking the
+    // deadpan register; motionScale still collapses it under
+    // prefers-reduced-motion.
+    const idleT = nowMs() * 0.001 * motionScale;
+    const idlePulse =
+      0.72 +
+      0.18 * Math.sin(idleT * 0.9) +
+      0.18 * Math.sin(idleT * 0.37 + 1.7) +
+      (beatEnv ?? 0) * 0.35 * motionScale;
+    const driftY = Math.sin(idleT * 0.5) * h * 0.006 * motionScale;
+    ctx.globalAlpha = clamp(idlePulse, 0.3, 1);
     ctx.fillStyle = withAlpha(colors[0], "aa");
     ctx.font = `600 ${Math.round(h * 0.045 * dpr)}px system-ui, sans-serif`;
     const card = label ? label.toUpperCase() : "INSTRUMENTAL";
-    ctx.fillText(card, w / 2, h * 0.42);
+    ctx.fillText(card, w / 2, h * 0.42 + driftY);
+    ctx.globalAlpha = clamp(idlePulse * 0.85, 0.15, 1);
     ctx.fillStyle = withAlpha(colors[1], "66");
     ctx.font = `500 ${Math.round(h * 0.02 * dpr)}px system-ui, sans-serif`;
-    ctx.fillText("— instrumental —", w / 2, h * 0.42 + h * 0.07 * dpr);
+    ctx.fillText("— instrumental —", w / 2, h * 0.42 + h * 0.07 * dpr + driftY);
+    ctx.globalAlpha = 1;
     return;
   }
 
@@ -1444,22 +1648,45 @@ export function renderKineticType(
         .split(/\s+/)
         .filter(Boolean)
         .map((t) => ({ text: t }));
-  const lines: { text: string; words: { text: string; start?: number; end?: number }[] }[] = [];
-  let cur: typeof units = [];
-  let curW = 0;
-  for (const u of units) {
-    const uw = ctx.measureText(u.text + " ").width;
-    if (curW + uw > maxW && cur.length > 0) {
-      lines.push({ text: "", words: cur });
-      cur = [];
-      curW = 0;
+
+  // 2026: full layout cache — word-wrap AND per-word widths were re-measured
+  // every frame (~40+ canvas measureText calls/frame). Everything the layout
+  // depends on (lyric line, timing, canvas size, dpr, font metrics, hook
+  // weight) is captured in cacheKey, so a lyric line pays the measure cost
+  // exactly once.
+  const cacheKey = `${lyric.start}|${lyric.end}|${lyric.text}|${w}x${h}x${dpr}|${baseSize}|${isHook ? 1 : 0}`;
+  let layout = state.kineticLayout;
+  if (layout?.key !== cacheKey) {
+    const wrapped: { words: { text: string; start?: number; end?: number }[] }[] = [];
+    let cur: typeof units = [];
+    let curW = 0;
+    for (const u of units) {
+      const uw = ctx.measureText(u.text + " ").width;
+      if (curW + uw > maxW && cur.length > 0) {
+        wrapped.push({ words: cur });
+        cur = [];
+        curW = 0;
+      }
+      cur.push(u);
+      curW += uw;
     }
-    cur.push(u);
-    curW += uw;
+    if (cur.length) wrapped.push({ words: cur });
+    const spaceW = ctx.measureText(" ").width;
+    layout = {
+      key: cacheKey,
+      spaceW,
+      lines: wrapped.map((ln) => {
+        const widths = ln.words.map((wd) => ctx.measureText(wd.text).width);
+        const fullW =
+          widths.reduce((a, b) => a + b, 0) + spaceW * Math.max(0, ln.words.length - 1);
+        return { words: ln.words, widths, fullW };
+      }),
+    };
+    state.kineticLayout = layout;
   }
-  if (cur.length) lines.push({ text: "", words: cur });
+  const lay = layout;
   const lineH = baseSize * 1.22;
-  const blockH = lines.length * lineH;
+  const blockH = lay.lines.length * lineH;
   const top = h * 0.5 - blockH / 2 + lineH * 0.5;
 
   ctx.save();
@@ -1469,15 +1696,11 @@ export function renderKineticType(
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  const spaceW = ctx.measureText(" ").width;
-  lines.forEach((ln, li) => {
+  lay.lines.forEach((ln, li) => {
     const y = li * lineH - blockH / 2 + lineH / 2;
-    // Measure word widths (without trailing space) for centering + advance.
-    const widths = ln.words.map((wd) => ctx.measureText(wd.text).width);
-    const fullW = widths.reduce((a, b) => a + b, 0) + spaceW * Math.max(0, ln.words.length - 1);
-    let x = -fullW / 2;
+    let x = -ln.fullW / 2;
     ln.words.forEach((wd, wi) => {
-      const ww = widths[wi];
+      const ww = ln.widths[wi];
       let fill = colors[0];
       let wordAlpha = 1;
       if (useWords && wd.start !== undefined && wd.end !== undefined) {
@@ -1492,7 +1715,7 @@ export function renderKineticType(
       ctx.globalAlpha = clamp(alpha * wordAlpha, 0, 1);
       ctx.fillStyle = fill;
       ctx.fillText(wd.text, x + ww / 2, y);
-      x += ww + spaceW;
+      x += ww + lay.spaceW;
     });
   });
   ctx.restore();

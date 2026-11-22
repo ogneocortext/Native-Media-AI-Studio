@@ -8,7 +8,7 @@
  * Particles spawn from center on energy/beat, accelerate outward, and fade.
  * A center glow completes the mode.
  */
-import { damp, dampLambda, hslToRgb, withAlpha } from "./canvas2dHelpers";
+import { damp, dampLambda, hslToRgb, hexToRgb, withAlpha } from "./canvas2dHelpers";
 
 export interface Particle {
   x: number;
@@ -23,8 +23,29 @@ export interface Particle {
 export const MAX_PARTICLES = 300;
 
 /**
+ * Hue (0..360) of a `#rrggbb` palette color, or null for greys/non-hex
+ * strings. Particles tint from the section palette instead of the old
+ * uniform `rand() * 360` rainbow, so the particle field agrees with the
+ * rest of the mode's color story.
+ */
+function hexToHue(hex: string): number | null {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const [r, g, b] = hexToRgb(`#${m[1]}`).map((v) => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  if (delta === 0) return null; // grey — let the caller fall back to random
+  let hue: number;
+  if (max === r) hue = ((g - b) / delta) % 6;
+  else if (max === g) hue = (b - r) / delta + 2;
+  else hue = (r - g) / delta + 4;
+  return (((hue * 60) % 360) + 360) % 360;
+}
+
+/**
  * Spawn one particle from center with outward velocity scaled by energy/beat.
- * No-op when the pool is full.
+ * No-op when the pool is full. `hue` overrides the random hue (palette tint).
  */
 export function spawnParticle(
   particles: Particle[],
@@ -33,6 +54,7 @@ export function spawnParticle(
   energy: number,
   beat: boolean,
   rand: () => number = Math.random,
+  hue?: number,
 ): void {
   if (particles.length >= MAX_PARTICLES) return;
   const angle = rand() * Math.PI * 2;
@@ -43,7 +65,7 @@ export function spawnParticle(
     vx: Math.cos(angle) * speed,
     vy: Math.sin(angle) * speed,
     life: 1,
-    hue: rand() * 360,
+    hue: hue ?? rand() * 360,
     size: 0.6 + rand() * 2.0,
   });
 }
@@ -69,24 +91,43 @@ export function updateAndDrawParticles(
   rand: () => number = Math.random,
   dt: number = 1 / 60,
 ): void {
-  const spawnCount = Math.floor(energy * 6 + analyzedPunch * 8 + (beat ? 14 : 0));
-  for (let i = 0; i < spawnCount; i++) spawnParticle(particles, w, h, energy, beat, rand);
+  // 2026: tint particles from the section palette (was rand()*360 — a
+  // rainbow that ignored the mode's color story). Greys/non-hex entries
+  // drop out and the spawn falls back to a random hue.
+  const paletteHues = colors.map(hexToHue).filter((h): h is number => h !== null);
+  // Spawn budget is per-frame — scale by dt*60 so the spawn *rate* is
+  // frame-rate independent (same frameScale the update loop uses).
+  const frameScale = dt * 60;
+  const spawnCount = Math.floor(
+    (energy * 6 + analyzedPunch * 8 + (beat ? 14 : 0)) * frameScale,
+  );
+  for (let i = 0; i < spawnCount; i++) {
+    const hue = paletteHues.length
+      ? paletteHues[Math.floor(rand() * paletteHues.length)]
+      : undefined;
+    spawnParticle(particles, w, h, energy, beat, rand, hue);
+  }
 
   // Frame-rate-independent velocity decay toward 0.
   // lambda = -60 * ln(1 - k) where k = 1 - 0.995 = 0.005 at 60 Hz.
   const dragLambda = dampLambda(1 - 0.995);
+  // `vx`/`vy` are "pixels per 1/60 s frame" — scale integration, the
+  // per-frame accel compound, and the life drain by dt*60 so a 120 Hz
+  // display does not double particle speed or halve lifetimes.
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
-    // Audio-reactive velocity: particles accelerate outward on beat/energy
+    // Audio-reactive velocity: particles accelerate outward on beat/energy.
+    // Compounded per frame before — pow() makes it frame-rate independent.
     const accel = 1 + energy * 0.5 + analyzedPunch * 0.6 + (beat ? 1.5 : 0);
-    p.vx *= accel;
-    p.vy *= accel;
+    const accelDt = Math.pow(accel, frameScale);
+    p.vx *= accelDt;
+    p.vy *= accelDt;
     // Slight drag to prevent runaway speeds — frame-rate independent via damp().
     p.vx = damp(p.vx, 0, dragLambda, dt);
     p.vy = damp(p.vy, 0, dragLambda, dt);
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life -= 0.012 + energy * 0.01;
+    p.x += p.vx * frameScale;
+    p.y += p.vy * frameScale;
+    p.life -= (0.012 + energy * 0.01) * frameScale;
     if (p.life <= 0 || p.x < 0 || p.x > w || p.y < 0 || p.y > h) {
       particles.splice(i, 1);
       continue;

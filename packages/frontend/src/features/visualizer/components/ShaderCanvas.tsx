@@ -497,12 +497,13 @@ export function ShaderCanvas({
       "u_transient",
       "u_centroid",
       "u_trail",
-      // Motion-vocabulary camera offset (plan 2.7): a vec2 UV
-      // shift driven by the motion driver's camera-offset channel.
+      // Tempo-locked beat-phase sawtooth (0..1). u_beat is a decaying
+      // impulse; presets that want continuous beat-synced motion
+      // (e.g. abstractWaves' palette drift) declare this instead.
       // getUniformLocation returns null for shaders that don't
-      // declare it, and uniform2f(null, x, y) is a no-op, so a
+      // declare it, and uniform1f(null, x) is a no-op, so a
       // shader opts in by declaring the uniform.
-      "u_camera_offset",
+      "u_beat_phase",
       // Key-derived palette (docs/architecture/chroma-hue-mapping.md, Q5).
       // Present for every shader; getUniformLocation returns null for any that
       // does not declare them, and uniform1f(null, x) is a no-op, so a shader
@@ -798,7 +799,7 @@ export function ShaderCanvas({
           gl.uniform1f(locs.u_transient, u.transient ?? 0);
           gl.uniform1f(locs.u_centroid, u.centroid ?? 0);
           gl.uniform1f(locs.u_trail, u.trail ?? 0);
-          gl.uniform2f(locs.u_camera_offset, u.cameraOffsetX ?? 0, u.cameraOffsetY ?? 0);
+          gl.uniform1f(locs.u_beat_phase, u.beatPhase ?? 0);
           gl.uniform1f(locs.u_key_hue, u.keyHue ?? 0);
           gl.uniform1f(locs.u_key_sat, u.keySat ?? 0);
           gl.uniform1f(locs.u_key_conf, u.keyConf ?? 0);
@@ -848,7 +849,7 @@ export function ShaderCanvas({
           gl.uniform1f(locs.u_transient, u.transient ?? 0);
           gl.uniform1f(locs.u_centroid, u.centroid ?? 0);
           gl.uniform1f(locs.u_trail, u.trail ?? 0);
-          gl.uniform2f(locs.u_camera_offset, u.cameraOffsetX ?? 0, u.cameraOffsetY ?? 0);
+          gl.uniform1f(locs.u_beat_phase, u.beatPhase ?? 0);
           gl.uniform1f(locs.u_key_hue, u.keyHue ?? 0);
           gl.uniform1f(locs.u_key_sat, u.keySat ?? 0);
           gl.uniform1f(locs.u_key_conf, u.keyConf ?? 0);

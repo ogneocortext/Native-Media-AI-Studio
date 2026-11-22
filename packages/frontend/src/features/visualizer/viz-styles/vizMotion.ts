@@ -69,6 +69,18 @@ export function energyHue(energy: number): number {
 }
 
 /**
+ * Hue-aware lerp on the [0,1) circle. A plain `a + (b-a)*t` between 0.95
+ * and 0.05 sweeps through 0.5 (green) instead of crossing the wrap; this
+ * takes the shortest arc. Section colors from the LRC palette are blended
+ * into style hues with this so a verse→chorus shift never detours through
+ * an unrelated hue.
+ */
+export function lerpHue(a: number, b: number, t: number): number {
+  const d = ((((b - a + 0.5) % 1) + 1) % 1) - 0.5;
+  return (((a + d * t) % 1) + 1) % 1;
+}
+
+/**
  * Highlight rolloff: 1 - exp(-x·k). Sensitive at low x, rolls off
  * instead of clipping at high x. Use for emissive intensity / glow so
  * loud frames keep detail under bloom instead of going white.

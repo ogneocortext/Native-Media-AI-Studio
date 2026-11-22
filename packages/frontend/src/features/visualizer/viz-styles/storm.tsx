@@ -64,7 +64,7 @@ export function StormViz({
     const speedMul = prefersReducedMotion ? 0.35 : 1;
     const dt60 = Math.min(delta, 0.1) * 60;
 
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     const flashTarget =
       beat || features.onset > 0.6 || stemEnergyRef.current.drums > 0.5 ? 1.0 : 0.0;
@@ -86,6 +86,16 @@ export function StormViz({
         speedMul *
         (idleDrift + treble * 3 + stemEnergyRef.current.bass * 0.3);
 
+    // Shared bolt material — update once per frame, not once per bolt
+    // (was 10×/frame inside the loop; boltMat is WebGPU-only).
+    if (boltMat) {
+      updateAudioReactiveMaterialTSL(
+        boltMat,
+        { bass, mid: 0, treble, energy: features.energy },
+        vizParams.glowIntensity,
+      );
+    }
+
     boltRefs.current.forEach((bolt, i) => {
       if (!bolt) return;
       const freq = i % 2 === 0 ? bass : treble;
@@ -94,13 +104,7 @@ export function StormViz({
       bolt.position.set(Math.cos(angle) * 0.5, length / 2 - 1, Math.sin(angle) * 0.5);
       bolt.rotation.set(0, 0, angle + Math.PI / 2);
       bolt.scale.set(1 + snap * 0.5, length, 1 + snap * 0.5);
-      if (isWebGPU && boltMat) {
-        updateAudioReactiveMaterialTSL(
-          boltMat,
-          { bass, mid: 0, treble, energy: 0.5 },
-          vizParams.glowIntensity,
-        );
-      } else {
+      if (!boltMat) {
         const m = bolt.material as THREE.MeshStandardMaterial;
         m.emissiveIntensity =
           0.5 + rolloff(snap * 4 + freq * 2 + stemEnergyRef.current.drums * 1.5, 1.0);
@@ -119,7 +123,7 @@ export function StormViz({
       if (isWebGPU && glowMat) {
         updateAudioReactiveMaterialTSL(
           glowMat,
-          { bass, mid: 0, treble, energy: 0.5 },
+          { bass, mid: 0, treble, energy: features.energy },
           vizParams.glowIntensity + stemEnergyRef.current.other * 0.5,
         );
       } else {

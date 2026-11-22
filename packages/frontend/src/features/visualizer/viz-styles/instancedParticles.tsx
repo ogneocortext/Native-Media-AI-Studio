@@ -4,6 +4,7 @@ import * as THREE from "three";
 import type { VizProps } from "./types";
 import { getParticleTex } from "./textures";
 import { useDisposeOnUnmount, getStemEnergy } from "./helpers";
+import { createSeededRandom } from "../../../shared/seededRandom";
 
 // =============================================================================
 // Instanced quad particle system — replaces THREE.Points with real quads.
@@ -24,6 +25,8 @@ interface ParticleState {
   phases: Float32Array;
   velocities: Float32Array;
   colors: Float32Array;
+  /** Seeded PRNG shared by spawn + respawn so remounts are deterministic. */
+  rng: () => number;
 }
 
 export interface InstancedParticlesOpts {
@@ -35,6 +38,12 @@ export interface InstancedParticlesOpts {
   hueRange?: number;
   /** velocity stretch factor */
   stretch?: number;
+  /**
+   * Beat envelope (0-1) written by the parent each frame — drives the
+   * beat-quantized size thump in the vertex shader. A ref, not a number,
+   * so per-frame updates never re-render.
+   */
+  beatRef?: { current: number };
 }
 
 export function InstancedParticles({
@@ -49,6 +58,7 @@ export function InstancedParticles({
   hueBase = 0.6,
   hueRange = 0.25,
   stretch = 2.5,
+  beatRef,
 }: VizProps & InstancedParticlesOpts) {
   const meshRef = useRef<THREE.Mesh>(null);
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
@@ -58,33 +68,37 @@ export function InstancedParticles({
   // const isWebGPU = (gl as any)?.isWebGPURenderer === true;
 
   const state = useMemo<ParticleState>(() => {
+    // Seeded PRNG (not Math.random): a remount must reproduce the same field —
+    // export/screenshot determinism and snapshot tests depend on it. The same
+    // stream continues into the per-frame respawn below.
+    const rng = createSeededRandom((Math.floor(hueBase * 10000) ^ count) >>> 0);
     const pos = new Float32Array(count * 3);
     const sizes = new Float32Array(count);
     const phases = new Float32Array(count);
     const vels = new Float32Array(count * 3);
     const cols = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      const r = 0.5 + Math.random() * spread;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
+      const r = 0.5 + rng() * spread;
+      const theta = rng() * Math.PI * 2;
+      const phi = Math.acos(2 * rng() - 1);
       pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       pos[i * 3 + 2] = r * Math.cos(phi);
-      sizes[i] = baseSize * (1 + Math.random() * 2.5);
-      phases[i] = Math.random() * Math.PI * 2;
-      vels[i * 3] = (Math.random() - 0.5) * 0.02;
-      vels[i * 3 + 1] = (Math.random() - 0.5) * 0.02;
-      vels[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
+      sizes[i] = baseSize * (1 + rng() * 2.5);
+      phases[i] = rng() * Math.PI * 2;
+      vels[i * 3] = (rng() - 0.5) * 0.02;
+      vels[i * 3 + 1] = (rng() - 0.5) * 0.02;
+      vels[i * 3 + 2] = (rng() - 0.5) * 0.02;
       const c = new THREE.Color().setHSL(
-        hueBase + Math.random() * hueRange,
-        0.8 + Math.random() * 0.2,
-        0.4 + Math.random() * 0.3,
+        hueBase + rng() * hueRange,
+        0.8 + rng() * 0.2,
+        0.4 + rng() * 0.3,
       );
       cols[i * 3] = c.r;
       cols[i * 3 + 1] = c.g;
       cols[i * 3 + 2] = c.b;
     }
-    return { positions: pos, baseSizes: sizes, phases, velocities: vels, colors: cols };
+    return { positions: pos, baseSizes: sizes, phases, velocities: vels, colors: cols, rng };
   }, [count, spread, baseSize, hueBase, hueRange]);
 
   const geometry = useMemo(() => {
@@ -108,6 +122,7 @@ export function InstancedParticles({
           uTime: { value: 0 },
           uBass: { value: 0 },
           uTreble: { value: 0 },
+          uBeat: { value: 0 },
           uAlpha: { value: 1.0 },
           uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
           uStretch: { value: stretch },
@@ -128,6 +143,7 @@ export function InstancedParticles({
           // every draw through this program invalid: "program not valid").
           uniform float uTime;
           uniform float uBass;
+          uniform float uBeat;
           uniform float uPixelRatio;
           uniform float uStretch;
 
@@ -139,8 +155,9 @@ export function InstancedParticles({
             vColor = instanceColor;
             vUv = position.xy + 0.5;
 
-            // Audio-reactive size
-            float s = instanceSize * (1.0 + uBass * 1.2);
+            // Audio-reactive size: band energy swells the field, uBeat adds
+            // the beat-quantized thump the parents feed from beatSnap.
+            float s = instanceSize * (1.0 + uBass * 1.2 + uBeat * 0.9);
 
             // Billboard in VIEW space: the quad offset must be added after the
             // modelView transform. Building it from world-space camera axes let
@@ -198,12 +215,14 @@ export function InstancedParticles({
     const { bass, mid, treble, energy } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
 
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     // Drive the shader uniform: the vertex shader sizes quads with
     // instanceSize * (1 + uBass * 1.2), but nothing ever wrote uBass — the
     // reactive particle size was dead (the uniform stayed 0 forever).
     material.uniforms.uBass.value = bass + stemEnergyRef.current.bass * 0.3;
+    // Beat thump channel — parents pass their beatSnap/beatPulse ref.
+    material.uniforms.uBeat.value = beatRef?.current ?? 0;
 
     const posAttr = geometry.getAttribute("instancePosition") as THREE.InstancedBufferAttribute;
     const posArr = posAttr.array as Float32Array;
@@ -234,9 +253,12 @@ export function InstancedParticles({
 
       const dist = Math.sqrt(posArr[idx] ** 2 + posArr[idx + 1] ** 2 + posArr[idx + 2] ** 2);
       if (dist > spread * 1.2) {
-        const r = 0.5 + Math.random() * spread;
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos(2 * Math.random() - 1);
+        // Respawn on the same seeded stream as the initial fill — a
+        // Math.random here made every remount a different field.
+        const rng = state.rng;
+        const r = 0.5 + rng() * spread;
+        const theta = rng() * Math.PI * 2;
+        const phi = Math.acos(2 * rng() - 1);
         posArr[idx] = r * Math.sin(phi) * Math.cos(theta);
         posArr[idx + 1] = r * Math.sin(phi) * Math.sin(theta);
         posArr[idx + 2] = r * Math.cos(phi);

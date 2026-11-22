@@ -3,6 +3,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { VizProps } from "./types";
 import { useDisposeOnUnmount } from "./helpers";
+import { beatSnap } from "./vizMotion";
 
 // =============================================================================
 // SPECTRAL TERRAIN FLYOVER (T-VIZ-23)
@@ -196,7 +197,13 @@ export function TerrainFlyover({
 
     const u = material.uniforms;
     u.uPhase.value = phaseRef.current;
-    u.uHeave.value = prefersReducedMotion ? d.bass * 0.25 : d.bass * 0.85 + (d.onset ?? 0) * 0.25;
+    // Beat-quantized heave: the ridgeline swells ON the grid (beatSnap),
+    // matching the snap language every other style uses. Damped out under
+    // reduced motion like the rest of the terrain's motion.
+    const snap = d.beatPhase != null ? beatSnap(d.beatPhase) : 0;
+    u.uHeave.value = prefersReducedMotion
+      ? d.bass * 0.25
+      : d.bass * 0.85 + (d.onset ?? 0) * 0.25 + snap * 0.3;
     u.uTreble.value = d.treble;
     u.uEnergy.value = d.energy;
   });

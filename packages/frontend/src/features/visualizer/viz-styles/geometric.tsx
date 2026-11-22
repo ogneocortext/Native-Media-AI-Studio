@@ -13,7 +13,11 @@ import {
 } from "../VisualizationFX";
 import { InstancedParticles } from "./instancedParticles";
 import { useDisposeOnUnmount, getStemEnergy, isWebGPURendererInstance } from "./helpers";
-import { attackRelease, beatSnap, energyHue, gammaDrive, rolloff } from "./vizMotion";
+import { attackRelease, beatSnap, energyHue, gammaDrive, lerpHue, rolloff } from "./vizMotion";
+import { useLrcViz } from "../LrcVizController";
+
+// How far the LRC section color pulls each layer's hue (0 = energy hue only).
+const SECTION_HUE_BLEND = 0.35;
 
 export function GeometricViz({
   audioData,
@@ -33,11 +37,20 @@ export function GeometricViz({
   const rotRef = useRef(0);
   const beatPulse = useRef(0);
   const shockScale = useRef(0);
+  const snapRef = useRef(0);
   const hueRef = useRef(0.6);
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   const { gl } = useThree();
   const isWebGPU = isWebGPURendererInstance(gl);
+  // Section-driven palette: LrcVizController lerps currentColor toward the
+  // verse/chorus/drop color every frame; the layers below blend their hues
+  // toward it so a section change reads as a recolor, not just a scale.
+  const lrcViz = useLrcViz();
+  const sectionHslRef = useRef({ h: 0, s: 0, l: 0 });
+  // Stable tint wrapper for the WebGPU core terrain — currentColor is the
+  // same THREE.Color instance mutated by the controller each frame.
+  const sectionTint = useMemo(() => ({ color: lrcViz.currentColor, mix: 0.3 }), [lrcViz]);
 
   // TSL audio-reactive core material for WebGPU
   const coreMat = useMemo(() => {
@@ -148,7 +161,7 @@ export function GeometricViz({
     // Map stems to visual channels:
     //   drums → scale/pulse, bass → camera shake/rotation, vocals → hue shift,
     //   other  → palette/color modulation.
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     if (beat || features.onset > 0.5 || stemEnergyRef.current.drums > 0.6) {
       beatPulse.current = 1.0;
@@ -168,12 +181,17 @@ export function GeometricViz({
       audioData.current.beatPhase != null
         ? beatSnap(audioData.current.beatPhase)
         : beatPulse.current;
+    // Beat thump channel for the shared InstancedParticles field.
+    snapRef.current = snap;
     const pulseScale = 1 + beatPulse.current * 0.5;
 
     // Energy-driven hue (2026): cool blue at rest → warm orange-red
     // in the loud sections, so a chorus reads warmer than a verse
     // instead of just brighter.
     const eHue = energyHue(features.energy);
+    // Section hue for this frame (shortest-arc blended into each layer hue).
+    lrcViz.currentColor.getHSL(sectionHslRef.current);
+    const secHue = sectionHslRef.current.h;
 
     hueRef.current += (features.energy * 0.002 + 0.0005) * dt60;
     // Stem-driven hue drift: vocals shift hue, other shifts saturation
@@ -233,6 +251,9 @@ export function GeometricViz({
           t,
           { bass, mid, treble, energy },
           vizParams.glowIntensity * 0.6,
+          // Section color as the terrain tint — the one style wired into
+          // the LRC palette this pass.
+          sectionTint,
         );
       } else {
         const m = coreRef.current.material as THREE.MeshStandardMaterial;
@@ -248,9 +269,13 @@ export function GeometricViz({
         // through gamma (vizMotion): raw linear energy clips early and
         // leaves quiet verses flat. beatPulse is an envelope, not a
         // reading, so it stays linear.
-        m.color.setHSL(eHue + features.brightness * 0.2, 0.9, 0.55 + gammaDrive(bass) * 0.15);
+        m.color.setHSL(
+          lerpHue(eHue + features.brightness * 0.2, secHue, SECTION_HUE_BLEND),
+          0.9,
+          0.55 + gammaDrive(bass) * 0.15,
+        );
         m.emissive.setHSL(
-          eHue + 0.1 + features.brightness * 0.15 + beatHue,
+          lerpHue(eHue + 0.1 + features.brightness * 0.15 + beatHue, secHue, SECTION_HUE_BLEND),
           1.0,
           0.5 + gammaDrive(bass) * 0.3 + beatPulse.current * 0.15,
         );
@@ -274,7 +299,11 @@ export function GeometricViz({
       const m = wireRef.current.material as THREE.MeshStandardMaterial;
       m.emissiveIntensity = 0.4 + rolloff(mid * vizParams.glowIntensity * 1.5, 1.0);
       m.opacity = 0.2 + mid * 0.4 + beatPulse.current * 0.15;
-      m.color.setHSL(eHue + 0.15 + beatHue, 0.8, 0.6);
+      m.color.setHSL(
+        lerpHue(eHue + 0.15 + beatHue, secHue, SECTION_HUE_BLEND),
+        0.8,
+        0.6,
+      );
     }
     // Layer 3: Shockwave (expands from 2.5 to 12)
     if (shockRef.current) {
@@ -304,7 +333,11 @@ export function GeometricViz({
       const rm = ringRef.current.material as THREE.MeshStandardMaterial;
       rm.emissiveIntensity = 0.6 + rolloff(mid * 2, 0.8);
       rm.opacity = 0.15 + mid * 0.25;
-      rm.color.setHSL(eHue + 0.3 + beatHue, 0.8, 0.5);
+      rm.color.setHSL(
+        lerpHue(eHue + 0.3 + beatHue, secHue, SECTION_HUE_BLEND),
+        0.8,
+        0.5,
+      );
     }
   });
 
@@ -403,6 +436,7 @@ export function GeometricViz({
         hueBase={0.6}
         hueRange={0.12}
         stretch={1.2}
+        beatRef={snapRef}
       />
       {/* Layer 6: Outer ring */}
       <mesh ref={ringRef}>

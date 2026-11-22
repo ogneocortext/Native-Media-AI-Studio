@@ -7,6 +7,48 @@
 //   u_chroma_hue - 0..1 per-frame dominant-chroma hue (Tier 2), or -1 when inactive
 // Declared per-shader below only if used, so unused uniforms are optimized out;
 // ShaderCanvas sets all four every frame and WebGL drops the absent ones.
+//
+// Shared GLSL snippets, interpolated into the presets below:
+// - OKLCH_TO_LINEAR_SRGB: Oklch -> linear sRGB (Bjorn Ottosson matrices).
+//   Used by presets that sweep hue in perceptual space. Defined ONCE here —
+//   do not duplicate the function inside a preset.
+// - outputGrade(k): the shared finishing pass — a soft highlight rolloff
+//   `1 - exp(-c*k)` (loud sections bloom instead of clipping to flat white,
+//   preserving hue) plus +/-0.5 LSB hash dither AFTER the tonemap, the only
+//   point where 1/255 is a real display level; it kills 8-bit banding in
+//   smooth gradients. Every preset should run its finished `color` through
+//   `${outputGrade(k)}` before gl_FragColor. k is the rolloff strength
+//   (~1.2-1.4; higher = harder knee). See
+//   docs/knowledge-library/shader-color-science-2026.md.
+const OKLCH_TO_LINEAR_SRGB = `
+    vec3 oklch_to_linear_srgb(vec3 lch) {
+      float L = lch.x; float C = lch.y; float H = radians(lch.z);
+      float a = C * cos(H); float b = C * sin(H);
+      float l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+      float m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+      float s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+      float l = l_ * l_ * l_;
+      float m = m_ * m_ * m_;
+      float s = s_ * s_ * s_;
+      return vec3(
+         4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+        -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s);
+    }
+`;
+
+function outputGrade(strength: number): string {
+  return `
+      // Shared grade: soft highlight rolloff — loud sections bloom
+      // instead of clipping to flat white, preserving hue.
+      color = vec3(1.0) - exp(-color * ${strength});
+
+      // Dither: +/-0.5 LSB hash noise after the tonemap kills 8-bit
+      // banding in the smooth glow/vignette gradients.
+      float dith = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      color += (dith - 0.5) / 255.0;
+`;
+}
 
 export const SHADER_PRESETS = {
   // ============================================================
@@ -100,6 +142,7 @@ export const SHADER_PRESETS = {
       float vig = 1.0 - dot(p * 0.5, p * 0.5);
       color *= vig;
 
+      ${outputGrade(1.3)}
       gl_FragColor = vec4(color, 1.0);
     }
   `,
@@ -139,22 +182,24 @@ export const SHADER_PRESETS = {
 
       float t = u_time * 0.2;
 
-      // Layered fog
+      // Layered fog — density and brightness both ride the energy
+      // uniform so quiet sections sit back in the murk
       float fog = fbm(p * 2.0 + vec2(t, t * 0.5));
       fog += fbm(p * 4.0 - vec2(t * 0.7, t * 0.3)) * 0.5;
-      fog *= 0.7 + u_bass * 0.5;
+      fog *= 0.7 + u_bass * 0.5 + u_energy * 0.35;
 
-      // Warm sub-bass glow at bottom
+      // Warm sub-bass glow at bottom — transient peaks punch it
+      // harder so kick transients read through the fog
       float glow = exp(-abs(p.y + 0.5) * (2.0 - u_bass));
-      vec3 warmGlow = vec3(0.8, 0.3, 0.1) * glow * (0.5 + u_bass);
+      vec3 warmGlow = vec3(0.8, 0.3, 0.1) * glow * (0.5 + u_bass + u_peak * 0.9);
 
       // Cool moonlight at top — cool contrast against the
       // warm sub-bass glow (critique: monochromatic warm palette)
       float coolGlow = exp(-abs(p.y - 0.7) * 3.0) * (0.3 + u_treble * 0.5);
       vec3 coolColor = vec3(0.2, 0.35, 0.6) * coolGlow * 0.4;
 
-      // Cool fog color
-      vec3 fogColor = mix(vec3(0.05, 0.07, 0.12), vec3(0.15, 0.12, 0.2), fog);
+      // Cool fog color — overall level lifts with energy
+      vec3 fogColor = mix(vec3(0.05, 0.07, 0.12), vec3(0.15, 0.12, 0.2), fog) * (0.7 + u_energy * 0.5);
 
       // Light shafts through fog
       float shafts = 0.0;
@@ -174,6 +219,7 @@ export const SHADER_PRESETS = {
       float vig = 1.0 - dot(p * 0.7, p * 0.7);
       color *= vig * 1.2;
 
+      ${outputGrade(1.3)}
       gl_FragColor = vec4(color, 1.0);
     }
   `,
@@ -202,52 +248,78 @@ export const SHADER_PRESETS = {
 
       float t = u_time;
 
-      // Rain drops
+      // Beat-quantized impulse: squared so the snap lands on the
+      // beat grid (same idiom as electricHorizon/fireCrown). This is
+      // the preset's only beat channel — rain surge, reflection
+      // shimmer and sign flicker all ride it.
+      float beatSnap = u_beat * u_beat;
+
+      // Rain drops — a beat surge kicks streak speed and opacity so
+      // the downpour visibly punches on the grid
       float rain = 0.0;
       for (float i = 0.0; i < 30.0; i++) {
         // Drop speed breathes with treble; a slow sine drift
         // adds wind so the streaks are not perfectly vertical
         // (critique: rigid lines read as a static screenshot)
-        float speed = (0.5 + hash(i * 3.0) * 1.0) * (0.6 + u_treble * 0.8);
+        float speed = (0.5 + hash(i * 3.0) * 1.0) * (0.6 + u_treble * 0.8) * (1.0 + beatSnap * 0.7);
         float x = hash(i) * 2.0 - 1.0 + sin(t * 0.5 + i) * 0.05 * (0.5 + u_mid);
         float y = fract(hash(i + 100.0) - t * speed * 0.3);
         y = y * 2.0 - 1.0;
         float drop = 0.0;
         drop += 0.003 / (abs(p.x - x) + 0.001) * exp(-abs(p.y - y) * 20.0);
-        rain += drop * (0.5 + u_mid * 0.5);
+        rain += drop * (0.5 + u_mid * 0.5) * (1.0 + beatSnap * 0.5);
       }
 
-      // Neon reflections on wet ground — use per-sign neon colors
+      // Neon reflections on wet ground — use per-sign neon colors.
+      // Beat shimmer: a hash-floored flicker makes the wet asphalt
+      // glint on the beat without a steady strobe.
       float ground = 1.0 - smoothstep(-0.3, 0.0, p.y);
       vec3 neonReflect = vec3(0.0);
       for (float i = 0.0; i < 8.0; i++) {
         float nx = hash(i * 7.0) * 2.0 - 1.0;
         float dist = length(vec2(p.x - nx, p.y + 0.5));
         vec3 neonColor = vec3(hash(i * 3.0), 0.2 + hash(i * 5.0) * 0.3, 0.8 + hash(i * 7.0) * 0.2);
-        neonReflect += neonColor * exp(-dist * (4.0 - u_bass * 2.0)) * 0.15 * ground;
+        float shimmer = 1.0 + beatSnap * 0.8 * hash(floor(t * 12.0) + i * 7.0);
+        neonReflect += neonColor * exp(-dist * (4.0 - u_bass * 2.0)) * 0.15 * ground * shimmer;
       }
 
       // Background cyberpunk gradient — brightened so the scene is never solid black
       vec3 bg = mix(vec3(0.08, 0.04, 0.12), vec3(0.14, 0.06, 0.22), uv.y);
 
-      // Neon signs
+      // Neon signs — transient peaks brighten them; the beat flicker
+      // below makes individual signs dip briefly on the grid
+      float signGlow = 0.3 * (0.5 + u_energy + u_peak * 0.4);
       float signs = 0.0;
       for (float i = 0.0; i < 5.0; i++) {
         float sx = hash(i * 13.0) * 1.6 - 0.8;
         float sy = 0.2 + hash(i * 17.0) * 0.4;
         float dist = length(vec2(p.x - sx, p.y - sy));
         vec3 signColor = vec3(0.0, 0.8 + hash(i) * 0.2, 1.0);
-        signs += exp(-dist * 8.0) * 0.3 * (0.5 + u_energy);
+        signs += exp(-dist * 8.0) * signGlow;
+      }
+
+      // Beat flicker — per-sign hash dip reads as a neon "buzz" on
+      // the beat rather than a full-frame flash
+      for (float i = 0.0; i < 5.0; i++) {
+        float sx = hash(i * 13.0) * 1.6 - 0.8;
+        float sy = 0.2 + hash(i * 17.0) * 0.4;
+        float dist = length(vec2(p.x - sx, p.y - sy));
+        float dip = beatSnap * 0.35 * hash(floor(t * 15.0) + i * 11.0);
+        signs -= exp(-dist * 8.0) * signGlow * dip;
       }
 
       // Bass pulse
       float bassPulse = u_bass * 0.15 * exp(-abs(p.y + 0.3) * 2.0);
 
-      vec3 color = bg + vec3(0.4, 0.6, 1.0) * rain + neonReflect + vec3(0.0, 0.9, 1.0) * signs + vec3(0.6, 0.25, 0.15) * bassPulse;
+      // Subtle beat sheen ties the surge together
+      vec3 beatSheen = vec3(0.15, 0.35, 0.6) * beatSnap * 0.12;
+
+      vec3 color = bg + vec3(0.4, 0.6, 1.0) * rain + neonReflect + vec3(0.0, 0.9, 1.0) * signs + vec3(0.6, 0.25, 0.15) * bassPulse + beatSheen;
 
       // Scanlines
       color *= 0.95 + 0.05 * sin(gl_FragCoord.y * 2.0);
 
+      ${outputGrade(1.3)}
       gl_FragColor = vec4(color, 1.0);
     }
   `,
@@ -305,15 +377,15 @@ export const SHADER_PRESETS = {
       grid2 *= (1.0 - smoothstep(-0.5, horizon, p.y));
       vec3 gridColor2 = vec3(1.0, 0.0, 0.5) * grid2 * (0.3 + u_mid);
 
-      // Sky / sun
+      // Sky / sun — transient peaks make the synthwave sun flare
       float sun = exp(-length(vec2(p.x, p.y - 0.6)) * (3.0 - u_bass * 2.0));
-      vec3 sunColor = vec3(1.0, 0.3, 0.1) * sun;
+      vec3 sunColor = vec3(1.0, 0.3, 0.1) * sun * (0.85 + u_peak * 0.8);
 
       // Horizontal scan lines
       float scanline = 0.9 + 0.1 * sin(gl_FragCoord.y * 3.0 + t * 5.0);
 
-      // Beat flash
-      float flash = u_beat * 0.2;
+      // Beat flash — transient peaks add a faint full-frame lift
+      float flash = u_beat * 0.2 + u_peak * 0.06;
 
       vec3 color = gridColor + gridColor2 + sunColor + vec3(0.1) * flash;
       color *= scanline;
@@ -321,6 +393,7 @@ export const SHADER_PRESETS = {
       // Dark background
       color += vec3(0.02, 0.01, 0.04) * (1.0 - grid * 0.5);
 
+      ${outputGrade(1.3)}
       gl_FragColor = vec4(color, 1.0);
     }
   `,
@@ -360,11 +433,16 @@ export const SHADER_PRESETS = {
 
       float t = u_time * 0.5;
 
-      // Fire rising from bottom
+      // Fire rising from bottom — mids bend the flame columns so the
+      // fire leans and boils with the vocal/guitar body instead of
+      // rising in rigid vertical sheets
       float fire = 0.0;
       for (float i = 0.0; i < 3.0; i++) {
         float offset = i * 0.3;
-        vec2 fp = vec2(p.x * (2.0 + i), p.y + 1.0 - t * 0.2 + offset);
+        vec2 fp = vec2(
+          p.x * (2.0 + i) + u_mid * 0.5 * sin(p.y * 4.0 + t * 2.0 + i),
+          p.y + 1.0 - t * 0.2 + offset
+        );
         float n = fbm(fp * 3.0 + vec2(offset, 0.0));
         float flame = smoothstep(0.4, 0.8, n) * (1.0 - smoothstep(-0.8, 0.0, p.y));
         fire += flame * (0.5 + u_bass * 0.5);
@@ -383,13 +461,16 @@ export const SHADER_PRESETS = {
        float fireLum = dot(fireColor, vec3(0.299, 0.587, 0.114));
        fireColor = mix(fireColor, vec3(fireLum), satKnee * 0.45);
 
-      // Embers rising
+      // Embers rising — treble drives both the rise rate and a
+      // per-ember sparkle twinkle, so hats/cymbals make the ash
+      // scatter and glint
       float embers = 0.0;
       for (float i = 0.0; i < 15.0; i++) {
         float ex = hash(vec2(i, 0.0)) * 2.0 - 1.0;
-        float ey = fract(hash(vec2(i, 1.0)) - t * 0.1 * (0.5 + hash(vec2(i, 2.0))));
+        float ey = fract(hash(vec2(i, 1.0)) - t * 0.1 * (0.5 + hash(vec2(i, 2.0))) * (0.7 + u_treble * 0.6));
         float dist = length(vec2(p.x - ex * 0.5, p.y - ey * 2.0 + 0.5));
-        embers += 0.003 / (dist + 0.01) * (1.0 + u_energy);
+        float sparkle = 0.6 + 0.4 * sin(t * 20.0 + i * 3.1) * (0.5 + u_treble);
+        embers += 0.003 / (dist + 0.01) * (0.5 + u_energy + u_treble * 0.9) * sparkle;
       }
       vec3 emberColor = vec3(1.0, 0.5, 0.1) * embers;
 
@@ -405,12 +486,8 @@ export const SHADER_PRESETS = {
       // Dark background with slight red tint
       color += vec3(0.05, 0.01, 0.0);
 
-      // Soft highlight rolloff — loud sections bloom instead of
-      // clipping to flat white, preserving hue (same approach as
-      // abstractWaves v3). Grounds the saturation the peak
-      // clamp alone can't (critique: over-saturation).
-      color = vec3(1.0) - exp(-color * 1.2);
-
+      // Shared grade: highlight rolloff + dither (see abstractWaves v4)
+      ${outputGrade(1.2)}
       gl_FragColor = vec4(color, 1.0);
     }
   `,
@@ -449,13 +526,12 @@ export const SHADER_PRESETS = {
       vec3 skyTop = vec3(0.1, 0.0, 0.2);
       vec3 skyMid = vec3(0.8, 0.2, 0.3);
       vec3 skyBot = vec3(1.0, 0.6, 0.1);
-      float skyGrad = smoothstep(-1.0, 0.5, p.y);
       vec3 sky = mix(skyBot, skyMid, smoothstep(-0.5, 0.2, p.y));
       sky = mix(sky, skyTop, smoothstep(0.2, 1.0, p.y));
 
-      // Sun
+      // Sun — transient peaks make it flare
       float sun = exp(-length(vec2(p.x, p.y - 0.3)) * (4.0 - u_bass * 2.0));
-      vec3 sunColor = vec3(1.0, 0.7, 0.2) * sun;
+      vec3 sunColor = vec3(1.0, 0.7, 0.2) * sun * (0.85 + u_peak * 0.7);
 
       // Sun rays — rotation breathes with mids so the
       // rays are not a static starburst (critique: repetition)
@@ -491,6 +567,7 @@ export const SHADER_PRESETS = {
       // Palm silhouettes (darken)
       color = mix(color, vec3(0.0), palms);
 
+      ${outputGrade(0.9)}
       gl_FragColor = vec4(color, 1.0);
     }
   `,
@@ -513,32 +590,24 @@ export const SHADER_PRESETS = {
     uniform float u_mid;
     uniform float u_treble;
     uniform float u_beat;
+    // Tempo-locked phase sawtooth (0..1), separate from the u_beat
+    // impulse — used for the continuous palette drift below.
+    uniform float u_beat_phase;
     uniform float u_energy;
     uniform float u_peak;
     uniform vec2 u_resolution;
 
     float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 
-    // Oklch -> linear sRGB (Bjorn Ottosson matrices). Used for the palette
-    // sweep: interpolating in Oklch keeps chroma from dipping mid-sweep and
-    // hue velocity even, where an RGB mix of these endpoints sags to 86% of
-    // endpoint chroma at t=0.25 and decelerates through violet. Endpoints are
-    // converted once, offline; the sweep itself is 3 lerps + this function.
+    // Oklch -> linear sRGB (Bjorn Ottosson matrices), shared snippet —
+    // see the header comment. Used for the palette sweep: interpolating
+    // in Oklch keeps chroma from dipping mid-sweep and hue velocity
+    // even, where an RGB mix of these endpoints sags to 86% of
+    // endpoint chroma at t=0.25 and decelerates through violet.
+    // Endpoints are converted once, offline; the sweep itself is 3
+    // lerps + this function.
     // See docs/knowledge-library/shader-color-science-2026.md
-    vec3 oklch_to_linear_srgb(vec3 lch) {
-      float L = lch.x; float C = lch.y; float H = radians(lch.z);
-      float a = C * cos(H); float b = C * sin(H);
-      float l_ = L + 0.3963377774 * a + 0.2158037573 * b;
-      float m_ = L - 0.1055613458 * a - 0.0638541728 * b;
-      float s_ = L - 0.0894841775 * a - 1.2914855480 * b;
-      float l = l_ * l_ * l_;
-      float m = m_ * m_ * m_;
-      float s = s_ * s_ * s_;
-      return vec3(
-         4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-        -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s);
-    }
+    ${OKLCH_TO_LINEAR_SRGB}
 
     void main() {
       vec2 uv = gl_FragCoord.xy / u_resolution.xy;
@@ -600,7 +669,11 @@ export const SHADER_PRESETS = {
       // Treble green hint + beat purple punch + bass warmth (RGB accents)
       vec3 color3 = vec3(0.0, 0.8, 0.6);
       palette = mix(palette, color3, u_treble * 0.35);
-      palette = mix(palette, vec3(0.7, 0.2, 1.0), u_beat * 0.45); // beat purple punch
+      // Purple accent: the phase sawtooth keeps a slow tempo-locked
+      // drift (what u_beat used to supply before it became a pure
+      // impulse); the beat impulse adds the on-grid punch.
+      float beatMix = u_beat_phase * 0.15 + u_beat * 0.3;
+      palette = mix(palette, vec3(0.7, 0.2, 1.0), beatMix);
       palette = mix(palette, vec3(1.0, 0.45, 0.15), u_bass * 0.15); // bass warmth
 
       // Peak-highlight: brighter where wave curvature peaks (vision: "brighter peaks when loud")
@@ -647,17 +720,10 @@ export const SHADER_PRESETS = {
       float vig = 1.0 - dot(p * 0.42, p * 0.42);
       color *= mix(1.0, vig, 0.22);
 
-      // Soft highlight rolloff (v3) — loud sections bloom instead of washing
-      // out to flat white/pink. Preserves hue, keeps the dark-background
-      // contrast the visualizer's 2D modes are tuned for.
-      color = vec3(1.0) - exp(-color * 1.4);
-
-      // Dither (v4): +/-0.5 LSB hash noise AFTER the tonemap — the only point
-      // where 1/255 is actually one display level — kills 8-bit banding in
-      // the smooth glow/vignette gradients.
-      float dith = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-      color += (dith - 0.5) / 255.0;
-
+      // Shared grade (v3 rolloff + v4 dither, factored into
+      // outputGrade): loud sections bloom instead of washing out to
+      // flat white/pink; dither kills 8-bit banding.
+      ${outputGrade(1.4)}
       gl_FragColor = vec4(color, 1.0);
     }
   `,
@@ -693,20 +759,8 @@ export const SHADER_PRESETS = {
 
     float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 
-    vec3 oklch_to_linear_srgb(vec3 lch) {
-      float L = lch.x; float C = lch.y; float H = radians(lch.z);
-      float a = C * cos(H); float b = C * sin(H);
-      float l_ = L + 0.3963377774 * a + 0.2158037573 * b;
-      float m_ = L - 0.1055613458 * a - 0.0638541728 * b;
-      float s_ = L - 0.0894841775 * a - 1.2914855480 * b;
-      float l = l_ * l_ * l_;
-      float m = m_ * m_ * m_;
-      float s = s_ * s_ * s_;
-      return vec3(
-         4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-        -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s);
-    }
+    // Oklch -> linear sRGB, shared snippet (see file header).
+    ${OKLCH_TO_LINEAR_SRGB}
 
     void main() {
       vec2 uv = gl_FragCoord.xy / u_resolution.xy;
@@ -777,10 +831,14 @@ export const SHADER_PRESETS = {
       // Beat flash — squared for a quantized snap
       float flash = u_beat * u_beat * 0.45 * exp(-radius * 2.0);
 
+      // Transient peak highlight at the tunnel core
+      float peakGlow = u_peak * 0.15 * exp(-radius * 1.5);
+
       // Compose scene
       vec3 scene = baseColor * grid * (0.4 + u_energy * 1.2);
       scene += baseColor * spiral * 0.15 * (0.5 + u_bass);
       scene += vec3(1.0, 0.9, 0.7) * flash;
+      scene += vec3(1.0, 0.95, 0.85) * peakGlow;
 
       // Chromatic aberration: shift color channels
       if (chromaOffset > 0.001) {
@@ -797,13 +855,8 @@ export const SHADER_PRESETS = {
       float vig = 1.0 - dot(p * 0.4, p * 0.4);
       color *= vig;
 
-      // Tonemap
-      color = vec3(1.0) - exp(-color * 1.3);
-
-      // Dither
-      float dith = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-      color += (dith - 0.5) / 255.0;
-
+      // Shared grade: highlight rolloff + dither (see abstractWaves v4)
+      ${outputGrade(1.3)}
       gl_FragColor = vec4(color, 1.0);
     }
   `,

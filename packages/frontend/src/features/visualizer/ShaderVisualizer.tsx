@@ -297,6 +297,9 @@ export function ShaderVisualizer({
     mid: 0,
     treble: 0,
     beat: 0,
+    // Tempo-locked beat-phase sawtooth, uploaded as u_beat_phase for
+    // presets that want continuous (non-impulse) beat motion.
+    beatPhase: 0,
     energy: 0,
     peak: 0,
     sub: 0,
@@ -304,9 +307,11 @@ export function ShaderVisualizer({
     transient: 0,
     centroid: 0,
     trail: 0,
-    // Motion-vocabulary camera offset (plan 2.7), applied by
-    // ShaderCanvas as the `u_camera_offset` vec2. Two scalars
-    // because uniformsRef is a flat number map.
+    // Motion-vocabulary camera offset (plan 2.7). Currently reserved:
+    // no shader preset declares u_camera_offset, so ShaderCanvas does
+    // not upload it — the values are kept so a future preset can opt in
+    // without rewiring the motion driver. Two scalars because
+    // uniformsRef is a flat number map.
     cameraOffsetX: 0,
     cameraOffsetY: 0,
     // T-VIZ-20: audio-driven feedback warp uniforms, consumed by
@@ -450,17 +455,32 @@ export function ShaderVisualizer({
       // must be a pure function of the analysis timeline at `elapsed`.
       const d = isVirtual ? { ...live, beat: false, bass: 0, mid: 0, treble: 0, energy: 0 } : live;
       const sync = lrcSyncLive?.current ?? lrcSyncPropRef.current;
+      const elapsed = virtualT ?? sampleAudio?.() ?? 0;
+
+      // Frame dt from the audio clock (never the wall clock — D14
+      // rule 2), capped so a seek or a backgrounded tab cannot inject
+      // a huge delta. Virtual frames step at exactly 1/fps. Computed
+      // before the pulse decays so phraseFlash/beatPulse are
+      // frame-rate independent; the motion driver below reuses it.
+      const prevElapsed = lastFrameTimeRef.current;
+      lastFrameTimeRef.current = elapsed;
+      const dtSec = isVirtual
+        ? 1 / exportFpsRef.current
+        : prevElapsed !== null && elapsed >= prevElapsed
+          ? Math.min(0.25, elapsed - prevElapsed)
+          : 1 / 60;
+
       if (isVirtual) {
         phraseFlash = 0;
         beatPulse = 0;
       } else if (sync?.isPhraseStart) phraseFlash = 1;
-      else phraseFlash = Math.max(0, phraseFlash - 0.07);
+      else phraseFlash = Math.max(0, phraseFlash - 0.07 * dtSec * 60);
       // Beat pulse: snap on beat, exponential decay (half-life ~80ms, not linear 0.12) — matches audioTiming RELEASE
       if (!isVirtual && d.beat) {
         beatPulse = 1;
       } else if (!isVirtual) {
-        // decay with dt-agnostic factor ~0.08 per frame @60fps
-        beatPulse *= 0.88;
+        // dt-scaled decay: the old 0.88/frame @60fps factor expressed per second
+        beatPulse *= Math.pow(0.88, dtSec * 60);
         if (beatPulse < 0.01) beatPulse = 0;
         // also shape by nextBeatIn for anticipatory swell (BPM-scaled)
         const nb = d.nextBeatIn;
@@ -471,7 +491,6 @@ export function ShaderVisualizer({
       }
       // Energy: live + phrase flash only (sectionProgress was biasing lag); analysis energy already blended in Visualizer
       const lrcEnergy = d.energy + phraseFlash * 0.3;
-      const elapsed = virtualT ?? sampleAudio?.() ?? 0;
       const stemEnergy = {
         vocals:
           (stemsMutedRef.current?.vocals ? 0 : sampleStemEnergy(stems?.vocals, elapsed)) *
@@ -585,24 +604,13 @@ export function ShaderVisualizer({
       const reactivityUniforms = processor?.getUniforms() ?? null;
 
       // Plan 2.7: resolve one frame of the motion vocabulary
-      // (`motion/` module) and apply its camera offset to the
-      // shader. The shader canvas is a fullscreen quad, so the
-      // "camera offset node" is the `u_camera_offset` UV shift —
-      // the same channel a 3D rig would drive a child camera
-      // node with. Impacts come from the band onsets; the grid
+      // (`motion/` module). Its camera offset lands in uniformsRef
+      // as cameraOffsetX/Y — currently reserved (no preset declares
+      // u_camera_offset). Impacts come from the band onsets; the grid
       // lookahead (next beat) drives anticipation on analyzed
-      // tracks. `dtSec` comes from the audio clock, never the
-      // wall clock (D14 rule 2), and is capped so a seek or a
-      // backgrounded tab cannot inject a huge delta.
-      const prevElapsed = lastFrameTimeRef.current;
-      lastFrameTimeRef.current = elapsed;
-      // Plan 2.9: virtual frames step at exactly 1/fps — the wall
-      // clock never enters the motion driver during an export.
-      const dtSec = isVirtual
-        ? 1 / exportFpsRef.current
-        : prevElapsed !== null && elapsed >= prevElapsed
-          ? Math.min(0.25, elapsed - prevElapsed)
-          : 1 / 60;
+      // tracks. `dtSec` was computed from the audio clock above
+      // (never the wall clock — D14 rule 2) and is capped so a seek
+      // or a backgrounded tab cannot inject a huge delta.
       let motionCameraOffsetX = 0;
       let motionCameraOffsetY = 0;
       const motionHistory = motionHistoryRef.current;
@@ -650,22 +658,32 @@ export function ShaderVisualizer({
         treble: reactivityUniforms
           ? Math.min(1, reactivityUniforms.high * 0.6 + baseHigh * 0.4)
           : baseHigh,
+        // u_beat is a decaying impulse — the beatPulse snap blended
+        // with drum-stem energy and a little smoothed transient —
+        // not the beatPhase sawtooth (that moved to u_beat_phase for
+        // presets that want tempo-locked, non-impulse motion).
         beat: reactivityUniforms
-          ? Math.min(1, reactivityUniforms.beatPhase * 0.3 + baseBeat * 0.7)
+          ? Math.min(1, baseBeat * 0.85 + reactivityUniforms.transient * 0.3)
           : baseBeat,
+        beatPhase: reactivityUniforms?.beatPhase ?? 0,
         energy: reactivityUniforms
           ? Math.min(1, reactivityUniforms.energy * 0.5 + baseEnergy * 0.5)
           : baseEnergy,
         peak: isVirtual ? stemBoost : Math.max(d.peak, stemBoost),
-        sub: spectral?.sub ?? 0,
-        high: spectral?.high ?? 0,
+        // sub/high/transient/centroid go through the same smoothed
+        // processor path as bass/mid/treble — raw spectral values
+        // made spectralReactor's kick/glitch/hue channels jitter.
+        sub: reactivityUniforms ? reactivityUniforms.sub : (spectral?.sub ?? 0),
+        high: reactivityUniforms ? reactivityUniforms.high : (spectral?.high ?? 0),
         transient: reactivityUniforms
-          ? Math.min(1, reactivityUniforms.transient * 0.7 + (spectral?.transient ?? 0) * 0.3)
+          ? reactivityUniforms.transient
           : (spectral?.transient ?? 0),
-        centroid: spectral?.centroid ?? 0,
+        centroid: reactivityUniforms
+          ? reactivityUniforms.centroid
+          : (spectral?.centroid ?? 0),
         trail: sectionMapping.trailIntensity,
-        // Motion-vocabulary camera offset (plan 2.7), consumed by
-        // ShaderCanvas as the `u_camera_offset` vec2.
+        // Motion-vocabulary camera offset (plan 2.7) — reserved;
+        // no preset declares u_camera_offset yet.
         cameraOffsetX: motionCameraOffsetX,
         cameraOffsetY: motionCameraOffsetY,
         // T-VIZ-20: audio-driven feedback warp uniforms, consumed by

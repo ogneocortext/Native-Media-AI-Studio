@@ -340,6 +340,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         barModeState.waveVelocities = null;
         barModeState.smoothed = null;
         barModeState.lastMs = null;
+        barModeState.kineticLayout = null;
 
         phraseFlash = 0;
         beatVignette = 0;

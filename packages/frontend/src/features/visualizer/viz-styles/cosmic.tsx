@@ -21,6 +21,7 @@ export function OrbitalParticles({
   const shockRef = useRef<THREE.Mesh>(null);
   const rotRef = useRef(0);
   const beatPulse = useRef(0);
+  const snapRef = useRef(0);
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   // TODO: add isWebGPU detection when TSL particle material is wired in
@@ -29,7 +30,7 @@ export function OrbitalParticles({
     const features = getTrackFeatures();
     const dt60 = Math.min(delta, 0.1) * 60;
 
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     const beatTarget =
       audioData.current.beat || features.onset > 0.5 || stemEnergyRef.current.drums > 0.5
@@ -40,6 +41,8 @@ export function OrbitalParticles({
       audioData.current.beatPhase != null
         ? beatSnap(audioData.current.beatPhase)
         : beatPulse.current;
+    // Beat thump channel for the shared InstancedParticles field.
+    snapRef.current = snap;
     if (!sceneFrozen)
       rotRef.current +=
         0.004 *
@@ -91,6 +94,7 @@ export function OrbitalParticles({
         hueBase={0.55}
         hueRange={0.25}
         stretch={3.2}
+        beatRef={snapRef}
       />
       <mesh ref={shockRef} rotation={[Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.98, 1.0, 64]} />
@@ -128,6 +132,7 @@ export function EnergyWaves({
 
   const rotRef = useRef(0);
   const suckRef = useRef(0);
+  const snapRef = useRef(0);
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
   // TODO: add isWebGPU detection when TSL material path is needed
@@ -135,12 +140,14 @@ export function EnergyWaves({
     const { bass, peak, beat, energy } = audioData.current;
     const dt60 = Math.min(delta, 0.1) * 60;
 
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     const suckTarget = beat || stemEnergyRef.current.drums > 0.5 ? 1.0 : 0.0;
     suckRef.current = attackRelease(suckRef.current, suckTarget, 0.4, 0.95, dt60);
     const snap =
       audioData.current.beatPhase != null ? beatSnap(audioData.current.beatPhase) : suckRef.current;
+    // Beat thump channel for the shared InstancedParticles field.
+    snapRef.current = snap;
     const eHue = energyHue(energy);
 
     if (!sceneFrozen)
@@ -205,6 +212,7 @@ export function EnergyWaves({
         hueBase={0.6}
         hueRange={0.15}
         stretch={2.8}
+        beatRef={snapRef}
       />
       <mesh ref={funnelRef}>
         <coneGeometry args={[4, 6, 32, 1, true]} />

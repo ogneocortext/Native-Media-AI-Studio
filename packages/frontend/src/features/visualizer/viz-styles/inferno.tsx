@@ -23,6 +23,7 @@ export function InfernoViz({
   const isWebGPU = isWebGPURendererInstance(gl);
   const stemEnergyRef = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
   const emberPulseRef = useRef(0);
+  const snapRef = useRef(0);
 
   const coreMat = useMemo(
     () =>
@@ -42,11 +43,11 @@ export function InfernoViz({
   useFrame((_s, delta) => {
     if (!coreRef.current) return;
     const t = _s.clock.elapsedTime;
-    const { bass, beat } = audioData.current;
+    const { bass, beat, energy } = audioData.current;
     const speedMul = prefersReducedMotion ? 0.35 : 1;
     const dt60 = Math.min(delta, 0.1) * 60;
 
-    stemEnergyRef.current = getStemEnergy(stems, audioElapsedRef?.current ?? 0);
+    getStemEnergy(stems, audioElapsedRef?.current ?? 0, stemEnergyRef.current);
 
     // Beat-quantized ember burst (2026): embers
     // eject on the grid, then fall — a fire
@@ -57,6 +58,8 @@ export function InfernoViz({
       audioData.current.beatPhase != null
         ? beatSnap(audioData.current.beatPhase)
         : emberPulseRef.current;
+    // Beat thump channel for the shared InstancedParticles field.
+    snapRef.current = snap;
 
     const coreScale =
       0.3 +
@@ -68,7 +71,7 @@ export function InfernoViz({
     if (isWebGPU && coreMat) {
       updateAudioReactiveMaterialTSL(
         coreMat,
-        { bass, mid: 0, treble: 0, energy: 0.5 },
+        { bass, mid: 0, treble: 0, energy },
         vizParams.glowIntensity * (1 + snap * 0.5),
       );
       coreRef.current.rotation.y = t * 0.5 * vizParams.rotationSpeed * speedMul;
@@ -96,6 +99,7 @@ export function InfernoViz({
         hueBase={0.02}
         hueRange={0.08}
         stretch={2.2}
+        beatRef={snapRef}
       />
       <mesh ref={coreRef} position={[0, -2, 0]}>
         <sphereGeometry args={[0.3, 16, 16]} />

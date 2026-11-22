@@ -84,6 +84,8 @@ export interface TerrainTSLUniforms {
   uColorA: TSLUniform<THREE.Color>;
   uColorB: TSLUniform<THREE.Color>;
   uRim: TSLUniform<THREE.Color>;
+  uTint: TSLUniform<THREE.Color>;
+  uTintMix: TSLUniform<number>;
   uDisplace: TSLUniform<number>;
   uFreq1: TSLUniform<number>;
   uFreq2: TSLUniform<number>;
@@ -417,6 +419,10 @@ export function makeTerrainMaterial(opts: TerrainMaterialOpts = {}): THREE.Shade
       uColorA: { value: new THREE.Color(o.colorA) },
       uColorB: { value: new THREE.Color(o.colorB) },
       uRim: { value: new THREE.Color(o.rim) },
+      // Palette tint: callers (aurora/ocean energy hue, section color) lerp the
+      // shaded terrain toward uTint by uTintMix. White + 0 = no-op default.
+      uTint: { value: new THREE.Color("#ffffff") },
+      uTintMix: { value: 0 },
       uOpacity: { value: o.opacity },
       uDisplace: { value: o.displace },
       uFreq1: { value: o.freq1 },
@@ -453,14 +459,17 @@ export function makeTerrainMaterial(opts: TerrainMaterialOpts = {}): THREE.Shade
       }
     `,
     fragmentShader: /* glsl */ `
-      uniform vec3 uColorA, uColorB, uRim;
-      uniform float uOpacity, uGlow, uBass;
+      uniform vec3 uColorA, uColorB, uRim, uTint;
+      uniform float uOpacity, uGlow, uBass, uTintMix;
       varying float vH;
       varying vec3 vN;
       varying vec3 vView;
       void main(){
         float m = smoothstep(-1.2, 1.4, vH);
         vec3 col = mix(uColorA, uColorB, m);
+        // Energy/section tint applied to the base gradient only — the fresnel
+        // rim below keeps its own accent color.
+        col = mix(col, uTint, uTintMix);
         float fres = pow(1.0 - abs(dot(normalize(vN), normalize(vView))), 2.4);
         col += uRim * fres * (0.35 + uGlow * 0.7 + uBass * 0.35);
         col *= 0.8 + uGlow * 0.35;
@@ -472,12 +481,20 @@ export function makeTerrainMaterial(opts: TerrainMaterialOpts = {}): THREE.Shade
   });
 }
 
+/** Optional palette tint for the terrain material (energy hue / section color). */
+export interface TerrainTint {
+  color: THREE.Color;
+  /** 0 = off, 1 = fully replaced by `color`. ~0.3-0.45 reads as a hue shift. */
+  mix: number;
+}
+
 /** Per-frame uniform update helper for terrain materials. */
 export function updateTerrainMaterial(
   mat: THREE.ShaderMaterial,
   t: number,
   audio: { bass: number; mid: number; treble: number; energy?: number },
   glow: number,
+  tint?: TerrainTint,
 ) {
   const u = mat.uniforms;
   u.uTime.value = t;
@@ -486,6 +503,10 @@ export function updateTerrainMaterial(
   u.uTreble.value = audio.treble;
   u.uEnergy.value = audio.energy ?? 0.5;
   u.uGlow.value = glow;
+  if (tint) {
+    (u.uTint.value as THREE.Color).copy(tint.color);
+    u.uTintMix.value = tint.mix;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -664,6 +685,9 @@ export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): Terra
   const uColorA = uniform(new THREE.Color(o.colorA));
   const uColorB = uniform(new THREE.Color(o.colorB));
   const uRim = uniform(new THREE.Color(o.rim));
+  // Palette tint — same contract as the GLSL path: white + mix 0 = no-op.
+  const uTint = uniform(new THREE.Color("#ffffff"));
+  const uTintMix = uniform(0);
   const uDisplace = uniform(o.displace);
   const uFreq1 = uniform(o.freq1);
   const uFreq2 = uniform(o.freq2);
@@ -721,6 +745,12 @@ export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): Terra
       h.add(1.2).div(2.6).clamp(0, 1),
     );
 
+    // Energy/section tint on the base gradient only — the fresnel rim below
+    // keeps its own accent color (mirrors the GLSL `mix(col, uTint, uTintMix)`).
+    col = col
+      .mul(float(1).sub(uTintMix))
+      .add(vec4(uTint, float(1)).mul(uTintMix));
+
     const fres = float(1.0)
       .sub(normalWorld.normalize().dot(cameraPosition.sub(positionWorld).normalize()).abs())
       .pow(2.4);
@@ -743,6 +773,8 @@ export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): Terra
       uColorA,
       uColorB,
       uRim,
+      uTint,
+      uTintMix,
       uDisplace,
       uFreq1,
       uFreq2,
@@ -759,6 +791,7 @@ export function updateTerrainMaterialTSL(
   t: number,
   audio: { bass: number; mid: number; treble: number; energy?: number },
   glow: number,
+  tint?: TerrainTint,
 ) {
   const u = tslUniforms<TerrainTSLUniforms>(mat);
   if (!u) return;
@@ -768,6 +801,10 @@ export function updateTerrainMaterialTSL(
   u.uTreble.value = audio.treble;
   u.uEnergy.value = audio.energy ?? 0.5;
   u.uGlow.value = glow;
+  if (tint) {
+    u.uTint.value.copy(tint.color);
+    u.uTintMix.value = tint.mix;
+  }
 }
 
 export interface AudioReactiveMaterialOpts {
