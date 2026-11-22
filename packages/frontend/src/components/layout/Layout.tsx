@@ -9,7 +9,7 @@ import { useJobStore } from "../../state/jobStore";
 import { connectNotificationSSE, disconnectNotificationSSE } from "../../state/notificationStore";
 import { NotificationBell } from "../notifications/NotificationBell";
 import { ConnectionStatusDot } from "../notifications/ConnectionStatusDot";
-import { MayaPresence } from "../../features/presence/MayaPresence";
+import { Presence } from "../../features/presence/Presence";
 import pkg from "../../../package.json";
 
 interface LayoutProps {
@@ -65,7 +65,7 @@ export function Layout({ children }: LayoutProps) {
     <div className={`layout-root${focusMode ? " layout-focus-mode" : ""}`}>
       <div className="layout-topbar">
         <ConnectionStatusDot />
-        <MayaPresence />
+        <Presence />
         <NotificationBell />
       </div>
       <Sidebar />

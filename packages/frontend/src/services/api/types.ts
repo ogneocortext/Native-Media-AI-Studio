@@ -779,6 +779,11 @@ export interface LogTrafficEntry {
 
 /** One person in the presence roster (Admin > Log Analytics / app-shell chip). */
 export interface PresencePerson {
+  id?: string;
+  label?: string;
+  sublabel?: string;
+  note?: string | null;
+  unavailable?: boolean;
   name: string;
   role: string;
   avatar: string | null;

@@ -70,10 +70,15 @@
     "limit": 20000
   },
   "presence": {
-    "version": "1.4",
+    "version": "1.5",
     "session_gap_seconds": 900,
     "people": [
       {
+        "id": "maya",
+        "label": "Maya",
+        "sublabel": "Manager",
+        "note": null,
+        "unavailable": false,
         "name": "Maya",
         "role": "Manager",
         "avatar": "/maya-avatar.webp",
@@ -89,18 +94,43 @@
         }
       },
       {
+        "id": "kilo",
+        "label": "Nemotron 3.5 Super VL",
+        "sublabel": "via Kilo",
+        "note": null,
+        "unavailable": false,
+        "name": "Kilo",
+        "role": "Engineer",
+        "avatar": null,
+        "color": "#8b5cf6",
+        "commit_match": "Kilo",
+        "recent_window_seconds": 1800
+      },
+      {
+        "id": "ernie",
+        "label": "ERNIE",
+        "sublabel": "via Kilo",
+        "note": "Free tier ends Nov 30, 2026",
+        "unavailable": false,
         "name": "ERNIE",
         "role": "Builder",
         "avatar": null,
         "color": "#0C4F65",
-        "commit_match": "Kilo"
+        "commit_match": "Kilo",
+        "recent_window_seconds": 1800
       },
       {
+        "id": "devin",
+        "label": "Devin",
+        "sublabel": "Cloud agent",
+        "note": null,
+        "unavailable": false,
         "name": "Devin",
         "role": "Builder",
         "avatar": null,
         "color": "#E8A33D",
-        "commit_match": "Devin"
+        "commit_match": "Devin",
+        "recent_window_seconds": 1800
       }
     ]
   }

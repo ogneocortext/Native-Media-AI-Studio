@@ -307,6 +307,11 @@ def read_journal(limit: int = 5) -> list[dict[str, Any]]:
 
 def _base_fields(person: dict[str, Any]) -> dict[str, Any]:
     return {
+        "id": person.get("id") or str(person.get("name", "")),
+        "label": person.get("label") or str(person.get("name", "")),
+        "sublabel": person.get("sublabel") or str(person.get("role", "")),
+        "note": person.get("note"),
+        "unavailable": bool(person.get("unavailable", False)),
         "name": str(person.get("name", "")),
         "role": str(person.get("role", "")),
         "avatar": person.get("avatar"),
