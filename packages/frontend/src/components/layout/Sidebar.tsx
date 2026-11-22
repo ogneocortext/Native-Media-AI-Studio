@@ -12,6 +12,7 @@ import {
   Home,
   Image,
   ListOrdered,
+  Maximize2,
   Menu,
   Music,
   X,
@@ -88,6 +89,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Image Generation",
         icon: <Image size={18} />,
         keywords: "image picture comfyui generate",
+      },
+      {
+        path: "/create/upscale",
+        label: "Upscale",
+        icon: <Maximize2 size={18} />,
+        keywords: "upscale lanczos comfyui image enlarge 2x 4x",
       },
       {
         path: "/create/typography",

@@ -58,6 +58,10 @@ const ImageProcessingPage = lazyNamed(
   async () => import("./features/image-processing/ImageProcessingPage"),
   "ImageProcessingPage",
 );
+const UpscalePage = lazyNamed(
+  async () => import("./features/upscale/UpscalePage"),
+  "UpscalePage",
+);
 const MediaLibrary = lazyNamed(
   async () => import("./features/media-library/MediaLibrary"),
   "MediaLibrary",
@@ -231,6 +235,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/create/video": "Video Generation",
   "/create/image": "Image Generation",
   "/create/image-processing": "Image Processing",
+  "/create/upscale": "Upscale",
   "/create/typography": "Kinetic Typography",
   "/create/music": "Music Gen",
   "/create/chiptune": "Chiptune",
@@ -326,6 +331,10 @@ function App() {
               <Route
                 path="/create/image-processing"
                 element={withErrorBoundary(<ImageProcessingPage />)}
+              />
+              <Route
+                path="/create/upscale"
+                element={withErrorBoundary(<UpscalePage />)}
               />
               <Route
                 path="/create/typography"
