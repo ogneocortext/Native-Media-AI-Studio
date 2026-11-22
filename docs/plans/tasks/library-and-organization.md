@@ -284,7 +284,8 @@ Rules: `docs/plans/tasks/README.md`
   `/api/outputs/nsfw` and is still absent from the home feed. Rendered DOM
   with an item flagged: library search returns the standard empty state with 0
   cards and no hidden/blurred text, and the thumbnail URL is not in the DOM.
-  `/about` footer and `/api/logs/presence` (v1.4, 3 people) unchanged.
+  `/about` footer and `/api/logs/presence` (v1.5, 4 people: Maya, Kilo, ERNIE,
+  Devin) changed — Kilo badged by its current model from config.
 - **Acceptance:** satisfied — default-off gate, server-side exclusion, one
   commit `6f8a86fb`. Temporary test flag on `audio/test-demo.roll.png` was
   reverted; the empty `nsfw` tag row it created was deleted.
