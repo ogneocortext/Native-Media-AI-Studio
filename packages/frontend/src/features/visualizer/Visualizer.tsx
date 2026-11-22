@@ -1086,6 +1086,7 @@ export function Visualizer() {
               postfxEnabled={postfxEnabled}
               perceptualScale={perceptualScale}
               active={visualsVisible && vizMode === "3d"}
+              characterVisible={characterVisible}
               sampleAudio={sampleAudio}
             />
           </Canvas>
@@ -1205,13 +1206,16 @@ export function Visualizer() {
           {visualsVisible && (
             <div className={`viz-letterbox bottom ${storyState.beat?.cinematic ? "on" : ""}`} />
           )}
-          {/* Builder silhouette — separate layer, independent of lyrics (user-toggleable) */}
-          <BuilderFigure
-            audioData={liveAudioDataRef}
-            storyBeat={storyState.beat}
-            visible={characterVisible}
-            calm={prefersReducedMotion}
-          />
+          {/* Builder silhouette — 2D/FX lanes only; in 3D mode the rigged
+              hero_dj inside VisualizerScene is the character layer. */}
+          {vizMode !== "3d" && (
+            <BuilderFigure
+              audioData={liveAudioDataRef}
+              storyBeat={storyState.beat}
+              visible={characterVisible}
+              calm={prefersReducedMotion}
+            />
+          )}
 
           {/* 1-Click Interactive Quick Preset & Vibe Bar — hidden in
               shader mode: ShaderHud already carries the full preset

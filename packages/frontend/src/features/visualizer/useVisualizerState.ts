@@ -278,7 +278,10 @@ export function useVisualizerState() {
   const [visualsVisible, setVisualsVisible] = useState(true);
   const [lyricsVisible, setLyricsVisible] = useState(true);
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
-  const [characterVisible, setCharacterVisible] = useState(true);
+  // Character layer is opt-in: the 2D silhouette read as a disconnected
+  // prop on every mode (T-VIZ-56 follow-up). Toggle lives in the toolbar;
+  // the 3D hero_dj character shares this flag inside the R3F scene.
+  const [characterVisible, setCharacterVisible] = useState(false);
   const [showTestPanel, setShowTestPanel] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showAnimDemo, setShowAnimDemo] = useState(false);

@@ -2,6 +2,7 @@ import { Environment, Lightformer, OrbitControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { LrcVizController } from "./LrcVizController";
+import { VisualizerCharacter } from "./components/VisualizerCharacter";
 import { PostFX } from "./VisualizationFX";
 import { WebGPUPostFX } from "./webgpu/WebGPUPostFX";
 import {
@@ -91,6 +92,8 @@ interface Props extends VisualizerSceneProps {
   active?: boolean;
   /** T-VIZ-18 — governor bottom rung drops the post-processing chain */
   postfxEnabled?: boolean;
+  /** Character layer toggle — shows the rigged hero_dj in the 3D scene */
+  characterVisible?: boolean;
 }
 
 export function VisualizerScene({
@@ -115,6 +118,7 @@ export function VisualizerScene({
   perceptualScale = "mel",
   active = true,
   postfxEnabled = true,
+  characterVisible = false,
   sampleAudio,
   stems,
 }: Props) {
@@ -307,6 +311,15 @@ export function VisualizerScene({
         />
 
         {renderVisualization()}
+
+        {/* Rigged hero_dj — the 3D-lane character (replaces the 2D
+            BuilderFigure silhouette, which stays for 2D/FX modes). */}
+        <VisualizerCharacter
+          audioData={audioData}
+          visible={characterVisible}
+          prefersReducedMotion={prefersReducedMotion}
+          sceneFrozen={sceneFrozen ?? false}
+        />
 
         {vizParams.showGround && (
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -3, 0]} receiveShadow={false}>
