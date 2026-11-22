@@ -1024,6 +1024,7 @@ from .api import (  # noqa: E402
     audio_mastering,
     audio_remix,
     audio_stems,
+    audio_vocal,
     chiptune,
     comfyui,
     data,
@@ -1091,6 +1092,10 @@ app.include_router(audio_remix.router)
 # own module for the same reason as audio_stems/audio_edit: same /api/audio
 # prefix, unregistered router = silently dropped routes.
 app.include_router(audio_mastering.router)
+# Vocal treatment (/api/audio/vocal/treat, /api/audio/vocal/measure/{filename})
+# is its own module for the same reason as audio_mastering: same /api/audio
+# prefix, unregistered router = silently dropped routes.
+app.include_router(audio_vocal.router)
 app.include_router(transcription.router)
 app.include_router(lyrics.router)
 app.include_router(comfyui.router)
