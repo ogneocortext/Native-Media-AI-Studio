@@ -109,10 +109,14 @@ export function VisualizerCharacter({
       const src = o.material as THREE.Material | THREE.Material[];
       const list = Array.isArray(src) ? src : [src];
       const next = list.map((m) => {
-        const hex = (m as THREE.MeshStandardMaterial).color.getHex();
+        const std = m as THREE.MeshStandardMaterial;
+        const hex = std.color.getHex();
         let toon = toonByColor.get(hex);
         if (!toon) {
           toon = new THREE.MeshToonMaterial({ color: hex, gradientMap: gradient });
+          // Carry the GLB's baseColorTexture — the toon color multiplies it,
+          // preserving the authored fabric/detail grain.
+          if (std.map) toon.map = std.map;
           toonByColor.set(hex, toon);
           created.push(toon);
         }
