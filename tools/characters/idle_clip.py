@@ -17,6 +17,13 @@ import json
 import sys
 
 import bpy
+from mathutils import Euler
+
+# Relaxed stance: upper arms hang ~66 deg below the T-pose (euler x on the
+# bone-local frame), forearms carry a slight elbow bend. Verified against
+# HouseRig_v1: Arm.* are XYZ-euler bones, ForeArm.*/Hand.* are quaternion.
+ARM_X = -1.15  # upper-arm pitch (radians) — hand drops to ~z 0.95
+FOREARM_BEND = -0.45  # forearm local-z quaternion bend (elbow flex)
 
 
 def key(pb, frame: int, rot=None, loc=None) -> None:
@@ -63,17 +70,22 @@ def main() -> None:
     hand_l, hand_r = pb("Hand.L"), pb("Hand.R")
 
     # Key poses (frame, hips_loc_z, hips_rot_y, spine_rot_x, spine1_rot_z,
-    # head_rot_y, head_rot_x, arm_l_z, arm_r_z). Radians, XYZ euler.
+    # head_rot_y, head_rot_x, arm_l_sway_y, arm_r_sway_y). Radians, XYZ euler.
+    # Arm sway is on local Y: with the arm lowered it reads as a relaxed
+    # forward/back swing instead of the old T-pose propeller.
     poses = [
         (1, 0.0, 0.0, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00),
-        (f_end // 4, 0.012, 0.02, 0.02, 0.015, 0.10, -0.02, 0.04, -0.03),
-        (f_end // 2, -0.006, -0.015, -0.01, -0.01, -0.06, 0.02, -0.03, 0.05),
-        (3 * f_end // 4, 0.010, 0.01, 0.015, 0.01, 0.14, -0.01, 0.05, -0.04),
+        (f_end // 4, 0.012, 0.02, 0.02, 0.015, 0.10, -0.02, 0.10, -0.08),
+        (f_end // 2, -0.006, -0.015, -0.01, -0.01, -0.06, 0.02, -0.08, 0.10),
+        (3 * f_end // 4, 0.010, 0.01, 0.015, 0.01, 0.14, -0.01, 0.12, -0.10),
         (f_end, 0.0, 0.0, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00),
         (f_end + 1, 0.0, 0.0, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00),
     ]
 
-    for frame, hz, hy, sx, s1z, hd_y, hd_x, al_z, ar_z in poses:
+    fore_q = Euler((0.0, 0.0, FOREARM_BEND)).to_quaternion()
+    hand_q = Euler((0.0, 0.0, 0.0)).to_quaternion()
+
+    for frame, hz, hy, sx, s1z, hd_y, hd_x, al_y, ar_y in poses:
         hips.location = (0, 0, 0.95 + hz)
         hips.rotation_euler = (0.0, hy, 0.0)
         hips.keyframe_insert("location", frame=frame)
@@ -85,12 +97,13 @@ def main() -> None:
         head.keyframe_insert("rotation_euler", frame=frame)
         neck.rotation_euler = (hd_x * 0.4, hd_y * 0.4, 0.0)
         neck.keyframe_insert("rotation_euler", frame=frame)
-        for bone, rz in ((arm_l, al_z), (arm_r, ar_z)):
-            bone.rotation_euler = (0.0, 0.0, rz)
+        for bone, sway in ((arm_l, al_y), (arm_r, ar_y)):
+            bone.rotation_euler = (ARM_X, sway, 0.0)
             bone.keyframe_insert("rotation_euler", frame=frame)
-        for bone in (fore_l, fore_r, hand_l, hand_r):
-            bone.rotation_euler = (0.0, 0.0, 0.0)
-            bone.keyframe_insert("rotation_euler", frame=frame)
+        for bone, q in ((fore_l, fore_q), (fore_r, fore_q),
+                        (hand_l, hand_q), (hand_r, hand_q)):
+            bone.rotation_quaternion = q
+            bone.keyframe_insert("rotation_quaternion", frame=frame)
 
     # Gentle ease: linear is fine at 24fps for subtle motion; set cyclic
     # via NLA loop later if needed.
