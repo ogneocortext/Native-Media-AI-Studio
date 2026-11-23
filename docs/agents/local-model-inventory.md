@@ -13,6 +13,7 @@ loads. Trust tiers - which model may be given which work - live separately in
 | Model | Size | Purpose | Status | Verified |
 |-------|------|---------|--------|----------|
 | `gemma4:e2b-it-qat` | 4.3 GB | Vision (primary) | ✅ Installed | 2026-11-08 |
+| `qwen3-vl:4b-instruct` | 3.3 GB | Vision (heavyweight QA) | ✅ Installed | 2026-11-23 |
 | `moondream:latest` | 1.7 GB | Vision (lightweight) | ✅ Installed | 2026-11-08 |
 | `nomic-embed-text:v1.5` | 274 MB | Embedding (primary) | ✅ Installed | 2026-11-08 |
 | `nomic-embed-text:latest` | 274 MB | Embedding (latest) | ✅ Installed | 2026-11-08 |

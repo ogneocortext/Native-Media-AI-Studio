@@ -25,8 +25,9 @@ import type { AudioData } from "../types";
  */
 
 const CHARACTER_URL = "/models/characters/hero_dj.glb";
-/** World-space height target — reads as a person next to the ~4 m stage kit. */
-const TARGET_HEIGHT = 1.9;
+/** World-space height target — reads as a person beside the ~4 m stage kit
+ *  without filling the frame: at 1.9 m the z=7 camera framed his chest. */
+const TARGET_HEIGHT = 1.55;
 
 interface Props {
   audioData: React.MutableRefObject<AudioData>;
@@ -63,10 +64,11 @@ export function VisualizerCharacter({
   visible,
   prefersReducedMotion = false,
   sceneFrozen = false,
-  // Right-third mark, feet above the bottom frame edge — the stage floor
-  // sits at y=-3 which is the frame's lower border from the z=7 camera.
-  position = [1.5, -1.7, 0.8],
-  rotationY = -0.35,
+  // Right-third mark — in front of the stage deck (z=-0.4 put his legs
+  // behind the platform edge), ~30 deg yaw for a 3/4 read, 1.55 m so the
+  // full figure fits head-to-foot instead of chest-filling the frame.
+  position = [1.55, -1.15, 0.5],
+  rotationY = -0.55,
 }: Props) {
   const { gl, camera } = useThree();
   const loggedRef = useRef(false);
@@ -238,6 +240,17 @@ export function VisualizerCharacter({
       visible={visible}
     >
       <primitive object={model} />
+      {/* Warm frontal fill — the viz scene is dark and the only other
+          light was the cool rim, which left the suit reading as flat grey.
+          Low intensity: it reveals material colors, it doesn't flatten
+          the toon ramp. */}
+      <pointLight
+        position={[0.3, 1.6, 1.6]}
+        intensity={4}
+        distance={6}
+        decay={2}
+        color="#ffd9b0"
+      />
       {/* Rim light from behind-top — toon shading has no specular, so this
           is what separates the silhouette from the dark viz background. */}
       <pointLight
