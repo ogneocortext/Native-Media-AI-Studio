@@ -119,6 +119,11 @@ export function VisualizerCharacter({
           // Carry the GLB's baseColorTexture — the toon color multiplies it,
           // preserving the authored fabric/detail grain.
           if (std.map) toon.map = std.map;
+          // Emissive accents (cyan eyes, headset trim, buckle) — MeshToon
+          // supports emissive, and dropping it would flatten the palette's
+          // signature pop.
+          toon.emissive.copy(std.emissive);
+          toon.emissiveIntensity = std.emissiveIntensity;
           toonByColor.set(hex, toon);
           created.push(toon);
         }

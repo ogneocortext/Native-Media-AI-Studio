@@ -40,6 +40,7 @@ def main() -> None:
 
     clip = opt("--clip", "idle")
     out_glb = opt("--out", "")
+    save_blend = opt("--save-blend", "")
     fps = int(opt("--fps", "24"))
     seconds = float(opt("--seconds", "4"))
 
@@ -132,6 +133,8 @@ def main() -> None:
             export_yup=True,
             export_apply=True,
         )
+    if save_blend:
+        bpy.ops.wm.save_as_mainfile(filepath=save_blend)
 
     # count keyed fcurves across slotted actions
     n_keys = 0
