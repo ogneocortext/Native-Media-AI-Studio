@@ -82,28 +82,34 @@ def main() -> None:
         (f_end + 1, 0.0, 0.0, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00),
     ]
 
-    fore_q = Euler((0.0, 0.0, FOREARM_BEND)).to_quaternion()
-    hand_q = Euler((0.0, 0.0, 0.0)).to_quaternion()
+    # Nearly every bone on HouseRig_v1 is QUATERNION rotation mode (only
+    # Arm.L was XYZ). keyframe_insert("rotation_euler") on a quaternion bone
+    # writes fcurves the depsgraph ignores — silent no-op. Normalize all
+    # keyed bones to QUATERNION and key rotation_quaternion; euler intents
+    # convert 1:1 via Euler.to_quaternion() (verified symmetric on Arm.R).
+    keyed = (hips, spine, spine1, neck, head, arm_l, arm_r,
+             fore_l, fore_r, hand_l, hand_r)
+    for bone in keyed:
+        bone.rotation_mode = "QUATERNION"
+
+    def key_rot(bone, euler) -> None:
+        bone.rotation_quaternion = Euler(euler).to_quaternion()
+        bone.keyframe_insert("rotation_quaternion", frame=frame)
 
     for frame, hz, hy, sx, s1z, hd_y, hd_x, al_y, ar_y in poses:
         hips.location = (0, 0, 0.95 + hz)
-        hips.rotation_euler = (0.0, hy, 0.0)
         hips.keyframe_insert("location", frame=frame)
-        hips.keyframe_insert("rotation_euler", frame=frame)
-        for bone, rx, rz in ((spine, sx, 0.0), (spine1, 0.0, s1z)):
-            bone.rotation_euler = (rx, 0.0, rz)
-            bone.keyframe_insert("rotation_euler", frame=frame)
-        head.rotation_euler = (hd_x, hd_y, 0.0)
-        head.keyframe_insert("rotation_euler", frame=frame)
-        neck.rotation_euler = (hd_x * 0.4, hd_y * 0.4, 0.0)
-        neck.keyframe_insert("rotation_euler", frame=frame)
-        for bone, sway in ((arm_l, al_y), (arm_r, ar_y)):
-            bone.rotation_euler = (ARM_X, sway, 0.0)
-            bone.keyframe_insert("rotation_euler", frame=frame)
-        for bone, q in ((fore_l, fore_q), (fore_r, fore_q),
-                        (hand_l, hand_q), (hand_r, hand_q)):
-            bone.rotation_quaternion = q
-            bone.keyframe_insert("rotation_quaternion", frame=frame)
+        key_rot(hips, (0.0, hy, 0.0))
+        key_rot(spine, (sx, 0.0, 0.0))
+        key_rot(spine1, (0.0, 0.0, s1z))
+        key_rot(head, (hd_x, hd_y, 0.0))
+        key_rot(neck, (hd_x * 0.4, hd_y * 0.4, 0.0))
+        key_rot(arm_l, (ARM_X, al_y, 0.0))
+        key_rot(arm_r, (ARM_X, ar_y, 0.0))
+        key_rot(fore_l, (0.0, 0.0, FOREARM_BEND))
+        key_rot(fore_r, (0.0, 0.0, FOREARM_BEND))
+        key_rot(hand_l, (0.0, 0.0, 0.0))
+        key_rot(hand_r, (0.0, 0.0, 0.0))
 
     # Gentle ease: linear is fine at 24fps for subtle motion; set cyclic
     # via NLA loop later if needed.

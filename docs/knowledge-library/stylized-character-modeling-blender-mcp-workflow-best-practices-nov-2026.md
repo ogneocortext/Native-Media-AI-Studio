@@ -74,6 +74,21 @@ and the Blender MCP ecosystem docs. Consensus is strong across sources.
   `baseColorTexture`, and vertex/UV data. PBR niceties (roughness, metallic,
   normal maps) are discarded by the toon swap unless explicitly carried over.
 
+- **Vision QA model tiers (measured 2026-11-22, GTX 1070 Ti):**
+  `gemma4:e2b-it-qat` (~19 s/image) is the rapid-iteration workhorse.
+  `qwen3.5:4b` is installed and vision-capable and is the configured
+  heavyweight/fallback (`tools/vision/vision-common.mjs`), but ~150 s/image
+  here and leaks chain-of-thought on bare `--model` calls — reserve it for
+  mapped modes (vizmode/compare) or milestone checks. `moondream` is
+  auto-excluded (too weak even for describe). For geometry truth prefer
+  numeric verification (pose-space bone heads, evaluated bbox, GLB sampler
+  values) over VLM reads — it caught a real defect (Arm.R quaternion pin)
+  that two VLM passes missed.
+- **Rig gotcha that cost a full pass:** HouseRig_v1 bones are almost all
+  QUATERNION rotation mode — `keyframe_insert("rotation_euler")` on them is
+  a silent no-op. Author clips via `rotation_quaternion` +
+  `Euler(...).to_quaternion()`, or normalize `rotation_mode` first.
+
 ## Applied to hero_dj (T-VIZ-55 follow-up)
 
 The "underdeveloped" read traced to **geometry**, not shading: 690 verts of
