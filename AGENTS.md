@@ -5,13 +5,18 @@
 > **Platform:** Windows 11 local development machine
 
 > **Shell rule: all commands go through PowerShell 7 (`pwsh`) by
-> default.** The agent shell is configured as pwsh **7.7.0** via the
-> global Kilo config (`~/.config/kilo/kilo.jsonc`, `"shell":
-> "C:\\kilo\\pwsh7\\pwsh.exe"`); the runtime is a full copy of the
-> WindowsApps install at `C:\kilo\pwsh7\` (the old
-> `C:\kilo\pwsh.exe` was a 0-byte placeholder that silently fell
-> back to 5.1 — removed 2026-10-10). The project's own scripts
-> require PowerShell 7.6+. If a session still reports
+> default.** There are two PowerShell 7 installs on this machine:
+>
+> - **Agent shell:** `C:\kilo\pwsh7\pwsh.exe` — PowerShell **7.6.6.500**
+>   (configured via `~/.config/kilo/kilo.jsonc`, `"shell":
+>   "C:\\kilo\\pwsh7\\pwsh.exe"`). The old `C:\kilo\pwsh.exe` was a
+>   0-byte placeholder that silently fell back to 5.1 — removed
+>   2026-10-10.
+> - **Your interactive shell:** `pwsh` on PATH resolves to the Microsoft
+>   Store package — PowerShell **7.7.0**
+>   (`Microsoft.PowerShell_7.7.0.0_x64__8wekyb3d8bbwe\pwsh.exe`).
+>
+> Both satisfy the project's 7.6+ requirement. If a session still reports
 > `$PSVersionTable.PSVersion.Major` = 5 (config picked up only at
 > session start), invoke scripts as
 > `pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\<name>.ps1`
@@ -561,8 +566,9 @@ one service per invocation:
 pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action start -Services all
 ```
 
-Note `pwsh`, not `powershell` — the agent shell is pwsh 7.7.0+ by
-default (a session that predates the config change may still be
+Note `pwsh`, not `powershell` — the agent shell is pwsh 7.6.6 by
+default (your interactive shell uses the Microsoft Store 7.7.0);
+a session that predates the config change may still be
 5.1) and these scripts require 7.6+. ComfyUI and the video editor
 are optional; the studio runs without them.
 
@@ -597,8 +603,9 @@ aesthetic:
   this repo's own docs contain em dashes and arrows.
 - Native commands writing to stderr raise `NativeCommandError` even on success,
   so `2>&1 | Select-Object -Last N` is unreliable for diagnostics.
-- The agent shell defaults to PowerShell 7.7.0 (a session that
-  predates the config change may still be 5.1); the repo's scripts
+- The agent shell defaults to PowerShell 7.6.6 (your interactive shell
+  uses the Microsoft Store 7.7.0); a session that predates the config
+  change may still be 5.1); the repo's scripts
   need 7.6+. That gap was a recurring source of "the script is
   broken" conclusions that are wrong.
 - **The same trap exists inside Python.** `subprocess.run(..., text=True)` with no
@@ -619,7 +626,8 @@ integration — service lifecycle, port binding, Unity launch — where it is th
 right tool and nothing has gone wrong.
 
 - **Requires PowerShell 7.6+ for the project's own scripts.** The
-  agent shell is pwsh 7.7.0 by default; a session that predates the
+  agent shell is pwsh 7.6.6 by default (your interactive shell uses
+  the Microsoft Store 7.7.0); a session that predates the
   config change may still be PowerShell **5.1** — check
   `$PSVersionTable.PSVersion.Major` before concluding the scripts are broken.
 - On PowerShell failures, **fall back to Python immediately**. This is not just
