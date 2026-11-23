@@ -1,4 +1,6 @@
-import json, struct, sys
+import json
+import struct
+import sys
 
 path = sys.argv[1]
 with open(path, "rb") as f:
