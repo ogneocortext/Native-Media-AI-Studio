@@ -59,7 +59,7 @@ export function AboutPage() {
       </div>
 
       <p className="text-sm text-gray-400 border-t border-border pt-4">
-        Built by Internext Ventures LLC.
+        Built by Diamond Star Enterprises LLC.
       </p>
     </div>
   );
