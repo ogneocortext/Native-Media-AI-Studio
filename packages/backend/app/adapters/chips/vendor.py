@@ -27,6 +27,42 @@ from versions import UPSTREAM_VERSIONS, list_cores
 
 REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
 TOOLS_DIR = REPO_ROOT / "tools"
+BINDINGS_DIR = TOOLS_DIR / "chip-bindings"
+
+
+def apply_bindings(core: str, local_path: Path) -> None:
+    """Copy our own binding/patch files into a freshly vendored upstream tree.
+
+    Upstream sources are never committed (see .gitignore); our glue lives in
+    tools/chip-bindings/<core>/ and is applied here after each clone so a fresh
+    setup reproduces the same build inputs.
+    """
+    bind_dir = BINDINGS_DIR / core
+    if not bind_dir.is_dir():
+        return
+
+    for src in sorted(bind_dir.rglob("*")):
+        if src.is_dir():
+            continue
+        rel = src.relative_to(bind_dir)
+        if src.suffix == ".patch":
+            continue
+        dest = local_path / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        print(f"  + binding {rel}")
+
+    for patch in sorted(bind_dir.rglob("*.patch")):
+        # run_git() discards the exit code, so call git directly here.
+        res = subprocess.run(
+            ["git", "apply", str(patch.resolve())],
+            cwd=local_path, capture_output=True,
+        )
+        if res.returncode != 0:
+            print(f"  ERROR: patch {patch.name} failed to apply: "
+                  f"{res.stderr.decode('utf-8', 'replace').strip()}")
+            return
+        print(f"  + patch {patch.name}")
 
 
 def run_cmd(cmd: list, cwd: Path = None, *, capture: bool = True) -> subprocess.CompletedProcess:
@@ -81,6 +117,7 @@ def vendor_core(core: str, *, force: bool = False) -> bool:
             print("  ERROR: Checkout failed")
             return False
 
+    apply_bindings(core, local_path)
     print(f"  ✓ Vendored {core} successfully")
     return True
 

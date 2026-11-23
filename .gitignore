@@ -488,3 +488,11 @@ docs/scratch/*.json
 # Local Blender source assets too large for GitHub free-plan file limits
 packages/frontend/public/models/blends/take_the_crown.blend
 packages/frontend/public/**/*.blend1
+
+# Vendored chip-emulator upstreams (fetched by vendor.py at setup; never commit third-party code)
+tools/nuked-opl3/
+tools/nuked-opm/
+tools/nuked-opn2/
+tools/residfp/
+tools/snes-spc/
+tools/sameboy/
