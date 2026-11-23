@@ -484,3 +484,7 @@ tools/check_gpu_schema.py
 # unaffected — gitignore only hides untracked paths.
 docs/scratch/*.ps1
 docs/scratch/*.json
+
+# Local Blender source assets too large for GitHub free-plan file limits
+packages/frontend/public/models/blends/take_the_crown.blend
+packages/frontend/public/**/*.blend1
