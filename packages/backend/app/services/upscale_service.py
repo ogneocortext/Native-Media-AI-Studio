@@ -58,29 +58,62 @@ class UpscaleResult:
     warnings: list[str] = field(default_factory=list)
 
 
+def _is_within(path: Path, *roots: Path) -> bool:
+    """Return True if `path` is relative to any of `roots`."""
+    for root in roots:
+        try:
+            path.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
 def _resolve_image(image: str) -> Path:
     """Resolve an image reference to an absolute path.
 
     Accepts absolute paths, project-relative paths, bare filenames found in
     output/images, or `comfyui/`-prefixed ComfyUI output references.
+
+    For a non-absolute, non-"comfyui/" reference, candidates are tried in
+    order keeping the subfolder: PROJECT_ROOT / image, IMAGE_DIR / image,
+    OUTPUT_BASE / image. Only after all three miss does the basename fallback
+    (IMAGE_DIR / Path(image).name) apply. Any candidate resolving outside
+    PROJECT_ROOT and OUTPUT_BASE is rejected so "../" references cannot
+    escape the project/output trees.
     """
     p = Path(image)
     if not p.is_absolute():
         if image.startswith("comfyui/"):
             comfy_out = comfyui_output_dir()
-            p = Path(comfy_out) / image[len("comfyui/") :]
+            p = Path(comfy_out) / image[len("comfyui/"):]
         else:
             p = PROJECT_ROOT / image
     p = p.resolve()
-    if not p.exists():
-        alt = (IMAGE_DIR / Path(image).name).resolve()
-        if alt.exists():
-            p = alt
-        else:
-            raise FileNotFoundError(f"Image not found: {image}")
-    if p.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
-        raise ValueError(f"Not a supported image: {p.name}")
-    return p
+
+    if p.exists() and _is_within(p, PROJECT_ROOT, OUTPUT_BASE):
+        if p.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+            raise ValueError(f"Not a supported image: {p.name}")
+        return p
+
+    # Try additional candidates, keeping the subfolder.
+    candidates: list[Path] = []
+    if not image.startswith("comfyui/") and not Path(image).is_absolute():
+        candidates.extend(
+            [(IMAGE_DIR / image).resolve(), (OUTPUT_BASE / image).resolve()]
+        )
+    candidates.append((IMAGE_DIR / Path(image).name).resolve())
+
+    for cand in candidates:
+        if not _is_within(cand, PROJECT_ROOT, OUTPUT_BASE):
+            continue
+        if not cand.exists():
+            continue
+        if cand.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+            raise ValueError(f"Not a supported image: {cand.name}")
+        return cand
+
+    raise FileNotFoundError(f"Image not found: {image}")
 
 
 def _relative(path: Path) -> str | None:

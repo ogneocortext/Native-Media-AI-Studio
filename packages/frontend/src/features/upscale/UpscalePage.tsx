@@ -125,8 +125,9 @@ export function UpscalePage() {
       if (!res.ok) {
         const err = (await res.json().catch(() => ({ detail: "Upscale failed" }))) as {
           detail?: string;
+          error?: { message?: string };
         };
-        throw new Error(err.detail ?? "Upscale failed");
+        throw new Error(err.detail ?? err.error?.message ?? "Upscale failed");
       }
 
       const data = (await res.json()) as UpscaleResponse;
