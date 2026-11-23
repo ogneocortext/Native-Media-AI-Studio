@@ -15,23 +15,23 @@ has a documented restore step — nothing silently breaks.
 their sources are LGPL/GPL/BSD code we deliberately never commit. Only our
 own bindings live in the repo under `tools/chip-bindings/`.
 
-Restore:
+Restore — one command does vendor + bindings + build + verify:
 
 ```powershell
-# 1. Fetch pinned upstreams (versions/commits/licenses in
-#    packages/backend/app/adapters/chips/versions.py)
-python packages/backend/app/adapters/chips/vendor.py --all
-
-# 2. Apply our bindings (vendor.py already does this automatically on clone)
-
-# 3. Build each extension with the SAME Python that runs the backend
-#    (needs a C/C++ toolchain; artifacts are platform+Python-version specific)
-cd tools\nuked-opn2; python setup.py build_ext --inplace; cd ..\..
-cd tools\nuked-opm;  python setup.py build_ext --inplace; cd ..\..
-cd tools\nuked-opl3; python setup.py build_ext --inplace; cd ..\..
-cd tools\residfp;   python setup.py build_ext --inplace; cd ..\..
-cd tools\snes-spc;  python setup.py build_ext --inplace; cd ..\..
+python tools/build_chip_cores.py --python <backend-python>
+# e.g. --python D:\conda-envs\nma-studio-cuda\python.exe
+# add --core nuked-opn2 to build a single core, --force to re-vendor
 ```
+
+The script fetches any missing upstream via `vendor.py` (which also applies
+`tools/chip-bindings/`), runs `setup.py build_ext --inplace` per core, and
+verifies the `.pyd`/`.so` was produced. Manual equivalent: `vendor.py --all`,
+then `python setup.py build_ext --inplace` inside each `tools/<core>/`.
+
+Cores without a `setup.py` (e.g. `sameboy`, a placeholder adapter) are
+skipped. The extensions are platform- and Python-version-specific: build
+them with the same interpreter that runs the backend (a C/C++ toolchain is
+required).
 
 Without the built `.pyd` extensions the chip adapters report
 `is_available() == False` and rendering falls back to the behavioral
