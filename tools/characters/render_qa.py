@@ -1,6 +1,8 @@
-"""QA render for hero_dj.blend — two views at an idle mid-frame.
+"""QA render for hero_dj.blend — views at an idle mid-frame.
 
-Run: blender --background hero_dj.blend --python docs/scratch/render_dj_qa.py -- <outdir>
+Run: blender --background hero_dj.blend --python tools/characters/render_qa.py -- [outdir]
+Default outdir is <repo>/docs/scratch resolved from this file's location —
+Blender's cwd is NOT the repo root, so a relative path lands outside it.
 """
 import math
 import sys
@@ -10,7 +12,8 @@ import bpy
 from mathutils import Vector
 
 argv = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
-outdir = Path(argv[0]) if argv else Path("docs/scratch")
+repo_root = Path(__file__).resolve().parents[2]
+outdir = Path(argv[0]) if argv else repo_root / "docs" / "scratch"
 outdir.mkdir(parents=True, exist_ok=True)
 
 sc = bpy.context.scene
