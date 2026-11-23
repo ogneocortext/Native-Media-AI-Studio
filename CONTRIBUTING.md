@@ -17,6 +17,10 @@ The hooks are the only automated guard (there is no CI — see D10 in
 `docs/architecture/decision-log.md`). Without them, commits that would fail
 the gates reach the remote and block everyone else's push.
 
+Third-party emulator cores, local AI models, and runtime data are
+deliberately not committed — `docs/setup/FRESH_CLONE.md` lists what a clean
+clone lacks and how to restore it.
+
 ## Prerequisites
 
 | | Windows (primary dev machine) | Linux/macOS VM |

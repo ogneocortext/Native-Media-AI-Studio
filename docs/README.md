@@ -42,6 +42,7 @@ This directory contains project documentation, knowledge base articles, and setu
 - `architecture/visualizer.md` — visualizer module map and refactor rules (D14)
 - `architecture/browser-support.md` — the single-engine target: modern Chromium (D44)
 - `setup/SYSTEM_REQUIREMENTS.md` — Hardware and software requirements
+- `setup/FRESH_CLONE.md` — what a clean clone does NOT contain and how to restore it (vendored chip cores, local models, runtime data)
 - `guides/TESTING_WORKFLOWS.md` — Testing instructions
 - `plans/ENHANCEMENT_RECOMMENDATIONS.md` — Proposed improvements
 - `visual-storytelling/README.md` — production storyboards and the playbook

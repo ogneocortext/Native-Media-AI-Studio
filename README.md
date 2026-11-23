@@ -50,7 +50,10 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\manage-servers.ps1 -Action
 ```
 
 Then open **http://127.0.0.1:5173** in your browser. Full setup guide:
-`docs/setup/` — start with `docs/setup/SETUP_SUMMARY.md`.
+`docs/setup/` — start with `docs/setup/SETUP_SUMMARY.md`. Cloning fresh?
+`docs/setup/FRESH_CLONE.md` lists what the repo intentionally excludes
+(vendored chip-emulator cores, local AI models, runtime data) and how to
+restore each piece.
 
 Optional services (the app works without them, with reduced AI features):
 ComfyUI on port 8188 for image/video/3D generation, Ollama on 11434 for chat and
