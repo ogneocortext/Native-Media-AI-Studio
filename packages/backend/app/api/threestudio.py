@@ -6,6 +6,8 @@ Handles scene export and frame sequence rendering.
 from __future__ import annotations
 
 import logging
+import operator
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -61,3 +63,87 @@ async def get_status():
         "status": "ready",
         "message": "Three.js Studio API is ready"
     }
+
+
+_MODEL_EXTS = {".glb", ".gltf"}
+
+
+@router.get("/models")
+async def list_models() -> dict:
+    """Auto-detected GLB/GLTF assets the studio can load as ``modelUrl``.
+
+    Two servable roots are scanned:
+
+    - ``output/`` (recursive, minus the scanner's excluded state/cache dirs)
+      -> ``/output/<relpath>`` via the StaticFiles mount.
+    - ``packages/frontend/public/models/`` -> ``/models/<relpath>`` via Vite.
+
+    ``*.original.glb`` decimate backups are skipped, and NSFW-flagged output
+    items are excluded server-side like every other general list.
+    """
+    from ..core.config import PROJECT_ROOT, config
+    from ..core.nsfw import hidden_paths
+    from .outputs_scanner import _iter_scannable_dirs
+
+    hidden = hidden_paths()
+    models: list[dict] = []
+
+    def _entry(path: Path, url: str, rel: str, source: str) -> dict | None:
+        if path.name.endswith(".original.glb"):
+            return None
+        if source == "output" and rel in hidden:
+            return None
+        try:
+            stat = path.stat()
+        except OSError:
+            return None
+        return {
+            "name": rel,
+            "url": url,
+            "size_bytes": stat.st_size,
+            "modified": stat.st_mtime,
+            "source": source,
+        }
+
+    output_base = Path(config.output_dir)
+    if output_base.is_dir():
+        candidates: list[Path] = []
+        for dir_path, _top in _iter_scannable_dirs(output_base):
+            try:
+                candidates.extend(
+                    p for p in dir_path.rglob("*")
+                    if p.is_file() and p.suffix.lower() in _MODEL_EXTS
+                )
+            except OSError:
+                continue
+        try:
+            candidates.extend(
+                f for f in output_base.iterdir()
+                if f.is_file() and f.suffix.lower() in _MODEL_EXTS
+            )
+        except OSError:
+            pass
+        for path in candidates:
+            try:
+                rel = path.relative_to(output_base).as_posix()
+            except ValueError:
+                continue
+            entry = _entry(path, f"/output/{rel}", rel, "output")
+            if entry:
+                models.append(entry)
+
+    models_dir = PROJECT_ROOT / "packages" / "frontend" / "public" / "models"
+    if models_dir.is_dir():
+        try:
+            for path in models_dir.rglob("*"):
+                if not (path.is_file() and path.suffix.lower() in _MODEL_EXTS):
+                    continue
+                rel = path.relative_to(models_dir).as_posix()
+                entry = _entry(path, f"/models/{rel}", rel, "bundled")
+                if entry:
+                    models.append(entry)
+        except OSError:
+            pass
+
+    models.sort(key=operator.itemgetter("modified"), reverse=True)
+    return {"models": models, "count": len(models)}

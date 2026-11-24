@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import type { AnimObject } from "../types";
+import { useDetectedModels } from "../hooks/useDetectedModels";
 import { SliderRow } from "./SliderRow";
 
 export interface CharacterAnimationState {
@@ -37,6 +38,7 @@ export function InspectorTab({
   const textureInputRef = useRef<HTMLInputElement>(null);
   const [texturePrompt, setTexturePrompt] = useState("");
   const [textureGenError, setTextureGenError] = useState<string | null>(null);
+  const { models: detectedModels } = useDetectedModels();
 
   if (!object) {
     return (
@@ -323,6 +325,42 @@ export function InspectorTab({
               }}
             />
           </div>
+
+          {/* Detected-model picker — auto-inventory from /api/threestudio/models */}
+          {detectedModels.length > 0 && (
+            <div>
+              <label className="text-gray-400 block mb-1">Detected models</label>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) onUpdate(object.id, { modelUrl: e.target.value });
+                }}
+                className="w-full bg-gray-800 rounded px-1.5 py-1 text-xs border border-gray-700 text-gray-300"
+              >
+                <option value="">
+                  {object.modelUrl ? "Pick a different model…" : "Pick a detected model…"}
+                </option>
+                <optgroup label="Generated (output/)">
+                  {detectedModels
+                    .filter((m) => m.source === "output")
+                    .map((m) => (
+                      <option key={m.url} value={m.url} title={m.name}>
+                        {m.name}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="Bundled (public/models)">
+                  {detectedModels
+                    .filter((m) => m.source !== "output")
+                    .map((m) => (
+                      <option key={m.url} value={m.url} title={m.name}>
+                        {m.name}
+                      </option>
+                    ))}
+                </optgroup>
+              </select>
+            </div>
+          )}
 
           {/* URL display with clear button */}
           <div>
