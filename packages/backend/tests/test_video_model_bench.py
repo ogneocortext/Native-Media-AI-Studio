@@ -47,10 +47,17 @@ NODE_SIGNATURES: dict[str, tuple[list[str], int]] = {
     "UnetLoaderGGUF": (["unet_name"], 1),
     "CLIPLoader": (["clip_name", "type"], 1),
     "DualCLIPLoader": (["clip_name1", "clip_name2", "type"], 1),
+    "DualCLIPLoaderGGUF": (["clip_name1", "clip_name2", "type"], 1),
     "CLIPTextEncode": (["text", "clip"], 1),
     "LTXVConditioning": (["positive", "negative", "frame_rate"], 2),
     "EmptyLTXVLatentVideo": (["width", "height", "length", "batch_size"], 1),
     "EmptyMochiLatentVideo": (["width", "height", "length", "batch_size"], 1),
+    "EmptyLatentImage": (["batch_size", "height", "width"], 1),
+    "FluxGuidance": (["conditioning", "guidance"], 1),
+    "LoadImage": (["image"], 2),
+    "LoadImageMask": (["channel", "image"], 1),
+    "SaveImage": (["filename_prefix", "images"], 0),
+    "SetLatentNoiseMask": (["mask", "samples"], 1),
     "KSampler": (
         [
             "seed",
@@ -68,6 +75,8 @@ NODE_SIGNATURES: dict[str, tuple[list[str], int]] = {
     ),
     "VAELoader": (["vae_name"], 1),
     "VAEDecode": (["samples", "vae"], 1),
+    "VAEEncode": (["pixels", "vae"], 1),
+    "VAEEncodeForInpaint": (["grow_mask_by", "mask", "pixels", "vae"], 1),
     "VHS_VideoCombine": (
         ["images", "frame_rate", "loop_count", "filename_prefix", "format", "pingpong", "save_output"],
         1,

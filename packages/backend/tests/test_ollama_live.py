@@ -98,6 +98,12 @@ def _smallest_local_model(*, need_tools: bool = False) -> str | None:
     instead of silently ignoring them, so the tool-call test must not pick a
     vision-only model such as `moondream` - the smallest local model overall,
     which is exactly what a plain size sort returns.
+
+    Non-GGUF formats are excluded too: a manifest-only stub pulled from a
+    raw-IP registry can carry `format: safetensors` + `runner: mlx` (seen
+    2026-11-24 — a 254-byte "model" that 500s on Windows, which has no MLX
+    runtime). `remote_host`/`remote_model` do not mark those, so the format
+    check is the only guard.
     """
     try:
         with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=10) as r:
@@ -106,7 +112,9 @@ def _smallest_local_model(*, need_tools: bool = False) -> str | None:
         return None
     local = [
         m for m in models
-        if not _is_remote(m) and "embed" not in m.get("name", "")
+        if not _is_remote(m)
+        and "embed" not in m.get("name", "")
+        and m.get("details", {}).get("format") == "gguf"
     ]
     if need_tools:
         local = [m for m in local if "tools" in (m.get("capabilities") or [])]

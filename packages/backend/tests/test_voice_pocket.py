@@ -264,6 +264,10 @@ def test_speak_401_then_200_retry(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_health_503_when_token_env_unset(monkeypatch):
+    # Pin the pocket config too: the real config/tts.json on a rig points
+    # token_file at a live token file and base_url at the tailnet Pocket
+    # server, so deleting only the env var no longer means "no token".
+    monkeypatch.setattr(tts_settings, "pocket", lambda: dict(CLOSED_PORT_CFG))
     monkeypatch.delenv("POCKET_TTS_TOKEN", raising=False)
     with pytest.raises(HTTPException) as exc:
         _run(voice_pocket.pocket_health())
