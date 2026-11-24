@@ -315,6 +315,12 @@ const NAV_GROUPS: NavGroup[] = [
         icon: <Info size={18} />,
         keywords: "about goals company version info",
       },
+      {
+        path: "/office",
+        label: "Maya's Office",
+        icon: <Info size={18} />,
+        keywords: "office config greeting currently featured plate",
+      },
     ],
     collapsedByDefault: true,
   },

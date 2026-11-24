@@ -1049,6 +1049,7 @@ from .api import (  # noqa: E402
     music_prompts,
     native_open,
     notifications,
+    office,
     outputs,
     retrieval,
     threestudio,
@@ -1114,6 +1115,7 @@ app.include_router(vision.router)
 app.include_router(native_open.router)
 app.include_router(unity_control.router)
 app.include_router(docs.router)
+app.include_router(office.router)
 app.include_router(hyperframes.router)
 app.include_router(media.router)
 app.include_router(media_library.router)

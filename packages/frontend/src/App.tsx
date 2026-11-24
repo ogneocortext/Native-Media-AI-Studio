@@ -6,6 +6,7 @@ import { Layout } from "./components/layout/Layout";
 import { FirstRunGate } from "./features/onboarding/FirstRunGate";
 import { NotFound } from "./features/not-found/NotFound";
 import { registerRouteLoader } from "./utils/routePreloader";
+import { OfficePage } from "./features/office/OfficePage";
 
 // Helper for lazy loading modules with named exports.
 // Retries once on transient network/HMR failures. A rejected import promise is
@@ -183,6 +184,7 @@ registerRouteLoader("/create/hyperframes", async () => import("./features/hyperf
 registerRouteLoader("/library", async () => import("./features/media-library/MediaLibrary"));
 registerRouteLoader("/nsfw", async () => import("./features/media-library/NsfwLibrary"));
 registerRouteLoader("/voice-live", async () => import("./features/voice-live/VoiceLivePage"));
+registerRouteLoader("/office", async () => import("./features/office/OfficePage"));
 registerRouteLoader("/library/video", async () => import("./features/media-library/VideoLibrary"));
 registerRouteLoader("/library/audio", async () => import("./features/media-library/AudioLibrary"));
 registerRouteLoader("/library/storyboards", async () => import("./features/storyboards/StoryboardPage"));
@@ -259,6 +261,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/render/preview": "Preview",
   "/render/prompts": "Music Prompts",
   "/about": "About",
+  "/office": "Maya's Office",
 };
 
 function RouteTitle() {
@@ -322,6 +325,9 @@ function App() {
 
               {/* About */}
               <Route path="/about" element={withErrorBoundary(<AboutPage />)} />
+
+              {/* Office */}
+              <Route path="/office" element={withErrorBoundary(<OfficePage />)} />
 
               {/* Create */}
               <Route path="/create/music-video" element={withErrorBoundary(<MusicVideoWizard />)} />
