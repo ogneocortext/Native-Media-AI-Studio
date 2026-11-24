@@ -104,9 +104,30 @@ interface Take {
 interface InboxLine {
   id: string;
   kind: "text" | "audio";
+  /** Human display text (audio drops get a cleaned-up name). */
   text: string;
+  /** Raw stored filename for audio drops — shown in the row tooltip. */
+  rawName?: string;
   voice: string;
   at: string;
+  /** Playback state: flips to "played" only after real playback ends. */
+  state: "waiting" | "played";
+}
+
+/** Display name for an audio drop: <id>_prefix and extension off,
+ *  leading maya-, trailing -YYYY-MM-DD off, hyphens to spaces,
+ *  first letter capitalized. e.g. 4a4c02c7_maya-keep-talking-2026-11-24.wav
+ *  -> "Keep talking". */
+function audioDisplayName(stored: string): string {
+  let s = stored;
+  const us = s.indexOf("_");
+  if (us > 0) s = s.slice(us + 1);
+  s = s.replace(/\.[a-z0-9]+$/i, "");
+  s = s.replace(/^maya-/i, "");
+  s = s.replace(/-\d{4}-\d{2}-\d{2}$/, "");
+  s = s.replace(/-/g, " ").trim();
+  if (!s) return stored;
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 type EngineState = "ready" | "busy" | "offline";
@@ -322,6 +343,7 @@ export function VoiceLivePage() {
   // line through the same Pocket path as a manual take.
   const [inboxOn, setInboxOn] = useState(false);
   const [inboxLines, setInboxLines] = useState<InboxLine[]>([]);
+  const [inboxCounts, setInboxCounts] = useState({ text: 0, audio: 0 });
   const inboxBusyRef = useRef(false);
   const inboxHandledRef = useRef<Set<string>>(new Set());
   const inboxListedRef = useRef<Set<string>>(new Set());
@@ -627,17 +649,36 @@ export function VoiceLivePage() {
     [ensureInboxCtx],
   );
 
+  // Pending counts for the rail's "N waiting" line. Refreshed on mount,
+  // on every inbox tick, and once when the toggle goes off (no polling
+  // while off — this is a single fetch, not an interval).
+  const refreshInboxCounts = useCallback(async () => {
+    const [t, a] = await Promise.all([
+      getInboxPending().catch(() => null),
+      getInboxAudioPending().catch(() => null),
+    ]);
+    setInboxCounts({
+      text: t?.entries.length ?? 0,
+      audio: a?.entries.length ?? 0,
+    });
+  }, []);
+
+  useEffect(() => {
+    void refreshInboxCounts();
+  }, [refreshInboxCounts]);
+
   const toggleInbox = useCallback(() => {
     if (inboxOn) {
       setInboxOn(false);
       inboxCtlRef.current?.abort();
       inboxCtlRef.current = null;
+      void refreshInboxCounts();
       return;
     }
     // The toggle click is the user gesture that unlocks audio playback.
     ensureInboxCtx();
     setInboxOn(true);
-  }, [inboxOn, ensureInboxCtx]);
+  }, [inboxOn, ensureInboxCtx, refreshInboxCounts]);
 
   // Poll the pending inbox while the toggle is on. Entries are handled once
   // per session (inboxHandledRef); failures retry on later polls up to
@@ -659,6 +700,10 @@ export function VoiceLivePage() {
           getInboxPending().catch(() => null),
           getInboxAudioPending().catch(() => null),
         ]);
+        setInboxCounts({
+          text: textRes?.entries.length ?? 0,
+          audio: audioRes?.entries.length ?? 0,
+        });
 
         const listLine = (
           setKey: string,
@@ -666,16 +711,30 @@ export function VoiceLivePage() {
           kind: "text" | "audio",
           text: string,
           voice: string,
+          rawName?: string,
         ) => {
           if (inboxListedRef.current.has(setKey)) return;
           inboxListedRef.current.add(setKey);
           setInboxLines((prev) =>
             [
-              { id: lineId, kind, text, voice, at: new Date().toLocaleTimeString() },
+              {
+                id: lineId,
+                kind,
+                text,
+                voice,
+                rawName,
+                at: new Date().toLocaleTimeString(),
+                state: "waiting" as const,
+              },
               ...prev.filter((l) => l.id !== lineId),
             ].slice(0, 5),
           );
         };
+
+        const markInboxLinePlayed = (lineId: string) =>
+          setInboxLines((prev) =>
+            prev.map((l) => (l.id === lineId ? { ...l, state: "played" as const } : l)),
+          );
 
         for (const entry of textRes?.entries ?? []) {
           if (pollAborted()) break;
@@ -699,7 +758,9 @@ export function VoiceLivePage() {
             break;
           }
           if (played) {
-            void markInboxPlayed(entry.id).catch(() => undefined);
+            void markInboxPlayed(entry.id)
+              .then(() => markInboxLinePlayed(entry.id))
+              .catch(() => undefined);
           } else {
             inboxHandledRef.current.delete(entry.id);
             inboxFailsRef.current.set(entry.id, fails + 1);
@@ -716,14 +777,16 @@ export function VoiceLivePage() {
             continue;
           }
           inboxHandledRef.current.add(key);
-          listLine(key, entry.id, "audio", entry.name, "");
+          listLine(key, entry.id, "audio", audioDisplayName(entry.name), "", entry.name);
           const played = await playInboxAudio(entry);
           if (pollAborted()) {
             inboxHandledRef.current.delete(key);
             break;
           }
           if (played) {
-            void markInboxAudioPlayed(entry.id).catch(() => undefined);
+            void markInboxAudioPlayed(entry.id)
+              .then(() => markInboxLinePlayed(entry.id))
+              .catch(() => undefined);
           } else {
             inboxHandledRef.current.delete(key);
             inboxFailsRef.current.set(key, fails + 1);
@@ -936,8 +999,10 @@ export function VoiceLivePage() {
         ? "F5-TTS (local clone)"
         : "Live duplex (talk with Maya)";
 
+  const inboxWaiting = inboxCounts.text + inboxCounts.audio;
+
   return (
-    <div className="p-6 space-y-4 max-w-3xl">
+    <div className="p-6 space-y-4 w-full max-w-6xl">
       <div className="pb-2">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -973,6 +1038,8 @@ export function VoiceLivePage() {
         ))}
       </div>
 
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+        <div className="min-w-0 flex-1 space-y-4">
       <Card className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1167,53 +1234,6 @@ export function VoiceLivePage() {
               )}
             </div>
 
-            {engine === "pocket" && (
-              <div className="border-t border-border pt-3 space-y-2">
-                <button
-                  type="button"
-                  className={`btn btn-sm inline-flex items-center gap-1 ${
-                    inboxOn ? "btn-primary" : "btn-ghost"
-                  }`}
-                  onClick={toggleInbox}
-                  aria-pressed={inboxOn}
-                >
-                  <Mic size={14} /> Listen for Maya{inboxOn ? " — on" : ""}
-                </button>
-                <div className="text-[11px] text-muted">
-                  {inboxOn
-                    ? "Maya's posted lines will be spoken automatically."
-                    : "Off — lines Maya posts will wait until you switch this on."}
-                </div>
-                {inboxLines.length > 0 && (
-                  <ul className="space-y-1">
-                    {inboxLines.map((line) => (
-                      <li
-                        key={line.id}
-                        className="flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1.5 text-xs"
-                      >
-                        <div className="min-w-0">
-                          <span className="text-muted tabular-nums">{line.at}</span>{" "}
-                          {line.kind === "audio" && (
-                            <span className="inline-flex items-center gap-0.5 text-sky-300">
-                              <FileAudio size={11} />
-                            </span>
-                          )}{" "}
-                          <span className="truncate">{line.text}</span>
-                        </div>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm inline-flex items-center gap-1 shrink-0"
-                          onClick={() => replayInboxLine(line)}
-                          title="Speak this line again"
-                        >
-                          <Play size={12} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
           </>
         )}
 
@@ -1261,6 +1281,82 @@ export function VoiceLivePage() {
             : "F5-TTS output WAVs are saved to output/audio and appear in the media library."}
         </div>
       </Card>
+        </div>
+
+        <aside className="w-full shrink-0 xl:w-[340px]">
+          <Card className="p-4">
+            <div
+              className="text-sm font-semibold mb-3"
+              style={{ color: "#6A4C98" }}
+            >
+              Maya's line
+            </div>
+            <div className="space-y-2">
+              <button
+                type="button"
+                className="btn btn-sm inline-flex items-center gap-1"
+                style={{
+                  borderColor: "#6A4C98",
+                  color: inboxOn ? "#ffffff" : "#6A4C98",
+                  backgroundColor: inboxOn ? "#6A4C98" : "transparent",
+                }}
+                onClick={toggleInbox}
+                aria-pressed={inboxOn}
+              >
+                <Mic size={14} /> Listen for Maya{inboxOn ? " — on" : ""}
+              </button>
+              <div className="text-[11px] text-muted">
+                {inboxOn
+                  ? "Maya's posted lines will be spoken automatically."
+                  : "Off — lines Maya posts will wait until you switch this on."}
+              </div>
+              <div className="text-[11px] text-muted">
+                {inboxWaiting === 0 ? "Nothing waiting" : `${inboxWaiting} waiting`}
+              </div>
+              {inboxLines.length > 0 && (
+                <ul className="space-y-1">
+                  {inboxLines.map((line) => (
+                    <li
+                      key={line.id}
+                      title={line.rawName ?? line.text}
+                      className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          {line.kind === "audio" && (
+                            <FileAudio size={11} className="shrink-0 text-sky-300" />
+                          )}
+                          <span className="truncate font-medium">{line.text}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-muted">
+                          <span className="tabular-nums">{line.at}</span>
+                          <span
+                            className={
+                              line.state === "played"
+                                ? "text-emerald-400"
+                                : "text-warning"
+                            }
+                          >
+                            {line.state === "played" ? "Played" : "Waiting"}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm inline-flex items-center gap-1 shrink-0"
+                        onClick={() => replayInboxLine(line)}
+                        title={line.rawName ? `Replay ${line.rawName}` : "Speak this line again"}
+                      >
+                        <Play size={12} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }
