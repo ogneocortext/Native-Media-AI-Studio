@@ -75,7 +75,9 @@ object is always visible and reachable even when the scene already has objects.
 - The **Objects list** in the bottom drawer shows every object with visibility,
   hero-glow (bloom) and per-row remove controls
 - Removing an object releases its GPU resources (`geometry.dispose()`,
-  `material.dispose()`, mixer stop) so long sessions do not leak
+  material/texture disposal traversal, `mixer.stopAllAction()` +
+  `uncacheRoot`) so long sessions do not leak — verified to renderer.info
+  baseline by `tests/browser/audit/verify-studio-dispose.mjs`
 
 ---
 
@@ -200,6 +202,16 @@ currently in that layer.
 Scene templates override these defaults per preset (`sceneTemplates.ts`), e.g.
 Equalizer Wall sets `bloomStrength: 1.2`, Cosmic Void `vignetteStrength: 0.7`.
 
+### Diffuse wrap & shadow resolution
+
+| Setting | Config key | Default | Effect |
+| ------- | ---------- | ------- | ------ |
+| Diffuse wrap | `diffuseWrap` | 0 | 0–1 wrap amount on the direct-light N·L term (`(dotNL + w)/(1 + w)`); softens the terminator for stylized looks. Implemented as a shared-uniform `onBeforeCompile` patch in `diffuseWrap.ts` — specular BRDFs stay physical, u=0 is bit-identical to stock. |
+
+Shadows: directional light 2048², spot 1024² (`mountThreeScene.ts`). A frame-time
+A/B at 1024 vs 2048 was vsync-bound in both headless and headed captures — the
+larger map costs nothing measurable on this scene.
+
 ---
 
 ## Export Options
@@ -316,7 +328,7 @@ errors**. The vignette change alters `/three-js-studio` pixels — re-capture
 - **Add** objects from the header palette (Crown, Sphere, Box, Character) or the drawer's quick-add row (also Cylinder, Cone, Torus). New objects take a golden-angle spiral slot so they never stack at the origin, are selected immediately, and confirm with a toast.
 - **Select** by clicking an object in the canvas (a drag still orbits the camera; clicking empty space deselects). **Delete / Backspace** removes the selection, ignored while typing in an input.
 - **Preview** (live canvas, no file written) vs **Export frame as PNG** (the only file output today — no frame-sequence recorder).
-- **Disposal**: removing an object runs `geometry.dispose()` / `material.dispose()` and stops its mixer; verified by `three-studio-dispose-check.mjs`.
+- **Disposal**: removing an object runs `geometry.dispose()` / material+texture traversal and stops + uncaches its mixer (`stopAllAction` + `uncacheRoot`); verified to renderer.info baseline by `verify-studio-dispose.mjs`.
 - **Post-processing**: custom vignette darkens toward **black** (three's stock `VignetteShader` mixes toward grey), plus film grain, chromatic aberration and selective (hero-glow) bloom.
 
 Source of truth: `docs/ux/three-js-visualizer-review-2026-09-29.md`.

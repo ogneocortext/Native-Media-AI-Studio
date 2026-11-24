@@ -3,7 +3,14 @@ import type * as THREE from "three";
 import type { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import type { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import type { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
-import type { AnimObject, CameraMode, KeyframeTrack, ParticleConfig, SceneConfig } from "../types";
+import type {
+  AnimObject,
+  CameraMode,
+  CharacterAnimData,
+  KeyframeTrack,
+  ParticleConfig,
+  SceneConfig,
+} from "../types";
 import type { SectionDriverHandle } from "./useTrackMetadata";
 import type { AudioAnalysisResult } from "../../../services/api";
 import type { BeatState } from "../../../hooks/useBeatTimeline";
@@ -34,6 +41,12 @@ export interface UseThreeSceneOptions {
   animationDuration: number;
   keyframeTracks: KeyframeTrack[];
   createMeshForObject: (obj: AnimObject, THREE: ThreeModule) => Promise<THREE.Object3D>;
+  /** Character animation state owned by useMeshFactory. The scene loop
+   *  advances these mixers; disposeEntry stops/uncaches them on removal. */
+  characterMixersRef: React.RefObject<Map<string, THREE.AnimationMixer>>;
+  /** Per-object {mixer, action, clips} written by the factory and read by
+   *  useObjectManager's Inspector controls — one shared map, not a copy. */
+  characterAnimDataRef: React.RefObject<Map<string, CharacterAnimData>>;
   getCurrentBeat: (elapsed: number) => BeatState;
   generatedSceneUpdateRef: React.RefObject<((time: number, delta: number) => void) | null>;
   onAnimationTimeChange: (time: number) => void;

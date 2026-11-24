@@ -65,6 +65,9 @@ export interface SceneConfig {
   vignetteStrength: number;
   vignetteRadius: number;
   beatPunch: number;
+  /** Diffuse-wrap amount 0–1: softens the N·L terminator on standard
+   *  materials (0 = physical saturate, 1 = fully wrapped). */
+  diffuseWrap: number;
 }
 
 export type CameraMode = "static" | "orbit" | "dolly" | "handheld";
@@ -118,6 +121,11 @@ declare global {
     __camera?: THREE.PerspectiveCamera;
     /** Renderer captured alongside {@link Window.__camera}. */
     __renderer?: THREE.WebGLRenderer;
+    /** Scene captured alongside {@link Window.__camera} — QA probes reach
+     *  the object graph (bones, skinned meshes) through it. */
+    __scene?: THREE.Scene;
+    /** Shared diffuse-wrap uniform — QA probes read/write the wrap amount. */
+    __diffuseWrapUniform?: { value: number };
     /** Per-frame updater installed by applied AI scene code. */
     __sceneUpdate?: ((time: number, delta: number) => void) | null;
     /** One-shot initializer installed by applied AI scene code. */

@@ -162,6 +162,14 @@ export function SceneTab({
           value={sceneConfig.vignetteRadius}
           onChange={(v) => onSceneConfigChange({ ...sceneConfig, vignetteRadius: v })}
         />
+        <SliderRow
+          label="Diffuse Wrap"
+          min={0}
+          max={1}
+          step={0.05}
+          value={sceneConfig.diffuseWrap}
+          onChange={(v) => onSceneConfigChange({ ...sceneConfig, diffuseWrap: v })}
+        />
       </div>
 
       <div className="border-t border-gray-800 pt-2 space-y-2">

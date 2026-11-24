@@ -6,6 +6,7 @@ import type { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBl
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { SCENE_TEMPLATES } from "../sceneTemplates";
 import { BLOOM_LAYER } from "../threeStudioConfig";
+import { applyDiffuseWrapToScene, setDiffuseWrap } from "../diffuseWrap";
 import type { CameraMode, StudioMaterial } from "../types";
 import type { CameraTransitionState } from "../services/cameraTransitions";
 import type { SectionDriverHandle } from "./useTrackMetadata";
@@ -31,6 +32,8 @@ export function useThreeScene({
   animationDuration,
   keyframeTracks,
   createMeshForObject,
+  characterMixersRef,
+  characterAnimDataRef,
   getCurrentBeat,
   generatedSceneUpdateRef,
   onAnimationTimeChange,
@@ -62,7 +65,6 @@ export function useThreeScene({
   const threeRef = useRef<ThreeModule | null>(null);
   const lastUiUpdateRef = useRef(0);
   const frameCountRef = useRef(0);
-  const characterMixersRef = useRef<Map<string, THREE.AnimationMixer>>(new Map());
   const animationRef = useRef(0);
   const controlsRef = useRef<OrbitControls | null>(null);
   // F1: an in-flight eased camera blend (mode switch). Null
@@ -229,8 +231,21 @@ export function useThreeScene({
   };
 
   const disposeEntry = (id: string, root: THREE.Object3D) => {
-    characterMixersRef.current.get(id)?.stopAllAction();
-    characterMixersRef.current.delete(id);
+    const mixer = characterMixersRef.current.get(id);
+    if (mixer) {
+      mixer.stopAllAction();
+      // Drop the mixer's PropertyBindings for this root — stopAllAction
+      // alone leaves the binding cache (and its references to every
+      // animated node) alive for the session.
+      mixer.uncacheRoot(root);
+      characterMixersRef.current.delete(id);
+    }
+    characterAnimDataRef.current.delete(id);
+    // Per-object textureUrl textures are disposed by disposeObject3D's
+    // material traversal; drop the ref too or a re-add would reuse a dead
+    // texture.
+    objectTextureRefs.current.get(id)?.dispose();
+    objectTextureRefs.current.delete(id);
     disposeObject3D(root);
   };
 
@@ -381,6 +396,10 @@ export function useThreeScene({
             });
           }
         }
+        // Patch any standard materials that just appeared (new objects,
+        // GLB loads resolving mid-loop) so an already-enabled diffuse wrap
+        // applies without waiting for the next sceneConfig change.
+        applyDiffuseWrapToScene(scene);
       })();
     }
     return () => {
@@ -409,6 +428,12 @@ export function useThreeScene({
       vignettePassRef.current.uniforms.offset.value = sceneConfig.vignetteRadius;
       vignettePassRef.current.uniforms.darkness.value = sceneConfig.vignetteStrength;
     }
+    // Diffuse wrap is a shared uniform — writing it repaints every patched
+    // material next frame with no recompile. The scene traverse patches any
+    // standard material that appeared since the last config change (GLB
+    // loads, applied AI scene code).
+    setDiffuseWrap(sceneConfig.diffuseWrap);
+    if (sceneRef.current) applyDiffuseWrapToScene(sceneRef.current);
   }, [sceneConfig]);
 
   // Particle config sync

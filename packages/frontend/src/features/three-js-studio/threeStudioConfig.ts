@@ -14,6 +14,7 @@ export const DEFAULT_SCENE: SceneConfig = {
   vignetteStrength: 0.35,
   vignetteRadius: 0.7,
   beatPunch: 0.14,
+  diffuseWrap: 0,
 };
 
 export const DEFAULT_PARTICLES: ParticleConfig = {

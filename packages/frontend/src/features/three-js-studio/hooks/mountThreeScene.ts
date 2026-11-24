@@ -212,6 +212,7 @@ export function mountThreeScene(ctx: MountContext) {
       sceneConfigRef.current.fogDensity,
     );
     sceneRef.current = scene;
+    window.__scene = scene;
     const camera = new THREE.PerspectiveCamera(
       50,
       container.clientWidth / container.clientHeight,
@@ -336,7 +337,7 @@ export function mountThreeScene(ctx: MountContext) {
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
     dirLight.position.set(5, 8, 5);
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.set(1024, 1024);
+    dirLight.shadow.mapSize.set(2048, 2048);
     dirLight.shadow.camera.near = 0.5;
     dirLight.shadow.camera.far = 25;
     dirLight.shadow.bias = -0.0005;
@@ -346,7 +347,7 @@ export function mountThreeScene(ctx: MountContext) {
     spotLight.angle = 0.42;
     spotLight.penumbra = 0.6;
     spotLight.castShadow = true;
-    spotLight.shadow.mapSize.set(512, 512);
+    spotLight.shadow.mapSize.set(1024, 1024);
     scene.add(spotLight);
     const p1 = new THREE.PointLight(0xff6b9d, 8, 10);
     p1.position.set(-4, 3, 3);
@@ -802,5 +803,6 @@ export function mountThreeScene(ctx: MountContext) {
     sceneRef.current = null;
     delete window.__camera;
     delete window.__renderer;
+    delete window.__scene;
   };
 }

@@ -2047,3 +2047,51 @@ Rules: `docs/plans/tasks/README.md`
   "Tailnet exposure is load-bearing" note telling agents never to kill
   tailscaled and why `Get-ServicePortListeners` ignores non-loopback
   binds. Health check run: section 7 = 3x PASS.
+
+### T-PLT-55 — Three.js Studio: shared anim refs, GPU disposal, shadow + diffuse-wrap
+
+- **Status:** done
+- **Goal:** Fix the defect cluster found in the /create/3d audit: GLB
+  animations could never play (refs wired to throwaway maps), character/
+  object removal leaked GPU resources, Inspector anim controls were dead,
+  and the scene lacked the shadow-resolution + diffuse-wrap polish items.
+- **What changed:**
+  - `ThreeJSStudio.tsx` now keeps the `useMeshFactory` refs
+    (`characterMixersRef`, `characterAnimDataRef`) and passes them into
+    `useThreeScene` + `useObjectManager`. Previously the scene loop owned
+    a private empty `characterMixersRef` (mixer.update never ran — GLB
+    clips were frozen at bind pose) and the Inspector got
+    `{ current: new Map() }` fresh every render (play/pause/seek/clip
+    controls were dead code).
+  - `useThreeScene.disposeEntry` now does `stopAllAction()` +
+    `uncacheRoot(root)` (drops PropertyBinding caches), clears both anim
+    maps, disposes the per-object `objectTextureRefs` entry, then the
+    geometry/material/texture traversal — verified live via
+    `tests/browser/audit/verify-studio-dispose.mjs`: renderer.info
+    returns to baseline after add/swap/remove cycles.
+  - `mountThreeScene.ts`: `window.__scene` exported for QA probes
+    (cleaned up on unmount); dir-light shadow 1024->2048, spot 512->1024.
+    Shadow A/B (`tests/browser/audit/shadow-ab.mjs`, since removed as
+    scratch): frame times vsync-bound at 60 fps in both headless and
+    headed runs — no measurable cost on this scene, 2048 kept for
+    close-up shadow fidelity.
+  - New `diffuseWrap.ts`: shared-uniform `onBeforeCompile` patch on
+    MeshStandardMaterial(+subclasses) rewriting the `RE_Direct_Physical`
+    `dotNL` term to `(dotNL + w)/(1 + w)` clamped — u=0 reproduces stock
+    saturate exactly, specular BRDFs untouched. Driven by new
+    `sceneConfig.diffuseWrap` (0-1 slider in SceneTab, default 0).
+    Materials patched on scene-config sync and after object sync, so
+    GLB/AI-code materials are covered; chained with any pre-existing
+    `onBeforeCompile`. `window.__diffuseWrapUniform` probe handle.
+- **Verification:** `verify-studio-dispose.mjs` — bones detected,
+  character add/swap/remove cycles return renderer.info to baseline,
+  Spine bone delta 0.00528 (animating) during playback; `wrap-ab.mjs` —
+  slider -> uniform = 1, 21/21 standard materials patched, zero shader
+  errors. tsc -b + eslint clean.
+- **Files:** features/three-js-studio/{ThreeJSStudio.tsx,types.ts,
+  threeStudioConfig.ts,diffuseWrap.ts(new)}, hooks/{useThreeScene.ts,
+  mountThreeScene.ts,types.ts}, components/SceneTab.tsx,
+  tests/browser/audit/{verify-studio-dispose,wrap-ab}.mjs (new)
+- **Acceptance:** satisfied — disposal verified to baseline, GLB
+  animation plays, wrap toggle live-verified.
+- **Last session:** Devin, 2026-11-24 — landed in this commit.

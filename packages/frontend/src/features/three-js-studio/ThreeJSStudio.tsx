@@ -10,7 +10,6 @@ import { AISceneGenerator } from "./components/AISceneGenerator";
 import type {
   AnimObject,
   CameraMode,
-  CharacterAnimData,
   KeyframeTrack,
   ParticleConfig,
   SceneConfig,
@@ -122,7 +121,12 @@ export function ThreeJSStudio() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // ---- Mesh factory ----
-  const { createMeshForObject } = useMeshFactory();
+  // The mixer/anim-data refs are shared, not discarded: the scene loop
+  // advances characterMixersRef, the Inspector reads characterAnimDataRef,
+  // and disposeEntry clears both when an object is removed or its modelUrl
+  // changes. Passing a throwaway map here is what froze GLB animation and
+  // leaked every mixer (T-VIZ-23).
+  const { createMeshForObject, characterMixersRef, characterAnimDataRef } = useMeshFactory();
 
   // ---- Code applier ----
   const { handleApplyCode, generatedSceneUpdateRef } = useCodeApplier({
@@ -195,6 +199,8 @@ export function ThreeJSStudio() {
     animationDuration,
     keyframeTracks,
     createMeshForObject,
+    characterMixersRef,
+    characterAnimDataRef,
     generatedSceneUpdateRef,
     onAnimationTimeChange: setAnimationTime,
     onSelectObject: setSelectedObject,
@@ -255,7 +261,7 @@ export function ThreeJSStudio() {
     setObjects,
     selectedObject,
     setSelectedObject,
-    characterAnimDataRef: { current: new Map<string, CharacterAnimData>() },
+    characterAnimDataRef,
     cameraRef,
     rendererRef,
     setParticleConfig,
