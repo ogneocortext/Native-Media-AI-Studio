@@ -556,6 +556,14 @@ class JobProcessor:
                 progress=1.0,
                 message="Job completed",
                 result=result if isinstance(result, dict) else {"result": str(result)},
+                # Handlers announce the output path mid-flight via
+                # fire-and-forget update_job calls whose persist failure is
+                # only logged (manager returns None). The result dict always
+                # carries the resolved path, so re-assert it on the terminal
+                # write — completion becomes authoritative for output_path
+                # (same value emit_job_completed already sends). None keeps
+                # whatever the job already had.
+                output_path=result.get("output_path") if isinstance(result, dict) else None,
             )
             logger.info(
                 "Job completed type=%s duration=%.1fs result_keys=%s",

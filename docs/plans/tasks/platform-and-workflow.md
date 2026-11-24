@@ -2095,3 +2095,24 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** satisfied — disposal verified to baseline, GLB
   animation plays, wrap toggle live-verified.
 - **Last session:** Devin, 2026-11-24 — landed in this commit.
+
+### T-PLT-56 — Job output_path made authoritative at completion
+
+- **Status:** done
+- **Goal:** Voice Live showed `job.output_path` null after F5-TTS job
+  completion even though the handler resolves and announces the path.
+- **What changed:** `app/queue/processor.py` terminal `update_job` now
+  passes `output_path=result.get("output_path")`. Handlers announce the
+  path mid-flight via fire-and-forget `update_job` calls whose persist
+  failure is only logged (manager returns None on DB error); the result
+  dict always carries the resolved path (f5tts_adapter returns it), so
+  the completion write re-asserts it. `None` preserves whatever the job
+  already had — cannot clobber.
+- **Files:** app/queue/processor.py
+- **Verification:** ruff clean; code path traced — adapter returns
+  `output_path` in result (f5tts_adapter.py:386,435), manager's
+  `new_output_path` keeps existing on None (manager.py:894), so the
+  terminal write fills the column whenever the early write was lost.
+- **Acceptance:** satisfied — output_path populated from the
+  authoritative result at completion.
+- **Last session:** Devin, 2026-11-24 — landed in this commit.
