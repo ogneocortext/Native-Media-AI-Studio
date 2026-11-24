@@ -78,3 +78,66 @@ def test_pending_oldest_first(client):
         )
     pending = client.get("/api/voice/pocket/inbox/pending").json()["entries"]
     assert [e["id"] for e in pending] == ids
+
+
+# ---------------------------------------------------------------------------
+# Audio drops (multipart upload + dir scan + played state)
+# ---------------------------------------------------------------------------
+
+_WAV_BYTES = b"RIFF" + b"\x00" * 100  # header is enough; we never decode it
+
+
+@pytest.fixture()
+def audio_client(tmp_path, monkeypatch):
+    audio_dir = tmp_path / "voice-inbox"
+    monkeypatch.setattr(voice_pocket, "_AUDIO_DIR", audio_dir)
+    # Keep DB registration out of tests -- the real audio_files table is
+    # not touched by the inbox contract under test.
+    monkeypatch.setattr(voice_pocket, "_ensure_audio_registered", lambda p: None)
+    app = FastAPI()
+    app.include_router(voice_pocket.router)
+    return TestClient(app)
+
+
+def test_audio_upload_then_pending(audio_client):
+    res = audio_client.post(
+        "/api/voice/pocket/inbox/audio",
+        files={"file": ("clip.wav", _WAV_BYTES, "audio/wav")},
+    )
+    assert res.status_code == 201
+    entry = res.json()
+    assert entry["name"].endswith("_clip.wav")
+    assert entry["played"] is False
+
+    pending = audio_client.get("/api/voice/pocket/inbox/audio/pending")
+    assert [e["id"] for e in pending.json()["entries"]] == [entry["id"]]
+
+
+def test_audio_upload_rejects_non_audio(audio_client):
+    res = audio_client.post(
+        "/api/voice/pocket/inbox/audio",
+        files={"file": ("notes.txt", b"hello", "text/plain")},
+    )
+    assert res.status_code == 422
+
+
+def test_audio_mark_played_and_file(audio_client):
+    entry = audio_client.post(
+        "/api/voice/pocket/inbox/audio",
+        files={"file": ("take.mp3", _WAV_BYTES, "audio/mpeg")},
+    ).json()
+
+    res = audio_client.post(f"/api/voice/pocket/inbox/audio/{entry['id']}/played")
+    assert res.status_code == 200
+    assert audio_client.get("/api/voice/pocket/inbox/audio/pending").json()["entries"] == []
+
+    f = audio_client.get(f"/api/voice/pocket/inbox/audio/file/{entry['id']}")
+    assert f.status_code == 200
+    assert f.content == _WAV_BYTES
+
+
+def test_audio_file_traversal_404(audio_client):
+    res = audio_client.get("/api/voice/pocket/inbox/audio/file/..%2F..%2Fevil.wav")
+    assert res.status_code in (404, 422)
+    res2 = audio_client.get("/api/voice/pocket/inbox/audio/file/nope.wav")
+    assert res2.status_code == 404

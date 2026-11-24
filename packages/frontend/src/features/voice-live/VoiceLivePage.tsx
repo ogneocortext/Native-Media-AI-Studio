@@ -9,14 +9,18 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, Square, Play, AlertTriangle } from "lucide-react";
+import { Mic, Square, Play, AlertTriangle, FileAudio } from "lucide-react";
 import { Card } from "../../components/common";
 import {
+  getInboxAudioPending,
   getInboxPending,
   getPocketHealth,
   getPocketVoices,
+  inboxAudioFileUrl,
+  markInboxAudioPlayed,
   markInboxPlayed,
   speakPocket,
+  type InboxAudioEntry,
   type InboxEntry,
   type PocketHealth,
   type PocketVoice,
@@ -64,6 +68,7 @@ interface Take {
 
 interface InboxLine {
   id: string;
+  kind: "text" | "audio";
   text: string;
   voice: string;
   at: string;
@@ -197,6 +202,48 @@ async function playPcmSequentially(
     if (!ok) return false;
   }
   return !signal.aborted;
+}
+
+/** Fetch an audio drop, decode it, and play it to completion through an
+ *  AudioContext. Real audio files (wav/mp3/ogg/...) decode natively --
+ *  unlike Pocket's raw PCM this needs no manual conversion. Resolves true
+ *  only when the buffer reached onended. */
+async function playAudioFile(
+  url: string,
+  ctx: AudioContext,
+  signal: AbortSignal,
+): Promise<boolean> {
+  const resp = await fetch(url, { signal });
+  if (!resp.ok) throw new Error(`Audio fetch failed (HTTP ${resp.status})`);
+  const bytes = await resp.arrayBuffer();
+  const audioBuf = await ctx.decodeAudioData(bytes);
+  return new Promise<boolean>((resolve, reject) => {
+    const src = ctx.createBufferSource();
+    src.buffer = audioBuf;
+    src.connect(ctx.destination);
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      try {
+        src.onended = null;
+        src.stop();
+      } catch {
+        /* already stopped */
+      }
+      resolve(ok);
+    };
+    const onAbort = () => finish(false);
+    src.onended = () => finish(true);
+    signal.addEventListener("abort", onAbort, { once: true });
+    try {
+      src.start();
+    } catch (e) {
+      finish(false);
+      reject(e instanceof Error ? e : new Error(String(e)));
+    }
+  });
 }
 
 export function VoiceLivePage() {
@@ -482,8 +529,21 @@ export function VoiceLivePage() {
   );
 
   // -- Maya inbox ("Listen for Maya") ---------------------------------------
-  // Synthesize + play one inbox entry through the same Pocket path a manual
-  // take uses (chunked speakPocket -> PCM decode -> AudioContext playback).
+  // Lazily create/resume the inbox AudioContext. Called from click handlers
+  // and poll ticks (the toggle click already unlocked audio for the page).
+  const ensureInboxCtx = useCallback((): AudioContext | null => {
+    try {
+      const ctx = inboxCtxRef.current ?? new AudioContext();
+      inboxCtxRef.current = ctx;
+      if (ctx.state === "suspended") void ctx.resume();
+      return ctx;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Synthesize + play one text inbox entry through the same Pocket path a
+  // manual take uses (chunked speakPocket -> PCM decode -> AudioContext).
   // Resolves true only when every chunk played to completion -- a speak or
   // playback failure resolves false so the entry stays pending and retries.
   const playInboxEntry = useCallback(
@@ -495,12 +555,8 @@ export function VoiceLivePage() {
       try {
         await speakPocketRun(entry.text, entry.voice, controller, urls, blobs);
         if (blobs.length === 0) return false;
-        let ctx = inboxCtxRef.current;
-        if (!ctx) {
-          ctx = new AudioContext();
-          inboxCtxRef.current = ctx;
-          if (ctx.state === "suspended") void ctx.resume();
-        }
+        const ctx = ensureInboxCtx();
+        if (!ctx) return false;
         const played = await playPcmSequentially(blobs, ctx, controller.signal);
         for (const url of urls) URL.revokeObjectURL(url);
         return played;
@@ -511,7 +567,29 @@ export function VoiceLivePage() {
         if (inboxCtlRef.current === controller) inboxCtlRef.current = null;
       }
     },
-    [speakPocketRun],
+    [speakPocketRun, ensureInboxCtx],
+  );
+
+  // Fetch + decode + play one audio drop. Resolves true only at onended.
+  const playInboxAudio = useCallback(
+    async (entry: InboxAudioEntry): Promise<boolean> => {
+      const controller = new AbortController();
+      inboxCtlRef.current = controller;
+      try {
+        const ctx = ensureInboxCtx();
+        if (!ctx) return false;
+        return await playAudioFile(
+          inboxAudioFileUrl(entry.id),
+          ctx,
+          controller.signal,
+        );
+      } catch {
+        return false;
+      } finally {
+        if (inboxCtlRef.current === controller) inboxCtlRef.current = null;
+      }
+    },
+    [ensureInboxCtx],
   );
 
   const toggleInbox = useCallback(() => {
@@ -522,15 +600,9 @@ export function VoiceLivePage() {
       return;
     }
     // The toggle click is the user gesture that unlocks audio playback.
-    try {
-      const ctx = inboxCtxRef.current ?? new AudioContext();
-      inboxCtxRef.current = ctx;
-      if (ctx.state === "suspended") void ctx.resume();
-    } catch {
-      /* playback still works via HTMLAudioElement */
-    }
+    ensureInboxCtx();
     setInboxOn(true);
-  }, [inboxOn]);
+  }, [inboxOn, ensureInboxCtx]);
 
   // Poll the pending inbox while the toggle is on. Entries are handled once
   // per session (inboxHandledRef); failures retry on later polls up to
@@ -546,8 +618,31 @@ export function VoiceLivePage() {
       if (pollAborted() || inboxBusyRef.current) return;
       inboxBusyRef.current = true;
       try {
-        const { entries } = await getInboxPending();
-        for (const entry of entries) {
+        // Text lines and audio drops are independent queues; fetch both so
+        // one failing endpoint cannot starve the other.
+        const [textRes, audioRes] = await Promise.all([
+          getInboxPending().catch(() => null),
+          getInboxAudioPending().catch(() => null),
+        ]);
+
+        const listLine = (
+          setKey: string,
+          lineId: string,
+          kind: "text" | "audio",
+          text: string,
+          voice: string,
+        ) => {
+          if (inboxListedRef.current.has(setKey)) return;
+          inboxListedRef.current.add(setKey);
+          setInboxLines((prev) =>
+            [
+              { id: lineId, kind, text, voice, at: new Date().toLocaleTimeString() },
+              ...prev.filter((l) => l.id !== lineId),
+            ].slice(0, 5),
+          );
+        };
+
+        for (const entry of textRes?.entries ?? []) {
           if (pollAborted()) break;
           if (inboxHandledRef.current.has(entry.id)) continue;
           const fails = inboxFailsRef.current.get(entry.id) ?? 0;
@@ -560,20 +655,7 @@ export function VoiceLivePage() {
           inboxHandledRef.current.add(entry.id);
           // The line was received this session -- list it (with replay)
           // even if playback fails, so a failed attempt is never invisible.
-          if (!inboxListedRef.current.has(entry.id)) {
-            inboxListedRef.current.add(entry.id);
-            setInboxLines((prev) =>
-              [
-                {
-                  id: entry.id,
-                  text: entry.text,
-                  voice: entry.voice,
-                  at: new Date().toLocaleTimeString(),
-                },
-                ...prev.filter((l) => l.id !== entry.id),
-              ].slice(0, 5),
-            );
-          }
+          listLine(entry.id, entry.id, "text", entry.text, entry.voice);
           const played = await playInboxEntry(entry);
           if (pollAborted()) {
             // Toggle went off (or unmount) mid-line: release the claim so
@@ -586,6 +668,30 @@ export function VoiceLivePage() {
           } else {
             inboxHandledRef.current.delete(entry.id);
             inboxFailsRef.current.set(entry.id, fails + 1);
+          }
+        }
+
+        for (const entry of audioRes?.entries ?? []) {
+          if (pollAborted()) break;
+          const key = `audio:${entry.id}`;
+          if (inboxHandledRef.current.has(key)) continue;
+          const fails = inboxFailsRef.current.get(key) ?? 0;
+          if (fails >= INBOX_MAX_FAILS) {
+            inboxHandledRef.current.add(key);
+            continue;
+          }
+          inboxHandledRef.current.add(key);
+          listLine(key, entry.id, "audio", entry.name, "");
+          const played = await playInboxAudio(entry);
+          if (pollAborted()) {
+            inboxHandledRef.current.delete(key);
+            break;
+          }
+          if (played) {
+            void markInboxAudioPlayed(entry.id).catch(() => undefined);
+          } else {
+            inboxHandledRef.current.delete(key);
+            inboxFailsRef.current.set(key, fails + 1);
           }
         }
       } catch {
@@ -603,25 +709,28 @@ export function VoiceLivePage() {
       inboxCtlRef.current?.abort();
       inboxCtlRef.current = null;
     };
-  }, [inboxOn, playInboxEntry]);
+  }, [inboxOn, playInboxEntry, playInboxAudio]);
 
   const replayInboxLine = useCallback(
     (line: InboxLine) => {
       const controller = new AbortController();
       abortRef.current?.abort();
       abortRef.current = controller;
+      if (line.kind === "audio") {
+        const ctx = ensureInboxCtx();
+        if (!ctx) return;
+        void playAudioFile(inboxAudioFileUrl(line.id), ctx, controller.signal).catch(
+          () => undefined,
+        );
+        return;
+      }
       const urls: string[] = [];
       const blobs: Blob[] = [];
       void (async () => {
         try {
           await speakPocketRun(line.text, line.voice, controller, urls, blobs);
-          let ctx = inboxCtxRef.current;
-          if (!ctx) {
-            ctx = new AudioContext();
-            inboxCtxRef.current = ctx;
-            if (ctx.state === "suspended") void ctx.resume();
-          }
-          if (blobs.length > 0) {
+          const ctx = ensureInboxCtx();
+          if (ctx && blobs.length > 0) {
             await playPcmSequentially(blobs, ctx, controller.signal);
           }
         } catch {
@@ -631,7 +740,7 @@ export function VoiceLivePage() {
         }
       })();
     },
-    [speakPocketRun],
+    [speakPocketRun, ensureInboxCtx],
   );
 
   // Tear the inbox session down on unmount (toggle stays session-only).
@@ -1044,6 +1153,11 @@ export function VoiceLivePage() {
                       >
                         <div className="min-w-0">
                           <span className="text-muted tabular-nums">{line.at}</span>{" "}
+                          {line.kind === "audio" && (
+                            <span className="inline-flex items-center gap-0.5 text-sky-300">
+                              <FileAudio size={11} />
+                            </span>
+                          )}{" "}
                           <span className="truncate">{line.text}</span>
                         </div>
                         <button

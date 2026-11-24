@@ -2058,6 +2058,34 @@ Rules: `docs/plans/tasks/README.md`
   played via PCM, left pending (`inbox-fix-v2-played.png`); manual Speak
   take recorded only after real PCM playback (`inbox-fix-manual-speak.png`).
   tsc -b + eslint clean; gates PASS on diff.
+- **Addendum (audio drops, 2026-11-24):** Maya can now land real audio
+  files for Nate to hear. Backend: `POST /api/voice/pocket/inbox/audio`
+  (multipart upload -> `output/audio/voice-inbox/`, extension allowlist,
+  100 MB cap, temp staged inside the drop dir so `os.replace` stays
+  same-volume) and `GET /inbox/audio/pending` scans the dir each poll —
+  files Maya drops directly into `output/audio/voice-inbox/` (tailnet/
+  SMB) are picked up with no upload call. Each drop is registered in the
+  `audio_files` SQLite table via `database.save_audio_file` (media
+  library persistence, dedup by filename) and is also servable through
+  the existing `/api/audio/file/*` route plus
+  `GET /inbox/audio/file/{name}` (resolve-guarded against traversal).
+  Played state lives in `output/audio/voice-inbox/played.json` keyed by
+  stored filename. Frontend: the same "Listen for Maya" poll also drains
+  pending audio — fetched, `decodeAudioData`, played through the shared
+  `AudioContext` (`playAudioFile`), `played` POSTed only after `onended`
+  (decode/play failure stays pending, 3-fail session cap); replay routes
+  audio entries through the same `playAudioFile` path. The tick awaits
+  every text entry then every audio entry before the next poll, so
+  playback is strictly sequential — text first, then audio, each in
+  posted order.
+- **Verification (audio addendum):** upload POST -> 201, pending lists
+  entry, `audio_files` row present, file endpoint 200 `audio/wav`;
+  Playwright toggle-ON auto-played the dropped wav (pending emptied,
+  listed with replay, `audio-drop-played.png`/`audio-drop-replay.png`);
+  pytest test_voice_inbox.py 10/10 (upload/pending/played/file/
+  traversal/non-audio 422 added); tsc + eslint + ruff clean.
+- **Drive-by:** `ApiPerformanceCard.tsx` empty-interface lint error from
+  `516c3a53` fixed (component takes no props) so the lint gate passes.
 
 ### T-PLT-54 — Backend orphan reaping via kill-on-close Job Object
 

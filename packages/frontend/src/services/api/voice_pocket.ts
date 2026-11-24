@@ -100,3 +100,45 @@ export async function markInboxPlayed(id: string): Promise<InboxEntry> {
   }
   return (await response.json()) as InboxEntry;
 }
+
+// -- Maya inbox: audio drops ------------------------------------------------
+// Files Maya POSTs to /inbox/audio (or drops into output/voice-inbox/) are
+// listed here until the page plays them once, then marks them played.
+
+export interface InboxAudioEntry {
+  id: string;
+  name: string;
+  size: number;
+  created_at: string;
+  played: boolean;
+}
+
+export interface InboxAudioPending {
+  entries: InboxAudioEntry[];
+}
+
+/** GET /api/voice/pocket/inbox/audio/pending — unplayed drops, oldest first. */
+export async function getInboxAudioPending(): Promise<InboxAudioPending> {
+  return getJson<InboxAudioPending>(`${BASE}/inbox/audio/pending`, {
+    timeout: 10000,
+  });
+}
+
+/** POST /api/voice/pocket/inbox/audio/{id}/played — mark a drop as played. */
+export async function markInboxAudioPlayed(
+  id: string,
+): Promise<InboxAudioEntry> {
+  const response = await fetchWithTimeout(
+    `${BASE}/inbox/audio/${encodeURIComponent(id)}/played`,
+    { method: "POST", timeout: 10000 },
+  );
+  if (!response.ok) {
+    throw new Error(`Mark audio played failed (${response.status})`);
+  }
+  return (await response.json()) as InboxAudioEntry;
+}
+
+/** URL that streams one audio drop for decodeAudioData / <audio>. */
+export function inboxAudioFileUrl(id: string): string {
+  return `${BASE}/inbox/audio/file/${encodeURIComponent(id)}`;
+}

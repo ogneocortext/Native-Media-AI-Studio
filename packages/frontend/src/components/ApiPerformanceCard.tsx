@@ -7,9 +7,7 @@ import { Card } from "./common";
 import { getMetricsSummary } from "../utils/metrics";
 import React from "react";
 
-interface ApiPerformanceCardProps {}
-
-const ApiPerformanceCardComponent = (_props: ApiPerformanceCardProps) => {
+const ApiPerformanceCardComponent = () => {
   const metrics = getMetricsSummary();
 
   // Filter for API metrics only
