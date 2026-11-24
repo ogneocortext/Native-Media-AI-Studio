@@ -102,12 +102,21 @@ export function spawnShockwave(
 /**
  * Advance every shockwave one frame: expand radius, fade alpha, remove spent
  * rings. Mutates the array in place.
+ *
+ * `dt60` is the frame time in 60 fps units (1.0 at 60 Hz) so expansion and
+ * fade run at the same wall-clock rate on any refresh rate; export frames
+ * pass the default 1.0, preserving the per-frame constants exports were
+ * authored against.
  */
-export function updateShockwaves(shockwaves: Shockwave[], motionScale: number): void {
+export function updateShockwaves(
+  shockwaves: Shockwave[],
+  motionScale: number,
+  dt60 = 1,
+): void {
   for (let i = shockwaves.length - 1; i >= 0; i--) {
     const s = shockwaves[i];
-    s.radius += (s.maxRadius - s.radius) * s.speed * motionScale;
-    s.alpha -= 0.015 * motionScale;
+    s.radius += (s.maxRadius - s.radius) * s.speed * motionScale * dt60;
+    s.alpha -= 0.015 * motionScale * dt60;
     if (s.alpha <= 0 || s.radius >= s.maxRadius) {
       shockwaves.splice(i, 1);
     }

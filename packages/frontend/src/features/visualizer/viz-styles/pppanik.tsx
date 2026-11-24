@@ -22,7 +22,13 @@ import { getStemEnergy } from "./helpers";
 import { InstancedBlobField, type BlobFieldDrivers } from "../components/InstancedBlobField";
 import { beatSnap, rolloff } from "./vizMotion";
 
-export function PpanikBlobField({ stems, audioElapsedRef, audioData }: VizProps) {
+export function PpanikBlobField({
+  stems,
+  audioElapsedRef,
+  audioData,
+  sceneFrozen,
+  prefersReducedMotion,
+}: VizProps) {
   const groupRef = useRef<THREE.Group>(null);
   /**
    * Live driver values. This ref is read by InstancedBlobField inside its own
@@ -39,8 +45,12 @@ export function PpanikBlobField({ stems, audioElapsedRef, audioData }: VizProps)
   // Reused per-frame so getStemEnergy doesn't allocate a fresh record at 60 fps.
   const stemScratch = useRef({ vocals: 0, drums: 0, bass: 0, other: 0 });
 
-  useFrame(() => {
-    if (!groupRef.current) return;
+  useFrame((_, delta) => {
+    // Freeze holds the last drivers and transform — same contract as
+    // every other style's `if (!sceneFrozen)` gate.
+    if (!groupRef.current || sceneFrozen) return;
+    const dt60 = Math.min(delta, 0.1) * 60;
+    const speedMul = prefersReducedMotion ? 0.35 : 1;
     const elapsed = audioElapsedRef?.current ?? 0;
     const live = audioData.current;
     const stemEnergy = getStemEnergy(stems, elapsed, stemScratch.current);
@@ -69,9 +79,10 @@ export function PpanikBlobField({ stems, audioElapsedRef, audioData }: VizProps)
     const bassScale = 1 + displace;
     groupRef.current.scale.setScalar(bassScale);
 
-    // Rotate based on vocal/mid energy
-    groupRef.current.rotation.y += 0.002 + stemEnergy.vocals * 0.01;
-    groupRef.current.rotation.x += 0.001 + stemEnergy.other * 0.005;
+    // Rotate based on vocal/mid energy. dt-scaled — the old per-frame
+    // increment spun twice as fast on a 120 Hz display.
+    groupRef.current.rotation.y += (0.002 + stemEnergy.vocals * 0.01) * dt60 * speedMul;
+    groupRef.current.rotation.x += (0.001 + stemEnergy.other * 0.005) * dt60 * speedMul;
   });
 
   return (
@@ -83,6 +94,8 @@ export function PpanikBlobField({ stems, audioElapsedRef, audioData }: VizProps)
         transientEject={0.8}
         transientColorShift={0.3}
         drivers={drivers}
+        frozen={sceneFrozen ?? false}
+        speedScale={prefersReducedMotion ? 0.35 : 1}
       />
     </group>
   );

@@ -1539,3 +1539,73 @@ evidence above.
 - **Acceptance:** partially met — reactivity code landed and is
   scoped correctly; VLM confirmation deferred to next capture cycle.
 - **Last session:** Devin, 2026-11-24 — landed in this commit.
+
+### T-VIZ-58 — Animation-surface audit: frame-rate independence + freeze/reduced-motion coverage
+
+- **Status:** done
+- **Goal:** Audit every animation-driving surface (3D viz styles, Canvas2D
+  pipeline, Three.js Studio render loop, standalone pages) for
+  frame-rate-dependent motion, missing `sceneFrozen` /
+  `prefersReducedMotion` gates, and presentation-quality gaps; fix what
+  is found.
+- **Defects found and fixed:**
+  - `mountThreeScene.ts` (Three.js Studio): hidden-tab/stall resume handed
+    the next frame minutes of `getDelta()` — rotations snapped, particles
+    teleported, GLB mixers scrubbed forward; `elapsed` also kept counting
+    hidden time so bob/camera phase popped on return. Now delta is clamped
+    to 0.1 s and non-motion time is subtracted from `elapsed`.
+  - Same file: `shakeRef *= 0.75` per frame and the handheld-camera walk
+    `+= 0.02` per frame were refresh-rate dependent — both now scaled by
+    `dt60` (frames-per-60fps). Export frames get the same wall-clock rate.
+  - Same file: beat impulse triggered on `timeSinceLastBeat < 0.016`, a
+    16 ms window — at 30 fps roughly half of all beats were missed. Now
+    keyed on `beatState.lastBeatIndex` (exactly one frame per beat at any
+    rate, re-arms outside the window so seeks still fire).
+  - Same file: raw `getByteFrequencyData` band sums drove pulse/bob with
+    no smoothing — stepped, jittery response (the visualizer's
+    `audioHooks` has attack/release for exactly this reason). Bands now
+    go through a dt-normalized one-pole smoother (retention 0.12 up /
+    0.85 down per 60 fps frame); `bandSmooth`/`lastBeatIdx` reset in
+    `resetDeterministicRef` so exports stay reproducible.
+  - `viz-styles/pppanik.tsx` + `components/InstancedBlobField.tsx`: the
+    only style ignoring `sceneFrozen`/`prefersReducedMotion` — "Freeze
+    scene" did nothing and the group rotation ran per-frame (2× speed at
+    120 Hz). Now gated; rotation is dt-scaled; the blob field takes
+    `frozen`/`speedScale` props (skips the 40k-instance rewrite entirely
+    when frozen).
+  - `viz-styles/stageEnvironment.tsx`: same two gates missing — crowd
+    sway/downbeat hop and the LED screen kept moving under Freeze, and
+    the reactive envelopes kept tracking audio. All now honor both props.
+  - `HtmlCanvasRenderer.tsx`: overlay style used `y` instead of `top: y`
+    (×2) — the non-HTML-in-Canvas fallback positioned captions wrong.
+  - `Canvas2DVisualizer.tsx` + `shockwaves.ts` + `idleParticles.ts`:
+    palette fade, phrase flash, beat vignette, shockwave expansion/fade,
+    and idle-mote drift/spawn/decay were all per-frame constants —
+    refresh-rate dependent on live displays. All now take a `dt60` frame
+    unit measured from the same timestamp the render governor already
+    samples; virtual export frames keep `dt60 = 1` so exported frames
+    are bit-identical to before.
+- **Audit coverage, no defect:** AnimationStudio rAF clock (dt-clamped),
+  KineticTypography demo timer (setInterval clock), `vizMotion.ts`
+  primitives (already dt-normalized), `audioHooks`/`useRealAudio`
+  (attack/release smoothing present), `motion/` subsystem (pure functions
+  of time, tested), `particles.ts` (already dt-scaled), warpPresets
+  (preset data, no timing), ShaderCanvas uTime (wall-clock uniform,
+  intentional for live preview).
+- **Files:** features/three-js-studio/hooks/mountThreeScene.ts,
+  features/visualizer/viz-styles/{pppanik,stageEnvironment}.tsx,
+  features/visualizer/components/InstancedBlobField.tsx,
+  features/visualizer/{HtmlCanvasRenderer,Canvas2DVisualizer}.tsx,
+  features/visualizer/{shockwaves,idleParticles}.ts
+- **Verification:** `tsc -b` clean, eslint clean on all touched files,
+  605/605 visualizer vitest pass. Browser smoke
+  (`tests/browser/anim-audit-smoke.mjs`): pppanik, stage-env and 2d:bars
+  all render with audio playing; console shows only the known
+  pre-existing noise (React uncached-promise suspense warnings, one 404,
+  the intermittent "Maximum update depth" watch item — none introduced
+  by this change; no setState/useEffect was added).
+- **Acceptance:** met — every audited surface either verified clean or
+  fixed; freeze/reduced-motion coverage is now uniform across all 16 3D
+  styles and the Canvas2D pipeline; exports remain deterministic
+  (virtual frames keep dt60 = 1).
+- **Last session:** Devin, 2026-11-24 — landed in this commit.

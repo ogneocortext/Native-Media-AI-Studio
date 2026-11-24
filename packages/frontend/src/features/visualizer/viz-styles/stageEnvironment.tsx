@@ -194,7 +194,15 @@ function makeCrowdTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-function CrowdField({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
+function CrowdField({
+  audioData,
+  frozen,
+  speedMul,
+}: {
+  audioData: React.MutableRefObject<AudioData>;
+  frozen: boolean;
+  speedMul: number;
+}) {
   // Foreground silhouette cards in an arc — instanced via drei so they
   // render reliably; the whole field bounces on downbeat (group-level,
   // no per-instance matrix bookkeeping).
@@ -225,12 +233,13 @@ function CrowdField({ audioData }: { audioData: React.MutableRefObject<AudioData
   );
   useFrame(({ clock }) => {
     const g = groupRef.current;
-    if (!g) return;
+    if (!g || frozen) return;
     const t = clock.elapsedTime;
     const beat = audioData.current.isDownbeat ? 1 : 0;
     // Gentle idle sway + a sharp-ish downbeat hop, eased back down.
-    g.position.y = -3 + Math.sin(t * 2.2) * 0.015 + beat * 0.09;
-    g.rotation.z = Math.sin(t * 0.7) * 0.004;
+    // speedMul damps both under prefers-reduced-motion.
+    g.position.y = -3 + (Math.sin(t * 2.2) * 0.015 + beat * 0.09) * speedMul;
+    g.rotation.z = Math.sin(t * 0.7) * 0.004 * speedMul;
   });
   // Imperative InstancedMesh — matrices written once on mount; the
   // group-level useFrame above handles the downbeat bounce for the field.
@@ -274,12 +283,18 @@ function CrowdField({ audioData }: { audioData: React.MutableRefObject<AudioData
   );
 }
 
-function LedScreen({ audioData }: { audioData: React.MutableRefObject<AudioData> }) {
+function LedScreen({
+  audioData,
+  frozen,
+}: {
+  audioData: React.MutableRefObject<AudioData>;
+  frozen: boolean;
+}) {
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
   useFrame(() => {
-    const d = audioData.current;
     const m = matRef.current;
-    if (!m) return;
+    if (!m || frozen) return;
+    const d = audioData.current;
     const glow = 0.35 + d.energy * 0.9 + (d.isDownbeat ? 0.4 : 0);
     // Hue drifts with mid content; brightness with energy.
     const hue = (d.mid * 0.35 + 0.52) % 1;
@@ -300,13 +315,22 @@ function LedScreen({ audioData }: { audioData: React.MutableRefObject<AudioData>
   );
 }
 
-export function StageEnvironment({ audioData }: VizProps) {
+export function StageEnvironment({
+  audioData,
+  sceneFrozen,
+  prefersReducedMotion,
+}: VizProps) {
+  const frozen = sceneFrozen ?? false;
+  const speedMul = prefersReducedMotion ? 0.35 : 1;
   // Smoothed reactive channels.
   const beamLevel = useRef(0);
   const screenGlow = useRef(0);
   const lightLevel = useRef(0);
 
   useFrame((_, dt) => {
+    // Frozen holds the envelopes at their last values, so beams, the
+    // LED screen and the practicals all hold their last pose too.
+    if (frozen) return;
     const d = audioData.current;
     const k = Math.min(dt * 6, 1);
     beamLevel.current += (Math.min(1, d.bass * 1.6 + d.energy * 0.5) - beamLevel.current) * k;
@@ -351,7 +375,7 @@ export function StageEnvironment({ audioData }: VizProps) {
       <OverheadTruss />
 
       {/* LED screen (rear wall) */}
-      <LedScreen audioData={audioData} />
+      <LedScreen audioData={audioData} frozen={frozen} />
 
       {/* Beam cones — fake volumetrics, additive, bass-driven */}
       {beamPositions.map((p, i) => (
@@ -378,7 +402,7 @@ export function StageEnvironment({ audioData }: VizProps) {
       />
 
       {/* Crowd silhouettes (foreground depth plane) */}
-      <CrowdField audioData={audioData} />
+      <CrowdField audioData={audioData} frozen={frozen} speedMul={speedMul} />
 
       {/* GLB props — placed on the platform grid. Each suspends on its
           KTX2-aware load; per-prop Suspense keeps the set dressing visible

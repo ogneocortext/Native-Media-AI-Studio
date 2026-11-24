@@ -48,6 +48,10 @@ export function spawnIdleParticle(
  * Advance every idle particle one frame: drift by velocity, decay life,
  * remove expired or off-screen particles. Spawns a gentle trickle of new
  * particles each frame. Mutates the array in place.
+ *
+ * `dt60` is the frame time in 60 fps units (1.0 at 60 Hz) so drift, life
+ * decay and the spawn rate run at the same wall-clock rate on any
+ * refresh rate; export frames pass the default 1.0.
  */
 export function updateIdleParticles(
   particles: IdleParticle[],
@@ -55,14 +59,18 @@ export function updateIdleParticles(
   h: number,
   motionScale: number,
   rand: () => number = Math.random,
+  dt60 = 1,
 ): void {
-  // Spawn a gentle trickle
-  if (rand() < 0.06 * motionScale) spawnIdleParticle(particles, w, h, rand);
+  // Spawn a gentle trickle — per-frame probability normalized to frame
+  // time so 120 Hz does not double the spawn rate.
+  if (rand() < 1 - Math.pow(1 - 0.06 * motionScale, dt60)) {
+    spawnIdleParticle(particles, w, h, rand);
+  }
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
-    p.x += p.vx * motionScale;
-    p.y += p.vy * motionScale;
-    p.life -= 0.002 * motionScale;
+    p.x += p.vx * motionScale * dt60;
+    p.y += p.vy * motionScale * dt60;
+    p.life -= 0.002 * motionScale * dt60;
     if (p.life <= 0 || p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20) {
       particles.splice(i, 1);
     }

@@ -409,14 +409,22 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         // T-VIZ-18 — feed live frame times to the governor; a level change
         // re-caps DPR and resizes the backing store. Virtual frames are
         // skipped: exports must be deterministic regardless of machine load.
+        // `motionDt60` is the same frame time in 60 fps units, handed to
+        // every per-frame motion constant below (palette fade, phrase
+        // flash, beat vignette, shockwaves, idle motes) so they run at
+        // one wall-clock rate on 30/60/120 Hz. Virtual frames keep the
+        // default 1.0 — one export frame is one authored frame.
+        let motionDt60 = 1;
         if (!isVirtual) {
           const now = performance.now();
           if (lastFrameTs !== null) {
-            const lvl = governor.sample(now - lastFrameTs, now);
+            const frameMs = now - lastFrameTs;
+            const lvl = governor.sample(frameMs, now);
             if (lvl !== null && lvl !== dprCap) {
               dprCap = lvl;
               applySize();
             }
+            motionDt60 = Math.min(Math.max(frameMs / 16.6667, 0.25), 4);
           }
           lastFrameTs = now;
         } else {
@@ -491,7 +499,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
           paletteTRef.current = 0;
         }
 
-        paletteTRef.current = Math.min(1, paletteTRef.current + 0.04);
+        paletteTRef.current = Math.min(1, paletteTRef.current + 0.04 * motionDt60);
         const rawT = paletteTRef.current;
         // Ease the palette transition so section changes feel organic, not linear.
         const t = easeOutQuad(rawT);
@@ -503,10 +511,10 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         if (paletteTRef.current >= 1) currentPaletteRef.current = [...targetPaletteRef.current];
 
         if (sync?.isPhraseStart) phraseFlash = 1;
-        phraseFlash = Math.max(0, phraseFlash - 0.07 * motionScale);
+        phraseFlash = Math.max(0, phraseFlash - 0.07 * motionScale * motionDt60);
         // Beat vignette pulse — subtle screen-edge darkening on transients.
-        if (d.beat) beatVignette = Math.min(1, beatVignette + 0.35 * motionScale);
-        beatVignette = Math.max(0, beatVignette - 0.06 * motionScale);
+        if (d.beat) beatVignette = Math.min(1, beatVignette + 0.35 * motionScale * motionDt60);
+        beatVignette = Math.max(0, beatVignette - 0.06 * motionScale * motionDt60);
 
         // Size the backing store only when the container changes (see applySize above).
         const bg = normalizeHex(bgColor);
@@ -519,7 +527,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         if (d.beat && allowsEffect(mode, "shockwaves")) {
           spawnShockwave(shockwaves, w, h, d.drumType ?? undefined, rand);
         }
-        updateShockwaves(shockwaves, motionScale);
+        updateShockwaves(shockwaves, motionScale, motionDt60);
 
         // Cached gradient helper: keyed by mode + palette + height so each
         // gradient-using mode avoids per-frame createLinearGradient allocation.
@@ -652,7 +660,7 @@ export const Canvas2DVisualizer = forwardRef<Canvas2DVisualizerRef, Props>(
         if (!isVirtual && (!analyser || !isPlaying)) {
           // 2026 kinetic idle: variable-font-inspired — weight pulses with phraseFlash, not static
           // Ambient particle layer — soft floating motes that keep the canvas feeling alive
-          updateIdleParticles(idleParticles, w, h, motionScale, rand);
+          updateIdleParticles(idleParticles, w, h, motionScale, rand, motionDt60);
           drawIdleParticles(drawCtx, idleParticles, dpr);
           const idlePulse =
             phraseFlash * 0.3 + Math.sin(nowMs() * 0.002 * motionScale) * 0.08 * motionScale;

@@ -414,6 +414,20 @@ export function mountThreeScene(ctx: MountContext) {
     // (reset by `resetDeterministicRef`).
     let exportRandom = createSeededRandom();
     const nextRandom = () => (exportActiveRef.current ? exportRandom() : Math.random());
+    // Wall time the motion clock did not advance: hidden-tab gaps and
+    // stalls longer than the delta clamp. Subtracted from the scene
+    // clock so elapsed-driven motion (bob phase, camera trajectories)
+    // resumes where it left off instead of jumping minutes ahead.
+    let nonMotionTime = 0;
+    // One-pole-smoothed band energies for the audio-driven pulse. The
+    // raw byte bands step every frame and read as jitter under beat
+    // punch; same attack/release curve as the visualizer's audioHooks,
+    // normalized by frame delta so 120 Hz and 30 Hz agree.
+    const bandSmooth = { bass: 0, mid: 0, treble: 0 };
+    // Beat identity of the last frame that fired the beat impulse —
+    // index-based so exactly one frame per beat triggers at any frame
+    // rate (the old 16 ms window missed beats at <=30 fps).
+    let lastBeatIdx = -1;
     // The frame body, shared by the live rAF driver and the export
     // path's `renderAtTime`. When the export clock is active the
     // body takes delta/elapsed from the driver, so a frame's
@@ -425,23 +439,36 @@ export function mountThreeScene(ctx: MountContext) {
       const ec = exportClockRef.current;
       let delta: number;
       let elapsed: number;
+      let rawDelta = 0;
       if (ec.active) {
         delta = ec.dt;
         elapsed = ec.t;
       } else {
         clock.update();
-        delta = clock.getDelta();
-        elapsed = clock.getElapsed();
+        rawDelta = clock.getDelta();
+        // Clamp the resume spike: a hidden tab (or a long stall) hands
+        // the next frame minutes of delta, which would snap rotations,
+        // teleport particles and scrub GLB mixers forward.
+        delta = Math.min(rawDelta, 0.1);
+        nonMotionTime += Math.max(0, rawDelta - delta);
+        elapsed = clock.getElapsed() - nonMotionTime;
       }
       controls.update();
       // Live frames skip motion while the tab is hidden; an export
       // frame must always render (and the export loop never waits
       // on rAF, so backgrounding drops nothing).
       if (document.hidden && !ec.active) {
+        // The whole frame interval was non-motion time.
+        nonMotionTime += rawDelta;
         controls.update();
         (finalComposerRef.current ?? composerRef.current)?.render();
         return;
       }
+      // Frames-per-60fps unit for every per-frame constant below, so
+      // shake decay, the handheld walk and band smoothing run at the
+      // same wall-clock rate on 30/60/120 Hz displays. Delta is already
+      // clamped, so dt60 tops out at 6.
+      const dt60 = delta * 60;
       let audioBass = 0,
         audioTreble = 0,
         audioMid = 0;
@@ -465,6 +492,22 @@ export function mountThreeScene(ctx: MountContext) {
         for (let i = trebleBins; i < arr.length; i++) sum += arr[i];
         audioTreble = sum / ((arr.length - trebleBins) * 255 || 1);
       }
+      // Attack/release smoothing toward the raw bands (retention 0.12
+      // rising / 0.85 falling per 60 fps frame — the same curve the
+      // visualizer's ATTACK/RELEASE constants encode). Also gives the
+      // reactive channels a short release when playback pauses instead
+      // of snapping to zero.
+      const smoothBand = (cur: number, tgt: number) => {
+        const diff = tgt - cur;
+        const k = 1 - Math.pow(diff > 0 ? 0.12 : 0.85, dt60);
+        return cur + diff * k;
+      };
+      bandSmooth.bass = smoothBand(bandSmooth.bass, audioBass);
+      bandSmooth.mid = smoothBand(bandSmooth.mid, audioMid);
+      bandSmooth.treble = smoothBand(bandSmooth.treble, audioTreble);
+      audioBass = bandSmooth.bass;
+      audioMid = bandSmooth.mid;
+      audioTreble = bandSmooth.treble;
       const beatState = getCurrentBeatRef.current(elapsed);
       // F2: advance the section-aware motion driver on the audio
       // playhead. A boundary cuts (snare/downbeat, no blend) or wipes
@@ -519,18 +562,35 @@ export function mountThreeScene(ctx: MountContext) {
         sceneConfigRef.current.beatPunch * (sectionProfile ? sectionProfile.beatPunchScale : 1);
       let beatSpike = 0;
       let newBeatActive = false;
-      if (renderPlayingRef.current && beatState.ready && beatState.isOnBeat) {
-        beatSpike = beatPunchAmp * (1 - beatState.timeSinceLastBeat / beatState.beatWindowSec);
-        if (beatState.timeSinceLastBeat < 0.016) {
-          shakeRef.current = Math.min(shakeRef.current + beatPunchAmp * 0.3, 0.15);
-          newBeatActive = true;
+      if (renderPlayingRef.current && beatState.ready) {
+        if (beatState.isOnBeat) {
+          beatSpike =
+            beatPunchAmp * (1 - beatState.timeSinceLastBeat / beatState.beatWindowSec);
+          // One impulse per analyzed beat, keyed on the beat index —
+          // the old `timeSinceLastBeat < 0.016` window fired on
+          // whichever frame landed inside 16 ms of the beat, so 30 fps
+          // displays missed roughly half of all beats.
+          if (
+            beatState.lastBeatIndex >= 0 &&
+            beatState.lastBeatIndex !== lastBeatIdx
+          ) {
+            lastBeatIdx = beatState.lastBeatIndex;
+            shakeRef.current = Math.min(shakeRef.current + beatPunchAmp * 0.3, 0.15);
+            newBeatActive = true;
+          }
+        } else {
+          // Outside the beat window: re-arm so a seek back onto an
+          // already-seen beat still fires.
+          lastBeatIdx = -1;
         }
       }
       if (newBeatActive !== beatActiveRef.current) {
         beatActiveRef.current = newBeatActive;
         setBeatActive(newBeatActive);
       }
-      shakeRef.current *= 0.75;
+      // Per-frame retention normalized by frame time — `*= 0.75` per
+      // frame decayed shake twice as fast at 120 Hz as at 60 Hz.
+      shakeRef.current *= Math.pow(0.75, dt60);
       const isPlay = isPlayingRef.current;
       const audioDrivenMode = activeAudioDrivenRef.current;
       objectsRef.current.forEach((obj) => {
@@ -631,8 +691,10 @@ export function mountThreeScene(ctx: MountContext) {
         // the live position before the pose is sampled,
         // so the walk persists across blends.
         if (cm === "handheld") {
-          camera.position.x += (nextRandom() - 0.5) * 0.02;
-          camera.position.y += (nextRandom() - 0.5) * 0.02;
+          // dt-scaled: a per-frame increment made the walk speed
+          // depend on the display's refresh rate.
+          camera.position.x += (nextRandom() - 0.5) * 0.02 * dt60;
+          camera.position.y += (nextRandom() - 0.5) * 0.02 * dt60;
         }
         const targetPose = computeModePose({
           mode: cm,
@@ -747,6 +809,13 @@ export function mountThreeScene(ctx: MountContext) {
       shakeRef.current = 0;
       cameraTransitionRef.current = null;
       sectionCameraModeRef.current = null;
+      // The smoothed bands and beat-edge latch are per-run state too —
+      // without the reset an export inherits wherever live playback
+      // left them and two runs of the same scene diverge.
+      bandSmooth.bass = 0;
+      bandSmooth.mid = 0;
+      bandSmooth.treble = 0;
+      lastBeatIdx = -1;
       if (sectionLightsRef.current) {
         for (const { light, baseColor } of sectionLightsRef.current) {
           light.color.copy(baseColor);

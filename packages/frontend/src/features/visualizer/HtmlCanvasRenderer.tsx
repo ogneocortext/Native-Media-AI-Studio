@@ -79,7 +79,7 @@ export function HtmlCanvasRenderer({
         style={{
           position: "absolute",
           left: x,
-          y,
+          top: y,
           width: width ?? canvas.offsetWidth,
           height: height ?? canvas.offsetHeight,
           pointerEvents: "none",
@@ -100,7 +100,7 @@ export function HtmlCanvasRenderer({
       style={{
         position: "absolute",
         left: x,
-        y,
+        top: y,
         width: width ?? canvas?.offsetWidth,
         height: height ?? canvas?.offsetHeight,
         pointerEvents: "none",

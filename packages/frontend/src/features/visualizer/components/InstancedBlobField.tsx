@@ -59,6 +59,19 @@ export interface InstancedBlobFieldProps {
    * Blended out by real bass/mid/treble energy.
    */
   idlePreview?: number;
+  /**
+   * Freeze contract shared by every viz style: when true the per-frame
+   * update is skipped entirely so the field holds its last pose (and
+   * skips the 40k-instance matrix rewrite).
+   */
+  frozen?: boolean;
+  /**
+   * Accessibility speed dampener (0.35 under prefers-reduced-motion),
+   * applied to the autonomous terms — transient decay and the free-run
+   * phase fallback. Audio-grid terms are musical, not autonomous, and
+   * stay on the beat.
+   */
+  speedScale?: number;
 }
 
 const FIBONACCI_GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
@@ -89,6 +102,8 @@ export function InstancedBlobField({
   transientColorShift = 0.3,
   drivers,
   idlePreview = 0.35,
+  frozen = false,
+  speedScale = 1,
 }: InstancedBlobFieldProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -149,7 +164,10 @@ export function InstancedBlobField({
   const freePhase = useRef(0);
 
   useFrame((_frame, delta) => {
-    if (!meshRef.current) return;
+    // Frozen: hold the last written matrices — same contract as the
+    // other styles' `if (!sceneFrozen)` gates, and it skips the 40k
+    // instance rewrite entirely.
+    if (!meshRef.current || frozen) return;
     const mesh = meshRef.current;
     const dt = Math.min(0.1, delta); // clamp so a backgrounded tab can't spike the decay
 
@@ -167,13 +185,13 @@ export function InstancedBlobField({
     // proportion to real audio energy so it can never mask a real reaction.
     // `1 - maxBand` means silence previews fully and any real band cancels it.
     const realEnergy = Math.max(bass, mid, treble);
-    const idleMix = idlePreview * Math.max(0, 1 - realEnergy * 1.6);
+    const idleMix = idlePreview * speedScale * Math.max(0, 1 - realEnergy * 1.6);
 
     // Prefer the analysed musical grid; fall back to a slow free phase so an
     // un-analysed track still has gentle motion instead of a dead field.
     let phase01 = d?.beatPhase;
     if (phase01 === undefined || !Number.isFinite(phase01)) {
-      freePhase.current = (freePhase.current + dt * 0.25) % 1;
+      freePhase.current = (freePhase.current + dt * 0.25 * speedScale) % 1;
       phase01 = freePhase.current;
     }
     const gridPhase = phase01 * Math.PI * 2;
