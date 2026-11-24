@@ -204,6 +204,19 @@ $ServiceConfig = @{
         LogFile = 'go-ports.log'
         LocalCmd = Join-Path $ProjectRoot 'bin\go-ports.exe'
     }
+    pocket = @{
+        Name = 'Pocket TTS'
+        # Pocket binds to the Tailscale IP (100.95.60.73:8811), not loopback,
+        # so the standard loopback port/health check does not apply. Startup
+        # and health checks for Pocket probe both 127.0.0.1:8811 and
+        # 100.95.60.73:8811 directly in Start-StudioService.
+        Port = 8811
+        HealthPath = '/health'
+        WorkingDir = Join-Path $ProjectRoot 'tools\pocket'
+        LogFile = 'pocket.log'
+        # Launched via pwsh start-pocket.ps1 (handled inline in
+        # Start-StudioService, not via LocalCmd).
+    }
 }
 
 $LogDir = Join-Path $ProjectRoot 'output\logs'
@@ -319,6 +332,51 @@ function Start-StudioService {
     $config = $ServiceConfig[$ServiceName]
     $port = $config.Port
 
+    # Pocket TTS binds to the Tailscale IP (100.95.60.73:8811), not loopback,
+    # so the standard loopback port/health check does not apply. Handle it
+    # with direct health probes on both possible addresses.
+    if ($ServiceName -eq 'pocket') {
+        $pocketUp = $false
+        foreach ($addr in @('127.0.0.1', '100.95.60.73')) {
+            try {
+                $resp = Invoke-WebRequest -Uri "http://$addr:8811/health" -TimeoutSec 2 -UseBasicParsing
+                if ($resp.StatusCode -eq 200) { $pocketUp = $true; break }
+            } catch {}
+        }
+        if ($pocketUp) {
+            Write-Ok 'Pocket TTS already running'
+            return
+        }
+        Write-Step 'Starting Pocket TTS'
+        $pocketLauncher = Join-Path $ProjectRoot 'tools\pocket\start-pocket.ps1'
+        $pocketProc = Start-Process -FilePath 'pwsh' `
+            -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $pocketLauncher `
+            -WorkingDirectory $ProjectRoot `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput (Join-Path $LogDir 'pocket.out.log') `
+            -RedirectStandardError (Join-Path $LogDir 'pocket.err.log') `
+            -PassThru
+        Register-StartedProcess -Process $pocketProc -Service 'pocket' -ServiceName 'Pocket TTS'
+        # Pocket loads the TTS model before binding, so this can take ~30s.
+        for ($i = 1; $i -le 45; $i++) {
+            $pocketUp = $false
+            foreach ($addr in @('127.0.0.1', '100.95.60.73')) {
+                try {
+                    $resp = Invoke-WebRequest -Uri "http://$addr:8811/health" -TimeoutSec 2 -UseBasicParsing
+                    if ($resp.StatusCode -eq 200) { $pocketUp = $true; break }
+                } catch {}
+            }
+            if ($pocketUp) { break }
+            Start-Sleep -Seconds 1
+        }
+        if ($pocketUp) {
+            Write-Ok 'Pocket TTS is running'
+        } else {
+            Write-Warn 'Pocket TTS did not become available within 45s'
+        }
+        return
+    }
+
     # Check if already running (our service responding)
     $status = Get-ServiceStatus $ServiceName
     if ($status.Running) {
@@ -335,22 +393,47 @@ function Start-StudioService {
         return
     }
 
-    # Pocket TTS bearer token: /api/voice/pocket and /api/voice/live read
-    # POCKET_TTS_TOKEN from the process env at request time. The token is
-    # per-launch (rotates when the Pocket server restarts) and is only ever
-    # persisted in the Pocket server's launch.log -- never in the repo.
-    # Inject it here so ANY agent-initiated backend restart keeps the voice
-    # endpoints working. launch.log is the source of truth for the currently
-    # running Pocket instance, so it wins over a possibly-stale env value.
+    # Pocket TTS: the backend reads the per-launch Bearer token from
+    # pocket-token.txt (config key pocket.token_file) rather than from the
+    # process environment. Pocket is started automatically with the backend
+    # so voice endpoints work without any manual step. Pocket binds to the
+    # Tailscale IP (100.95.60.73:8811) when available, falling back to
+    # 127.0.0.1 — probe both addresses.
     if ($ServiceName -eq 'backend') {
-        $pocketLaunchLog = 'D:\Tools\streaming-tts\pocket\server\launch.log'
-        if (Test-Path $pocketLaunchLog) {
-            $tokenLine = Select-String -Path $pocketLaunchLog -Pattern 'TOKEN:\s*(\S+)' |
-                Select-Object -Last 1
-            $pocketToken = $tokenLine.Matches[0].Groups[1].Value
-            if ($pocketToken) {
-                $env:POCKET_TTS_TOKEN = $pocketToken
-                Write-Step 'Injected POCKET_TTS_TOKEN from Pocket launch.log (value not printed)'
+        $pocketUp = $false
+        foreach ($addr in @('127.0.0.1', '100.95.60.73')) {
+            try {
+                $resp = Invoke-WebRequest -Uri "http://$addr:8811/health" -TimeoutSec 2 -UseBasicParsing
+                if ($resp.StatusCode -eq 200) { $pocketUp = $true; break }
+            } catch {}
+        }
+        if (-not $pocketUp) {
+            Write-Step 'Pocket TTS not running — launching via start-pocket.ps1'
+            $pocketLauncher = Join-Path $ProjectRoot 'tools\pocket\start-pocket.ps1'
+            $pocketProc = Start-Process -FilePath 'pwsh' `
+                -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $pocketLauncher `
+                -WorkingDirectory $ProjectRoot `
+                -WindowStyle Hidden `
+                -RedirectStandardOutput (Join-Path $LogDir 'pocket.out.log') `
+                -RedirectStandardError (Join-Path $LogDir 'pocket.err.log') `
+                -PassThru
+            Register-StartedProcess -Process $pocketProc -Service 'backend' -ServiceName 'Pocket TTS'
+            # Pocket loads the TTS model before binding, so this can take ~30s.
+            for ($i = 1; $i -le 45; $i++) {
+                $pocketUp = $false
+                foreach ($addr in @('127.0.0.1', '100.95.60.73')) {
+                    try {
+                        $resp = Invoke-WebRequest -Uri "http://$addr:8811/health" -TimeoutSec 2 -UseBasicParsing
+                        if ($resp.StatusCode -eq 200) { $pocketUp = $true; break }
+                    } catch {}
+                }
+                if ($pocketUp) { break }
+                Start-Sleep -Seconds 1
+            }
+            if ($pocketUp) {
+                Write-Ok 'Pocket TTS is running'
+            } else {
+                Write-Warn 'Pocket TTS did not become available within 45s — backend will start but /api/voice/pocket endpoints may fail until Pocket is up'
             }
         }
     }
@@ -476,7 +559,7 @@ function Start-StudioService {
 # Determine which services to manage
 # $Services is a string array: a single -Services all, a comma list, or
 # the array start-services.ps1 passes all bind correctly.
-$allServices = @('backend', 'frontend', 'comfyui', 'video', 'go-studio', 'atomic-chat')
+$allServices = @('backend', 'frontend', 'comfyui', 'video', 'go-studio', 'atomic-chat', 'pocket')
 $serviceList = if ($Services -contains 'all') { $allServices } else { $Services }
 
 # Only dispatch the action when invoked directly. When dot-sourced (e.g. by

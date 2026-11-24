@@ -12,6 +12,7 @@ param(
 
 $serverDir = Join-Path $PocketDir "server"
 $tokenPath = Join-Path $PocketDir "pocket-token.txt"
+$pythonExe = Join-Path $PocketDir "venv\Scripts\python.exe"
 $token = [guid]::NewGuid().ToString("N")
 
 # Write token to file (ASCII, single line, no trailing newline).
@@ -27,7 +28,7 @@ Write-Host "Token file: $tokenPath"
 
 Push-Location $serverDir
 try {
-    & python server.py
+    & $pythonExe server.py
 } finally {
     Pop-Location
 }
