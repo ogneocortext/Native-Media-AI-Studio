@@ -41,6 +41,10 @@ import {
   type LiveSession,
   type LiveState,
 } from "../../services/api/voice_live";
+import {
+  usePresenceRoster,
+  presenceStatusFor,
+} from "../presence/usePresenceRoster";
 
 const POLL_MS = 2500;
 const INBOX_POLL_MS = 2000;
@@ -49,6 +53,37 @@ const MAX_CHARS = 1000;
 const MAX_CHUNK_CHARS = 300;
 
 type EngineKind = "pocket" | "f5" | "live";
+
+const MAYA_VIOLET = "#6A4C98";
+
+/** Maya's presence pill — same roster the app-shell chips read, so this
+ *  page and the topbar can never disagree about whether she is working. */
+function MayaPresencePill() {
+  const roster = usePresenceRoster();
+  const maya = roster?.people.find((p) => p.id === "maya" || p.name === "Maya");
+  if (!maya) return null;
+  const working = presenceStatusFor(maya) === "working";
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card/60 px-2.5 py-1 text-xs text-foreground"
+      title={`Maya · ${maya.sublabel ?? maya.role}`}
+    >
+      <span className="relative flex h-2 w-2">
+        {working && (
+          <span
+            className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
+            style={{ backgroundColor: MAYA_VIOLET }}
+          />
+        )}
+        <span
+          className="relative inline-flex h-2 w-2 rounded-full"
+          style={{ backgroundColor: MAYA_VIOLET }}
+        />
+      </span>
+      {working ? "Maya · Working" : "Maya · Idle, here when idle"}
+    </span>
+  );
+}
 
 interface LiveLogEntry {
   who: "you" | "maya";
@@ -903,10 +938,13 @@ export function VoiceLivePage() {
 
   return (
     <div className="p-6 space-y-4 max-w-3xl">
-      <div className="relative pb-2">
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <Mic size={20} /> Voice Live
-        </h1>
+      <div className="pb-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Mic size={20} /> Voice Live
+          </h1>
+          <MayaPresencePill />
+        </div>
         <div
           className="mt-1 h-1 w-16 rounded-full"
           style={{ backgroundColor: "#6A4C98" }}

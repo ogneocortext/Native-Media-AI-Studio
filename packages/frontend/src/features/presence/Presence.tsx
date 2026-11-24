@@ -27,16 +27,17 @@ import { useState, useEffect, useCallback } from "react";
 import { X } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
-  getLogPresence,
   getPresenceJournal,
   type PresencePerson,
-  type PresenceRoster,
   type PresenceJournalEntry,
 } from "../../services/api";
+import {
+  usePresenceRoster,
+  presenceStatusFor,
+} from "./usePresenceRoster";
 
-const POLL_MS = 15000;
+const JOURNAL_POLL_MS = 15000;
 const TOAST_GRACE_SECONDS = 600; // 10 minutes
-const WORKING_WINDOW_SECONDS = 900; // "working" = real activity within 15 minutes
 const VIOLET = "#8b5cf6";
 const AMBER = "#f59e0b";
 const GRAY = "#9ca3af";
@@ -71,11 +72,8 @@ function statusText(status: Status): string {
   return "Unavailable";
 }
 
-function statusFor(person: PresencePerson | null, badge: PresencePerson): Status {
-  if (badge.unavailable) return "unavailable";
-  const seconds = person?.seconds_since ?? null;
-  if (seconds != null && seconds >= 0 && seconds <= WORKING_WINDOW_SECONDS) return "working";
-  return "idle";
+function statusFor(person: PresencePerson): Status {
+  return presenceStatusFor(person);
 }
 
 function shownKey(name: string): string {
@@ -145,7 +143,7 @@ function PersonChip({
   failed: boolean;
   onFail: () => void;
 }) {
-  const status = statusFor(person, person);
+  const status = statusFor(person);
   const dot = dotColor(status);
   const isActive = status === "working";
   const visit = lastVisitLine(person);
@@ -227,46 +225,45 @@ function PersonChip({
 }
 
 export function Presence() {
-  const [roster, setRoster] = useState<PresenceRoster | null>(null);
+  const roster = usePresenceRoster();
   const [journal, setJournal] = useState<PresenceJournalEntry[]>([]);
   const [toast, setToast] = useState<{ person: PresencePerson } | null>(null);
   const [failed, setFailed] = useState<Set<string>>(new Set());
 
-  const poll = useCallback(async () => {
+  // Entrance toast: new active session for a traffic-source worker.
+  // Runs whenever the shared roster updates (single poller upstream).
+  useEffect(() => {
+    if (!roster) return;
+    for (const person of roster.people) {
+      if (person.source !== "traffic" || person.state !== "active" || !person.session_started_ts) {
+        continue;
+      }
+      const startedMs = new Date(person.session_started_ts).getTime();
+      const startedAgoSec = Number.isNaN(startedMs)
+        ? Number.POSITIVE_INFINITY
+        : (Date.now() - startedMs) / 1000;
+      if (readShown(person.name) !== person.session_started_ts && startedAgoSec <= TOAST_GRACE_SECONDS) {
+        setToast({ person });
+        writeShown(person.name, person.session_started_ts);
+      }
+    }
+  }, [roster]);
+
+  // Journal (for hover panels) — independent of the roster poll.
+  const pollJournal = useCallback(async () => {
     try {
-      const r = await getLogPresence();
-      setRoster(r);
-      // Entrance toast: new active session for a traffic-source worker.
-      for (const person of r.people) {
-        if (person.source !== "traffic" || person.state !== "active" || !person.session_started_ts) {
-          continue;
-        }
-        const startedMs = new Date(person.session_started_ts).getTime();
-        const startedAgoSec = Number.isNaN(startedMs)
-          ? Number.POSITIVE_INFINITY
-          : (Date.now() - startedMs) / 1000;
-        if (readShown(person.name) !== person.session_started_ts && startedAgoSec <= TOAST_GRACE_SECONDS) {
-          setToast({ person });
-          writeShown(person.name, person.session_started_ts);
-        }
-      }
-      // Journal (for hover panels).
-      try {
-        const j = await getPresenceJournal(5);
-        setJournal(j.entries);
-      } catch {
-        /* journal is optional */
-      }
+      const j = await getPresenceJournal(5);
+      setJournal(j.entries);
     } catch {
-      /* backend briefly unavailable — keep last known roster */
+      /* journal is optional */
     }
   }, []);
 
   useEffect(() => {
-    void poll();
-    const id = window.setInterval(() => void poll(), POLL_MS);
+    void pollJournal();
+    const id = window.setInterval(() => void pollJournal(), JOURNAL_POLL_MS);
     return () => window.clearInterval(id);
-  }, [poll]);
+  }, [pollJournal]);
 
   useEffect(() => {
     if (!toast) return;
@@ -284,7 +281,7 @@ export function Presence() {
 
   return (
     <>
-      <span className="flex items-center gap-1">
+      <span className="flex max-w-[46rem] flex-wrap items-center justify-end gap-1">
         {roster?.people.map((person) => (
           <PersonChip
             key={person.id ?? person.name}
