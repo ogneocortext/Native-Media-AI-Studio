@@ -67,3 +67,36 @@ export async function speakPocket(
   }
   return response.blob();
 }
+
+// -- Maya inbox -------------------------------------------------------------
+// File-backed queue (output/logs/voice-inbox.json) of lines posted from
+// outside the page; the Voice Live "Listen for Maya" toggle polls it.
+
+export interface InboxEntry {
+  id: string;
+  text: string;
+  voice: string;
+  created_at: string;
+  played: boolean;
+}
+
+export interface InboxPending {
+  entries: InboxEntry[];
+}
+
+/** GET /api/voice/pocket/inbox/pending — unplayed entries, oldest first. */
+export async function getInboxPending(): Promise<InboxPending> {
+  return getJson<InboxPending>(`${BASE}/inbox/pending`, { timeout: 10000 });
+}
+
+/** POST /api/voice/pocket/inbox/{id}/played — mark an entry as spoken. */
+export async function markInboxPlayed(id: string): Promise<InboxEntry> {
+  const response = await fetchWithTimeout(`${BASE}/inbox/${id}/played`, {
+    method: "POST",
+    timeout: 10000,
+  });
+  if (!response.ok) {
+    throw new Error(`Mark played failed (${response.status})`);
+  }
+  return (await response.json()) as InboxEntry;
+}

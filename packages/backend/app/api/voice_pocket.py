@@ -13,17 +13,22 @@ preset_voices / busy and also requires the Bearer token.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import threading
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..core import tts_settings
+from ..core.logging_config import LOG_DIR
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/voice/pocket", tags=["Voice Pocket"])
@@ -324,3 +329,105 @@ async def pocket_speak(req: SpeakRequest) -> StreamingResponse:
             await client.aclose()
 
     return StreamingResponse(stream_audio(), media_type=content_type)
+
+
+# ---------------------------------------------------------------------------
+# Maya inbox -- file-backed queue of lines posted from outside the page.
+#
+# The Voice Live page polls ``/inbox/pending`` while its "Listen for Maya"
+# toggle is on and speaks each entry through the same Pocket speak path. The
+# queue lives in ``output/logs/voice-inbox.json`` (LOG_DIR, gitignored) so
+# lines survive backend restarts; ``played`` entries are pruned first once
+# the file grows past _INBOX_MAX_ENTRIES.
+# ---------------------------------------------------------------------------
+
+_INBOX_FILE = LOG_DIR / "voice-inbox.json"
+_INBOX_MAX_ENTRIES = 200
+_INBOX_MAX_CHARS = 1200  # same cap as the speak-aloud path (useSpeakAloud)
+_INBOX_DEFAULT_VOICE = "maya-blend65"
+_inbox_lock = threading.Lock()
+
+
+def _load_inbox() -> list[dict[str, Any]]:
+    """Read the inbox file fresh on every call; missing/corrupt -> empty."""
+    try:
+        data = json.loads(_INBOX_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return data if isinstance(data, list) else []
+
+
+def _prune_inbox(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep at most _INBOX_MAX_ENTRIES, dropping played entries first."""
+    overflow = len(entries) - _INBOX_MAX_ENTRIES
+    if overflow <= 0:
+        return entries
+    # Entries are in append (oldest-first) order; drop the oldest played
+    # entries first, then the oldest remaining if still over capacity.
+    played_oldest = [e for e in entries if e.get("played")]
+    drop = {id(e) for e in played_oldest[:overflow]}
+    kept = [e for e in entries if id(e) not in drop]
+    still_over = len(kept) - _INBOX_MAX_ENTRIES
+    return kept[still_over:] if still_over > 0 else kept
+
+
+def _save_inbox(entries: list[dict[str, Any]]) -> None:
+    """Atomic write (temp file + replace) under the module lock."""
+    _INBOX_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _INBOX_FILE.with_suffix(".json.tmp")
+    tmp.write_text(
+        json.dumps(_prune_inbox(entries), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(tmp, _INBOX_FILE)
+
+
+class InboxPostRequest(BaseModel):
+    text: str = Field(..., max_length=_INBOX_MAX_CHARS)
+    voice: str | None = None
+
+    @field_validator("text")
+    @classmethod
+    def _text_not_blank(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("text must be non-empty")
+        return stripped
+
+
+@router.post("/inbox", status_code=201)
+async def inbox_post(req: InboxPostRequest) -> dict[str, Any]:
+    """Append a line for the Voice Live page to speak. Returns the entry."""
+    voice = (req.voice or "").strip() or _INBOX_DEFAULT_VOICE
+    entry = {
+        "id": uuid.uuid4().hex,
+        "text": req.text,
+        "voice": voice,
+        "created_at": datetime.now(UTC).isoformat(),
+        "played": False,
+    }
+    with _inbox_lock:
+        entries = _load_inbox()
+        entries.append(entry)
+        _save_inbox(entries)
+    return entry
+
+
+@router.get("/inbox/pending")
+async def inbox_pending() -> dict[str, Any]:
+    """All unplayed entries, oldest first."""
+    entries = [e for e in _load_inbox() if not e.get("played")]
+    return {"entries": entries}
+
+
+@router.post("/inbox/{entry_id}/played")
+async def inbox_mark_played(entry_id: str) -> dict[str, Any]:
+    """Mark an entry played and persist. Unknown id -> 404."""
+    with _inbox_lock:
+        entries = _load_inbox()
+        for entry in entries:
+            if entry.get("id") == entry_id:
+                entry["played"] = True
+                _save_inbox(entries)
+                return entry
+    raise HTTPException(status_code=404, detail=f"Unknown inbox entry: {entry_id}")

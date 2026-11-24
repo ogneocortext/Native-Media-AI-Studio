@@ -12,9 +12,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Square, Play, AlertTriangle } from "lucide-react";
 import { Card } from "../../components/common";
 import {
+  getInboxPending,
   getPocketHealth,
   getPocketVoices,
+  markInboxPlayed,
   speakPocket,
+  type InboxEntry,
   type PocketHealth,
   type PocketVoice,
 } from "../../services/api/voice_pocket";
@@ -36,6 +39,8 @@ import {
 } from "../../services/api/voice_live";
 
 const POLL_MS = 2500;
+const INBOX_POLL_MS = 2000;
+const INBOX_MAX_FAILS = 3;
 const MAX_CHARS = 1000;
 const MAX_CHUNK_CHARS = 300;
 
@@ -52,6 +57,13 @@ interface Take {
   voice: string;
   preview: string;
   urls: string[];
+}
+
+interface InboxLine {
+  id: string;
+  text: string;
+  voice: string;
+  at: string;
 }
 
 type EngineState = "ready" | "busy" | "offline";
@@ -154,6 +166,16 @@ export function VoiceLivePage() {
   const playNextRef = useRef(0);
   const playSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const livePrevStateRef = useRef<LiveState>("idle");
+
+  // Maya inbox ("Listen for Maya") — polls /inbox/pending and speaks each
+  // line through the same Pocket path as a manual take.
+  const [inboxOn, setInboxOn] = useState(false);
+  const [inboxLines, setInboxLines] = useState<InboxLine[]>([]);
+  const inboxBusyRef = useRef(false);
+  const inboxHandledRef = useRef<Set<string>>(new Set());
+  const inboxFailsRef = useRef<Map<string, number>>(new Map());
+  const inboxCtlRef = useRef<AbortController | null>(null);
+  const inboxCtxRef = useRef<AudioContext | null>(null);
 
   const pollHealth = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -344,6 +366,145 @@ export function VoiceLivePage() {
     abortRef.current?.abort();
     abortRef.current = controller;
     void playUrlsSequentially(take.urls, controller.signal, audioRef);
+  }, []);
+
+  // -- Maya inbox ("Listen for Maya") ---------------------------------------
+  // Synthesize + play one inbox entry through the same Pocket path a manual
+  // take uses (chunked speakPocket -> object URLs -> sequential playback).
+  // Resolves true only when every chunk played to completion.
+  const playInboxEntry = useCallback(
+    async (entry: InboxEntry): Promise<boolean> => {
+      const controller = new AbortController();
+      inboxCtlRef.current = controller;
+      const urls: string[] = [];
+      try {
+        await speakPocketRun(entry.text, entry.voice, controller, urls);
+        if (urls.length === 0) return false;
+        return await playUrlsSequentially(urls, controller.signal, audioRef);
+      } catch {
+        return false;
+      } finally {
+        for (const url of urls) URL.revokeObjectURL(url);
+        if (inboxCtlRef.current === controller) inboxCtlRef.current = null;
+      }
+    },
+    [speakPocketRun],
+  );
+
+  const toggleInbox = useCallback(() => {
+    if (inboxOn) {
+      setInboxOn(false);
+      inboxCtlRef.current?.abort();
+      inboxCtlRef.current = null;
+      return;
+    }
+    // The toggle click is the user gesture that unlocks audio playback.
+    try {
+      const ctx = inboxCtxRef.current ?? new AudioContext();
+      inboxCtxRef.current = ctx;
+      if (ctx.state === "suspended") void ctx.resume();
+    } catch {
+      /* playback still works via HTMLAudioElement */
+    }
+    setInboxOn(true);
+  }, [inboxOn]);
+
+  // Poll the pending inbox while the toggle is on. Entries are handled once
+  // per session (inboxHandledRef); failures retry on later polls up to
+  // INBOX_MAX_FAILS attempts, then the line is skipped for the session.
+  useEffect(() => {
+    if (!inboxOn) return;
+    const pollCtl = new AbortController();
+    // Function wrapper keeps the abort check readable to the linter —
+    // AbortSignal.aborted is readonly, so a bare property read narrows.
+    const pollAborted = () => pollCtl.signal.aborted;
+
+    const tick = async () => {
+      if (pollAborted() || inboxBusyRef.current) return;
+      inboxBusyRef.current = true;
+      try {
+        const { entries } = await getInboxPending();
+        for (const entry of entries) {
+          if (pollAborted()) break;
+          if (inboxHandledRef.current.has(entry.id)) continue;
+          const fails = inboxFailsRef.current.get(entry.id) ?? 0;
+          if (fails >= INBOX_MAX_FAILS) {
+            inboxHandledRef.current.add(entry.id);
+            continue;
+          }
+          // Claim the entry before awaiting so overlapping ticks cannot
+          // double-queue it; released below if playback fails.
+          inboxHandledRef.current.add(entry.id);
+          const played = await playInboxEntry(entry);
+          if (pollAborted()) {
+            // Toggle went off (or unmount) mid-line: release the claim so
+            // the entry retries on the next ON without burning a fail.
+            inboxHandledRef.current.delete(entry.id);
+            break;
+          }
+          if (played) {
+            setInboxLines((prev) =>
+              [
+                {
+                  id: entry.id,
+                  text: entry.text,
+                  voice: entry.voice,
+                  at: new Date().toLocaleTimeString(),
+                },
+                ...prev,
+              ].slice(0, 5),
+            );
+            void markInboxPlayed(entry.id).catch(() => undefined);
+          } else {
+            inboxHandledRef.current.delete(entry.id);
+            inboxFailsRef.current.set(entry.id, fails + 1);
+          }
+        }
+      } catch {
+        /* poll/playback failure -- next tick retries */
+      } finally {
+        inboxBusyRef.current = false;
+      }
+    };
+
+    void tick();
+    const id = window.setInterval(() => void tick(), INBOX_POLL_MS);
+    return () => {
+      pollCtl.abort();
+      window.clearInterval(id);
+      inboxCtlRef.current?.abort();
+      inboxCtlRef.current = null;
+    };
+  }, [inboxOn, playInboxEntry]);
+
+  const replayInboxLine = useCallback(
+    (line: InboxLine) => {
+      const controller = new AbortController();
+      abortRef.current?.abort();
+      abortRef.current = controller;
+      const urls: string[] = [];
+      void (async () => {
+        try {
+          await speakPocketRun(line.text, line.voice, controller, urls);
+          if (urls.length > 0) {
+            await playUrlsSequentially(urls, controller.signal, audioRef);
+          }
+        } catch {
+          /* replay is best-effort */
+        } finally {
+          for (const url of urls) URL.revokeObjectURL(url);
+        }
+      })();
+    },
+    [speakPocketRun],
+  );
+
+  // Tear the inbox session down on unmount (toggle stays session-only).
+  useEffect(() => {
+    return () => {
+      inboxCtlRef.current?.abort();
+      inboxCtxRef.current?.close().catch(() => undefined);
+    };
   }, []);
 
   // -- Live duplex session -------------------------------------------------
@@ -720,6 +881,49 @@ export function VoiceLivePage() {
                 <span className="text-xs text-warning">Engine busy — Speak is disabled.</span>
               )}
             </div>
+
+            {engine === "pocket" && (
+              <div className="border-t border-border pt-3 space-y-2">
+                <button
+                  type="button"
+                  className={`btn btn-sm inline-flex items-center gap-1 ${
+                    inboxOn ? "btn-primary" : "btn-ghost"
+                  }`}
+                  onClick={toggleInbox}
+                  aria-pressed={inboxOn}
+                >
+                  <Mic size={14} /> Listen for Maya{inboxOn ? " — on" : ""}
+                </button>
+                <div className="text-[11px] text-muted">
+                  {inboxOn
+                    ? "Maya's posted lines will be spoken automatically."
+                    : "Off — lines Maya posts will wait until you switch this on."}
+                </div>
+                {inboxLines.length > 0 && (
+                  <ul className="space-y-1">
+                    {inboxLines.map((line) => (
+                      <li
+                        key={line.id}
+                        className="flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1.5 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <span className="text-muted tabular-nums">{line.at}</span>{" "}
+                          <span className="truncate">{line.text}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm inline-flex items-center gap-1 shrink-0"
+                          onClick={() => replayInboxLine(line)}
+                          title="Speak this line again"
+                        >
+                          <Play size={12} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </>
         )}
 

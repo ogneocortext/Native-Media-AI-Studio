@@ -1992,6 +1992,46 @@ Rules: `docs/plans/tasks/README.md`
 - **Last session:** Devin, 2026-11-20 — cascade landed; ledger + commit in
   the same change.
 
+### T-VOICE-05 — Maya inbox: Voice Live speaks posted lines
+
+- **Status:** done
+- **Goal:** Let Maya (or anything on the tailnet/localhost) POST a line of
+  text and have the Voice Live page speak it automatically through Pocket
+  TTS — no file attachments, no per-line play click.
+- **Changes:** `app/api/voice_pocket.py` gained a file-backed inbox on the
+  existing `/api/voice/pocket` router (no registration change):
+  `POST /inbox` (201, text trimmed/non-empty/<=1200 chars, voice defaults
+  `maya-blend65`), `GET /inbox/pending` (`{entries}` oldest-first,
+  unplayed only), `POST /inbox/{id}/played` (404 unknown). Queue persists
+  to `output/logs/voice-inbox.json` (LOG_DIR, gitignored) — read per
+  request, atomic temp+replace writes under a lock, pruned to newest 200
+  dropping played first. Frontend: `services/api/voice_pocket.ts` inbox
+  client; `VoiceLivePage.tsx` "Listen for Maya" toggle (default OFF) in
+  the Pocket section — ON resumes an AudioContext in the click handler,
+  polls pending every 2 s, speaks each entry once per session through the
+  same chunked `speakPocket` -> `playUrlsSequentially` path, marks played
+  on completion, retries failures up to 3/session, OFF stops polling and
+  aborts in-flight audio; last-5 received lines list with replay buttons
+  (display-only, does not touch played state).
+- **Deviation noted:** packet specified `/api/voice/inbox*`; the pocket
+  router prefix is `/api/voice/pocket`, and a second router would have
+  required an include-list change the packet forbids — endpoints live at
+  `/api/voice/pocket/inbox*` instead.
+- **Files:** packages/backend/app/api/voice_pocket.py,
+  packages/backend/tests/test_voice_inbox.py (new),
+  packages/frontend/src/services/api/voice_pocket.ts,
+  packages/frontend/src/features/voice-live/VoiceLivePage.tsx,
+  docs/plans/tasks/platform-and-workflow.md
+- **Verification:** pytest test_voice_inbox.py 6/6 (201+pending, empty
+  422, 1201-char 422, played->pending empty, unknown 404, ordering);
+  live curl V1 (POST 201, pending returns entry, empty 422, unknown 404);
+  Playwright V2-V5 (toggle ON speaks posted line ~5 s, two lines play in
+  posted order, reload does not replay, OFF holds pending / ON plays);
+  V6 backend-restart persistence (line posted pre-restart played after
+  restart, file-backed); tsc -b + eslint + vite build clean.
+- **Acceptance:** satisfied — all V1-V7 checkpoints evidenced.
+- **Last session:** Devin, 2026-11-24 — landed in this commit.
+
 ### T-PLT-54 — Backend orphan reaping via kill-on-close Job Object
 
 - **Status:** done
