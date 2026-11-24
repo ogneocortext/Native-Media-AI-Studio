@@ -24,7 +24,7 @@
  */
 
 import { BufferTarget, CanvasSource, Mp4OutputFormat, Output } from "mediabunny";
-import type { Mp4Codec } from "../mp4Recording";
+import { CODEC_STRINGS, type Mp4Codec } from "../mp4Recording";
 
 export interface FrameAccurateExportOptions {
   /**
@@ -51,13 +51,6 @@ export interface FrameAccurateExportOptions {
   bitrate?: number;
   codec?: Mp4Codec;
 }
-
-const CODEC_STRINGS: Record<Mp4Codec, string> = {
-  avc: "avc1.42E01E",
-  hevc: "hev1.1.6.L93.B0",
-  vp9: "vp09.00.10.08",
-  av1: "av01.0.04M.08",
-};
 
 /**
  * What a render path must publish for a frame-accurate export.

@@ -118,7 +118,7 @@ interface InboxLine {
  *  leading maya-, trailing -YYYY-MM-DD off, hyphens to spaces,
  *  first letter capitalized. e.g. 4a4c02c7_maya-keep-talking-2026-11-24.wav
  *  -> "Keep talking". */
-function audioDisplayName(stored: string): string {
+function inboxAudioDisplayName(stored: string): string {
   let s = stored;
   const us = s.indexOf("_");
   if (us > 0) s = s.slice(us + 1);
@@ -777,7 +777,7 @@ export function VoiceLivePage() {
             continue;
           }
           inboxHandledRef.current.add(key);
-          listLine(key, entry.id, "audio", audioDisplayName(entry.name), "", entry.name);
+          listLine(key, entry.id, "audio", inboxAudioDisplayName(entry.name), "", entry.name);
           const played = await playInboxAudio(entry);
           if (pollAborted()) {
             inboxHandledRef.current.delete(key);

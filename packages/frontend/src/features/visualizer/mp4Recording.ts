@@ -25,8 +25,9 @@ export interface Mp4Recorder {
   stop: () => Promise<ArrayBuffer | null>;
 }
 
-/** WebCodecs codec strings per container codec (mp4-muxer uses the short name). */
-const CODEC_STRINGS: Record<Mp4Codec, string> = {
+/** WebCodecs codec strings per container codec (mp4-muxer uses the short name).
+ *  Shared with frameAccurateExport — one table, not two copies. */
+export const CODEC_STRINGS: Record<Mp4Codec, string> = {
   avc: "avc1.42E01E",
   hevc: "hev1.1.6.L93.B0",
   vp9: "vp09.00.10.08",

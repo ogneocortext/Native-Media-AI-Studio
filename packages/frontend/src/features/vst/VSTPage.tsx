@@ -14,12 +14,12 @@ import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { VSTPluginCard } from "./components/VSTPluginCard";
 import { VSTChainBuilder } from "./components/VSTChainBuilder";
 import type { PluginInfo, Chain, ProcessResult } from "./types";
+import { formatTime } from "../../utils/format";
 import styles from "./VSTPage.module.css";
 
-export const fmtTime = (sec: number): string => {
-  const s = Math.max(0, Math.floor(sec));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
+// Kept as fmtTime for the existing test/vstUtils consumers — same mm:ss
+// output as utils/format's formatTime.
+export const fmtTime = formatTime;
 
 const api = getApiBase();
 

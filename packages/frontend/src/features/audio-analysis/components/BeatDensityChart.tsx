@@ -52,11 +52,7 @@ export function buildBeatDensity(
   }));
 }
 
-export function getEnergyColor(energy: number): string {
-  if (energy < 0.3) return "#3b82f6";
-  if (energy < 0.6) return "#f59e0b";
-  return "#ef4444";
-}
+export { getEnergyColor } from "./EnergyChart";
 
 export function BeatDensityChart(_props: { data: BeatDensityPoint[] }) {
   return (

@@ -28,6 +28,7 @@ import type {
 } from "./types";
 import { STEM_NAMES } from "./types";
 import { DEFAULT_MIXER_SNAPSHOT, DEFAULT_STRIP_STATE } from "./types";
+import { generateImpulseResponse } from "../stemSpatial";
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : lo));
@@ -994,20 +995,4 @@ export function useProfessionalMixer({
   };
 
   return { ...state, ...actions };
-}
-
-// ─── IR generator (used by master for reverb return) ────────────────────────
-
-function generateImpulseResponse(ctx: AudioContext, duration: number, decay: number): AudioBuffer {
-  const rate = ctx.sampleRate;
-  const length = Math.floor(rate * duration);
-  const buffer = ctx.createBuffer(2, length, rate);
-  for (let channel = 0; channel < 2; channel++) {
-    const data = buffer.getChannelData(channel);
-    const channelDecay = decay * (channel === 0 ? 1.0 : 0.92);
-    for (let i = 0; i < length; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, channelDecay * 10);
-    }
-  }
-  return buffer;
 }

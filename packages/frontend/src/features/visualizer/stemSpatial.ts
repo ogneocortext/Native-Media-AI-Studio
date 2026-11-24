@@ -80,8 +80,9 @@ const SPATIAL_SETTINGS: Record<
   },
 };
 
-/** Generate a stereo impulse-response buffer in-memory. */
-function generateImpulseResponse(ctx: AudioContext, duration: number, decay: number): AudioBuffer {
+/** Generate a stereo impulse-response buffer in-memory. Shared with the
+ *  professional mixer (same algorithm was copy-pasted there). */
+export function generateImpulseResponse(ctx: AudioContext, duration: number, decay: number): AudioBuffer {
   const rate = ctx.sampleRate;
   const length = Math.floor(rate * duration);
   const buffer = ctx.createBuffer(2, length, rate);

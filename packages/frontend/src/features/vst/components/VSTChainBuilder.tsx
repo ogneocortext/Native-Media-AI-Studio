@@ -11,40 +11,14 @@ import {
   RotateCw,
   Settings,
   Loader2,
-  Zap,
-  Piano,
-  ListMusic,
 } from "lucide-react";
 import { getApiBase } from "../../../services/api/core";
 import type { PluginInfo, Chain, ChainPlugin } from "../types";
 import { useHistory } from "../hooks/useHistory";
+import { getCategoryColor, getCategoryIcon } from "./VSTPluginCard";
 import styles from "./VSTChainBuilder.module.css";
 
 const api = getApiBase();
-
-/* ------------------------------------------------------------------ */
-/* Category Utilities                                                 */
-/* ------------------------------------------------------------------ */
-
-const CATEGORY_COLORS: Record<string, string> = {
-  effect: "#00F0FF",
-  instrument: "#FF2E88",
-  midi: "#7B5CFF",
-};
-
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  effect: <Zap size={14} />,
-  instrument: <Piano size={14} />,
-  midi: <ListMusic size={14} />,
-};
-
-const getCategoryColor = (category: string): string => {
-  return CATEGORY_COLORS[category] ?? "#00F0FF";
-};
-
-const getCategoryIcon = (category: string): React.ReactNode => {
-  return CATEGORY_ICONS[category] ?? <Zap size={14} />;
-};
 
 /* ------------------------------------------------------------------ */
 /* Component: VSTChainBuilder                                         */

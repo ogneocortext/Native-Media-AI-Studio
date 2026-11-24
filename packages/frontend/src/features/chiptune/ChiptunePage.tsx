@@ -4,6 +4,7 @@ import { getApiBase } from "../../services/api/core";
 import { DS } from "../../styles/designSystem";
 import { Card, StatusBadge } from "../../components/common";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
+import { formatTime as fmtTime } from "../../utils/format";
 
 /* ------------------------------------------------------------------ */
 /* Studio Console tokens (brand palette kit v0.1) - the Schism Tracker */
@@ -146,11 +147,6 @@ function isOnset(token: string): boolean {
 function outUrl(api: string, path: string): string {
   const clean = path.replace(/\\/g, "/").replace(/^output\//, "");
   return `${api}/output/${clean}`;
-}
-
-function fmtTime(sec: number): string {
-  const s = Math.max(0, Math.floor(sec));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
 /* ------------------------------ page ------------------------------ */
