@@ -2037,3 +2037,13 @@ Rules: `docs/plans/tasks/README.md`
   8004). Verified: probe resolves nma-studio-cuda cleanly, port filter
   excludes tailscaled's two binds while counting 127.0.0.1:8004, status
   reports RUNNING, shared-utils test ALL PASS.
+- **Addendum 2 (tailscale hardening, owner direction):** Muse reaches the
+  app over the tailnet via `tailscale serve` (tcp 8004, http 5173), so
+  tailscaled is load-bearing. Verified the `Tailscale` service is
+  already hardened (Auto start, LocalSystem, restart-on-failure backoff)
+  and serve config persists in tailscaled state. Added section 7 to
+  `scripts/check-env-health.ps1` (service state + serve entries for
+  :8004/:5173, INFO-skip when Tailscale isn't installed) and an AGENTS.md
+  "Tailnet exposure is load-bearing" note telling agents never to kill
+  tailscaled and why `Get-ServicePortListeners` ignores non-loopback
+  binds. Health check run: section 7 = 3x PASS.

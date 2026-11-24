@@ -169,9 +169,40 @@ if (Test-Path $studioPy) {
     }
 }
 
-# --- 7. Optional: torch / CUDA validation in studio env ---
+# --- 7. Tailscale service & serve config (Muse remote access) ---
+# Load-bearing on this workstation: the Muse agent reaches the frontend
+# and backend over the tailnet through `tailscale serve`
+# (tcp 8004 -> localhost:8004, http 5173 -> localhost:5173). The service
+# is Auto-start with restart-on-failure backoff; serve config persists
+# in tailscaled state. Absent entirely on machines without Tailscale.
+Write-Host "`n[7] Tailscale service & serve config"
+$tsSvc = Get-Service -Name 'Tailscale' -ErrorAction SilentlyContinue
+if (-not $tsSvc) {
+    Write-Result 'INFO' 'Tailscale service not installed (remote tailnet access unavailable)'
+} else {
+    if ($tsSvc.Status -eq 'Running') {
+        Write-Result 'PASS' 'Tailscale service running'
+    } else {
+        Write-Result 'WARN' "Tailscale service is $($tsSvc.Status) - Muse remote access is DOWN (start: scripts\\manage-servers or services.msc)"
+    }
+    $tsExe = Get-Command tailscale -ErrorAction SilentlyContinue
+    if ($tsExe) {
+        $serve = & tailscale serve status 2>&1 | Out-String
+        foreach ($port in @(8004, 5173)) {
+            if ($serve -match (":$port" + '\b')) {
+                Write-Result 'PASS' "tailscale serve exposes :$port"
+            } else {
+                Write-Result 'WARN' "tailscale serve has no :$port entry - Muse cannot reach that service"
+            }
+        }
+    } else {
+        Write-Result 'WARN' 'tailscale CLI not on PATH - cannot verify serve config'
+    }
+}
+
+# --- 8. Optional: torch / CUDA validation in studio env ---
 if ($Torch) {
-    Write-Host "`n[7] Torch CUDA validation (nma-studio-cuda)"
+    Write-Host "`n[8] Torch CUDA validation (nma-studio-cuda)"
     $py = Join-Path $StudioEnv 'Scripts\python.exe'
     if (Test-Path $py) {
         $code = "import torch; print('torch', torch.__version__, '| cuda', torch.version.cuda); print('arch', torch.cuda.get_arch_list()); print('available', torch.cuda.is_available())"

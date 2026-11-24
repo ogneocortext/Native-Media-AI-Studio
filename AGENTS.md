@@ -679,6 +679,23 @@ console: a tool-launched `pwsh -Command` reports
 Unrelated tools on PATH (Android SDK, WSL) are noise from the OS environment —
 they are not part of this project and should never be invoked for repo tasks.
 
+### Tailnet exposure is load-bearing (this workstation)
+
+The **Muse agent reaches the frontend and backend over the tailnet** through
+`tailscale serve`: `tcp://…:8004 -> localhost:8004` (backend) and
+`http://customrig:5173 -> localhost:5173` (frontend). The `Tailscale` service
+(LocalSystem, Automatic start, restart-on-failure backoff) must stay up — if it
+dies, remote access dies silently. Rules for agents:
+
+- **Never kill `tailscaled.exe`.** The service-port helpers
+  (`Get-ServicePortListeners` in `scripts/shared-utils.ps1`) deliberately
+  ignore listeners on specific non-loopback addresses for exactly this reason —
+  do not "fix" them back to counting every listener.
+- Serve config persists in tailscaled state across reboots; verify with
+  `tailscale serve status`.
+- `scripts/check-env-health.ps1` section 7 reports service state and serve
+  entries — run it after any tailscale/network change.
+
 ## Local model inventory and management rules (critical)
 
 **The inventory table, size/VRAM budgets and download rules are in
