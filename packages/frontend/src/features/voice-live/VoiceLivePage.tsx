@@ -903,15 +903,17 @@ export function VoiceLivePage() {
 
   return (
     <div className="p-6 space-y-4 max-w-3xl">
-      <div>
-        <h1 className="text-xl font-semibold flex items-center gap-2">
+      <div className="relative pb-2">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Mic size={20} /> Voice Live
         </h1>
-        <p className="text-sm text-muted mt-1">
-          Speak text through {engineLabel}.{" "}
-          {engine === "pocket" || engine === "live"
-            ? "Takes stay in this session only."
-            : "F5-TTS saves takes to output/audio (media library)."}
+        <div
+          className="mt-1 h-1 w-16 rounded-full"
+          style={{ backgroundColor: "#6A4C98" }}
+        />
+        <p className="text-sm text-muted mt-2">
+          Speak through Pocket TTS, F5, or live duplex. When Listen for Maya
+          is on, her posted lines and audio drops play here automatically.
         </p>
       </div>
 
