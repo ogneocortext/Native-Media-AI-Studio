@@ -246,10 +246,6 @@ export default defineConfig(({ mode }) => {
         "lucide-react",
         "zustand",
       ],
-      // Force re-optimization when config or lockfile changes (Vite 8)
-      force: !isProd && process.env.VITE_FORCE_REOPTIMIZE !== "false",
-      // Disable automatic discovery for heavy optional deps
-      disabled: false,
     },
     // Replace __DEV__ so dev-only code paths can be tree-shaken in production.
     define: {
