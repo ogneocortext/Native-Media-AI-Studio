@@ -215,20 +215,27 @@ def _check_pwsh(text: str, *, verbose: bool) -> list[str]:
     if not actual:
         return []
     out: list[str] = []
-    # AGENTS.md states it as "pwsh **7.6.6**" or "pwsh 7.6.6+"
-    m = re.search(r"pwsh(?:\s*\*\*)?\s*(\d+\.\d+\.\d+)", text)
-    if not m:
-        m = re.search(r"PowerShell\s*\*\*?\s*(\d+\.\d+\.\d+)", text)
-    if not m:
-        return []
-    claimed = m.group(1)
-    if claimed != actual:
+    # AGENTS.md may legitimately document more than one pwsh install (this
+    # machine has the agent-shell pwsh 7.6.6 AND the PATH pwsh 7.7.0). The
+    # gate's job is to catch a *stale* version, not to enforce which install
+    # is named first — so collect every pwsh/PowerShell version claim and
+    # pass when the probed PATH version appears among them. A doc that only
+    # mentions 7.6.6 while PATH reports 7.7.0 still fails.
+    # Comparison is on major.minor: docs variously write "7.7", "7.7.0",
+    # or "7.7.0.500" for the same install, and all are correct.
+    actual_mm = ".".join(actual.split(".")[:2])
+    claims = re.findall(r"pwsh(?:\s*\*\*)?\s*(\d+\.\d+(?:\.\d+)?)", text)
+    claims += re.findall(r"PowerShell\s*\*{0,2}\s*(\d+\.\d+(?:\.\d+)?)", text)
+    claim_mm = {".".join(c.split(".")[:2]) for c in claims}
+    if not claim_mm:
+        return out
+    if actual_mm not in claim_mm:
         out.append(
-            f"tool version: AGENTS.md says PowerShell is {claimed} "
-            f"but pwsh reports {actual}"
+            f"tool version: AGENTS.md pwsh/PowerShell claims {sorted(claim_mm)} "
+            f"but pwsh on PATH reports {actual}"
         )
     elif verbose:
-        print(f"OK   tool version: PowerShell {claimed} matches")
+        print(f"OK   tool version: PowerShell {actual} documented")
     return out
 
 
