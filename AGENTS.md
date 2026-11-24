@@ -733,13 +733,16 @@ Full inventory, per-model selection criteria and the VRAM budget table:
 
 See `docs/setup/python-environments.md` for full details (envs are venvs, not conda; no conda on this machine).
 
-| Task                        | Interpreter                                        | Kind                |
-| --------------------------- | -------------------------------------------------- | ------------------- |
-| Backend / audio / ML / CUDA | `D:\conda-envs\nma-studio-cuda\Scripts\python.exe` | venv, Python 3.11.9 |
-| ComfyUI service only        | `D:\conda-envs\comfyui-cuda\Scripts\python.exe`    | venv, Python 3.11.9 |
-| Fallback / CPU-only         | `venv\Scripts\python.exe`                          | repo-local venv     |
+The source of truth for interpreter paths is the repo-root `.python-env` file (KEY=VALUE), read by both `tools/gates/interpreter.py` (gate runner) and `scripts/shared-utils.ps1` (service launcher). The table below maps each task to its `.python-env` key; paths live in `.python-env`, not here, so a path change requires one edit not two.
 
-Rules: default to `nma-studio-cuda`; never use `comfyui-cuda` for backend; `studio-tools` is 3.14 (unsuitable); selection is verified (D33). Music-gen prefers `tools/music-gen/.venv/Scripts/python.exe`, then `MUSIC_GEN_PYTHON`, then backend `sys.executable`.
+| Task                        | `.python-env` key   | Kind                |
+| --------------------------- | ------------------- | ------------------- |
+| Backend / audio / ML / CUDA | `PYTHON_ENV`        | venv, Python 3.11.9 |
+| ComfyUI service only        | `COMFYUI_ENV`       | venv, Python 3.11.9 |
+| Standalone tooling          | `TOOLS_ENV`         | venv, Python 3.14   |
+| Fallback / CPU-only         | `FALLBACK_VENV`     | repo-local venv     |
+
+Rules: default to `PYTHON_ENV` (`nma-studio-cuda`); never use `COMFYUI_ENV` for backend; `TOOLS_ENV` is 3.14 (unsuitable for backend/gates); selection is verified (D33). Music-gen prefers `tools/music-gen/.venv/Scripts/python.exe`, then `MUSIC_GEN_PYTHON`, then backend `sys.executable`.
 
 ## Testing
 
