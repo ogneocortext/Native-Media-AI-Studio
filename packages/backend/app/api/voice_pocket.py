@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import json
 import logging
+import mimetypes
+import operator
 import os
 import threading
 import uuid
@@ -23,12 +25,13 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from ..core import tts_settings
 from ..core.logging_config import LOG_DIR
+from .audio_common import AUDIO_DIR
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/voice/pocket", tags=["Voice Pocket"])
@@ -431,3 +434,218 @@ async def inbox_mark_played(entry_id: str) -> dict[str, Any]:
                 _save_inbox(entries)
                 return entry
     raise HTTPException(status_code=404, detail=f"Unknown inbox entry: {entry_id}")
+
+
+# ---------------------------------------------------------------------------
+# Maya inbox -- audio drops.
+#
+# Maya can POST an audio file to ``/inbox/audio`` (multipart) OR drop a file
+# straight into ``output/voice-inbox/`` (tailnet/SMB); either way the Voice
+# Live page's "Listen for Maya" poll finds it and plays it once, then marks
+# it played. Played state lives in ``played.json`` next to the files so
+# drops survive backend restarts and reloads.
+# ---------------------------------------------------------------------------
+
+# Drops live under output/audio/voice-inbox/ so they sit inside AUDIO_DIR:
+# the existing /api/audio/file/* route can serve them and, once registered
+# in the audio_files table, they show up in the media library permanently.
+_AUDIO_DIR = AUDIO_DIR / "voice-inbox"
+_AUDIO_STATE_FILE = "played.json"
+_AUDIO_MAX_BYTES = 100 * 1024 * 1024
+_AUDIO_EXTS = {
+    ".wav", ".mp3", ".ogg", ".oga", ".flac", ".m4a", ".aac", ".opus", ".wma",
+}
+_audio_lock = threading.Lock()
+# Filenames already registered in audio_files this process -- avoids a
+# SELECT per file on every 2 s inbox poll.
+_audio_registered: set[str] = set()
+
+
+def _probe_audio_meta(path: Path) -> dict[str, Any]:
+    meta: dict[str, Any] = {"duration": 0.0, "sample_rate": 0, "channels": 0}
+    try:
+        import soundfile as sf
+
+        info = sf.info(str(path))
+        meta["duration"] = (
+            float(info.frames) / float(info.samplerate) if info.samplerate else 0.0
+        )
+        meta["sample_rate"] = int(info.samplerate or 0)
+        meta["channels"] = int(info.channels or 0)
+    except Exception:  # noqa: BLE001 - probe is best-effort (mp3 etc.)
+        pass
+    return meta
+
+
+def _ensure_audio_registered(path: Path) -> None:
+    """Idempotently register a drop in the audio_files table so it persists
+    in the media library (dedup by filename inside save_audio_file)."""
+    if path.name in _audio_registered:
+        return
+    try:
+        from ..core import database
+
+        meta = _probe_audio_meta(path)
+        database.save_audio_file(
+            filename=path.name,
+            original_name=path.name,
+            stored_path=str(path.resolve()),
+            file_size=path.stat().st_size,
+            duration=meta["duration"],
+            sample_rate=meta["sample_rate"] or 44100,
+            channels=meta["channels"] or 2,
+            format=path.suffix.lstrip(".").lower(),
+            display_name=path.name,
+        )
+        _audio_registered.add(path.name)
+    except Exception as exc:  # noqa: BLE001 - registration must not break the inbox
+        logger.warning("inbox audio DB registration failed for %s: %s", path.name, exc)
+
+
+def _audio_dir() -> Path:
+    _AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    return _AUDIO_DIR
+
+
+def _audio_state_path() -> Path:
+    return _audio_dir() / _AUDIO_STATE_FILE
+
+
+def _load_audio_played() -> dict[str, bool]:
+    try:
+        data = json.loads(_audio_state_path().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_audio_played(played: dict[str, bool]) -> None:
+    path = _audio_state_path()
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(played, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _audio_ext_ok(name: str) -> bool:
+    return Path(name).suffix.lower() in _AUDIO_EXTS
+
+
+def _audio_entries() -> list[dict[str, Any]]:
+    """All audio files in the drop dir, oldest first (by mtime)."""
+    played = _load_audio_played()
+    out: list[dict[str, Any]] = []
+    try:
+        files = [p for p in _audio_dir().iterdir() if p.is_file() and _audio_ext_ok(p.name)]
+    except OSError:
+        return []
+    for p in files:
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        _ensure_audio_registered(p)
+        out.append(
+            {
+                "id": p.name,
+                "name": p.name,
+                "size": st.st_size,
+                "created_at": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat(),
+                "played": bool(played.get(p.name)),
+            }
+        )
+    out.sort(key=operator.itemgetter("created_at"))
+    return out
+
+
+def _resolve_audio_file(entry_id: str) -> Path | None:
+    """Map an entry id (filename) to a real file inside the drop dir."""
+    if not entry_id or "/" in entry_id or "\\" in entry_id or ".." in entry_id:
+        return None
+    if not _audio_ext_ok(entry_id):
+        return None
+    path = (_audio_dir() / entry_id).resolve()
+    if path.parent != _audio_dir().resolve() or not path.is_file():
+        return None
+    return path
+
+
+@router.post("/inbox/audio", status_code=201)
+async def inbox_audio_upload(file: UploadFile = File(...)) -> dict[str, Any]:
+    """Accept an audio file drop. Streams to temp, then renames into place."""
+    original = Path(file.filename or "").name
+    if not original or not _audio_ext_ok(original):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported audio file type (allowed: {', '.join(sorted(_AUDIO_EXTS))})",
+        )
+    digest = uuid.uuid4().hex[:8]
+    safe_name = f"{digest}_{original}"
+    dest = _audio_dir() / safe_name
+    if dest.exists():
+        safe_name = f"{uuid.uuid4().hex[:12]}_{original}"
+        dest = _audio_dir() / safe_name
+
+    # Stage inside the drop dir: os.replace is atomic only within one
+    # volume, and system temp lives on a different drive on this rig.
+    # The .upload suffix keeps staged files out of _audio_entries().
+    tmp_path = _audio_dir() / (f".{uuid.uuid4().hex}.upload")
+    size = 0
+    try:
+        with open(tmp_path, "wb") as buffer:
+            while chunk := await file.read(8192):
+                size += len(chunk)
+                if size > _AUDIO_MAX_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size: {_AUDIO_MAX_BYTES // (1024 * 1024)} MB",
+                    )
+                buffer.write(chunk)
+    except HTTPException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    except OSError as exc:
+        tmp_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail="Failed to store upload") from exc
+    os.replace(tmp_path, dest)
+    _ensure_audio_registered(dest)
+
+    st = dest.stat()
+    return {
+        "id": dest.name,
+        "name": dest.name,
+        "size": st.st_size,
+        "created_at": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat(),
+        "played": False,
+    }
+
+
+@router.get("/inbox/audio/pending")
+async def inbox_audio_pending() -> dict[str, Any]:
+    """Unplayed audio drops, oldest first."""
+    entries = [e for e in _audio_entries() if not e["played"]]
+    return {"entries": entries}
+
+
+@router.post("/inbox/audio/{entry_id}/played")
+async def inbox_audio_mark_played(entry_id: str) -> dict[str, Any]:
+    """Mark an audio drop played. Unknown id -> 404."""
+    if _resolve_audio_file(entry_id) is None:
+        raise HTTPException(status_code=404, detail=f"Unknown inbox audio: {entry_id}")
+    with _audio_lock:
+        played = _load_audio_played()
+        played[entry_id] = True
+        _save_audio_played(played)
+    for entry in _audio_entries():
+        if entry["id"] == entry_id:
+            return entry
+    raise HTTPException(status_code=404, detail=f"Unknown inbox audio: {entry_id}")
+
+
+@router.get("/inbox/audio/file/{entry_id}")
+async def inbox_audio_file(entry_id: str) -> FileResponse:
+    """Stream an audio drop for playback. Path traversal -> 404."""
+    path = _resolve_audio_file(entry_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail=f"Unknown inbox audio: {entry_id}")
+    media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    return FileResponse(path, media_type=media_type, filename=path.name)
