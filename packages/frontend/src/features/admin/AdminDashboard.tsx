@@ -179,7 +179,7 @@ function OverviewTab() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((s) => (
           <Card key={s.label} className="text-center p-6">
-            <div className="text-4xl font-bold mb-2" style={{ color: `var(--${s.status === "pass" || s.status === "running" || s.status === "active" ? "success" : s.status === "fail" || s.status === "stopped" ? "destructive" : s.status === "warn" || s.status === "optional" ? "warning" : "primary"})` }}>
+            <div className="text-4xl font-bold mb-2" style={{ color: `var(--color-${s.status === "pass" || s.status === "running" || s.status === "active" ? "success" : s.status === "fail" || s.status === "stopped" ? "error" : s.status === "warn" || s.status === "optional" ? "warning" : "primary"})` }}>
               {s.value}
             </div>
             <div className="text-sm font-medium text-muted-foreground mb-1">{s.label}</div>
