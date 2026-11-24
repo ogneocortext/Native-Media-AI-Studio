@@ -2031,6 +2031,33 @@ Rules: `docs/plans/tasks/README.md`
   restart, file-backed); tsc -b + eslint + vite build clean.
 - **Acceptance:** satisfied — all V1-V7 checkpoints evidenced.
 - **Last session:** Devin, 2026-11-24 — landed in this commit.
+- **Addendum (played-marking fix, 2026-11-24):** first live tailnet test
+  exposed two defects. (1) Pocket `/speech` returns raw PCM s16le 24 kHz
+  (`application/octet-stream`), which `HTMLAudioElement` cannot decode —
+  `onerror`/`play()` rejection resolved `playUrlsSequentially` as
+  success, so entries were marked played and listed while nothing spoke
+  (manual Pocket Speak was silently broken the same way; only the
+  live-duplex path decoded PCM correctly). Fix: `playPcmBlob`/
+  `playPcmSequentially` decode PCM to float `AudioBuffer`s through an
+  `AudioContext` (resumed inside click handlers for autoplay); inbox
+  marks `played` only after every chunk reaches `onended` — speak or
+  playback failure keeps the entry pending (3-fail session cap
+  unchanged), and the received list now populates on first attempt so a
+  failed line stays visible with replay. Manual Pocket takes/replay use
+  the same PCM path (`Take.pcmBlobs`). (2) "Engine busy — Speak is
+  disabled" while `/api/voice/status` said ready: NOT a stuck flag —
+  Pocket `/health.busy` mirrors a single-flight `threading.Lock` held
+  for the duration of any `/speech` synthesis (including the inbox line
+  itself and other clients), released in the stream generator's
+  `finally`; the page badge was accurate. `/api/voice/status` reports
+  the F5 engine — a different engine, so "ready" there says nothing
+  about Pocket. No code fix needed; diagnosis recorded per packet.
+- **Verification (addendum):** Playwright route-intercepted `/speak`
+  502 -> entry stayed `played:false` in pending and listed with replay
+  (V1/V3, `inbox-fix-v1-failed.png`); unroute -> same line retried,
+  played via PCM, left pending (`inbox-fix-v2-played.png`); manual Speak
+  take recorded only after real PCM playback (`inbox-fix-manual-speak.png`).
+  tsc -b + eslint clean; gates PASS on diff.
 
 ### T-PLT-54 — Backend orphan reaping via kill-on-close Job Object
 

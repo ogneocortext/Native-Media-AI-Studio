@@ -57,6 +57,9 @@ interface Take {
   voice: string;
   preview: string;
   urls: string[];
+  /** Pocket takes keep the raw PCM blobs -- HTMLAudioElement cannot play
+   *  the object URLs, so replay decodes them through an AudioContext. */
+  pcmBlobs?: Blob[];
 }
 
 interface InboxLine {
@@ -130,6 +133,72 @@ async function playUrlsSequentially(
   });
 }
 
+// Pocket /speech returns raw PCM s16le mono (X-Audio-Format: pcm_s16le_mono,
+// 24 kHz) -- not a container format, so HTMLAudioElement cannot decode it.
+// PCM must go through an AudioContext as float buffers, the same way the
+// live-duplex replies are played (scheduleLiveAudio).
+const POCKET_SAMPLE_RATE = 24000;
+
+/** Decode one PCM blob and play it to completion through an AudioContext.
+ *  Resolves true only when the source reached onended; false on abort,
+ *  decode failure, or a start() error. */
+async function playPcmBlob(
+  blob: Blob,
+  ctx: AudioContext,
+  signal: AbortSignal,
+): Promise<boolean> {
+  const bytes = await blob.arrayBuffer();
+  const pcm = new Int16Array(bytes, 0, bytes.byteLength >> 1);
+  const float = new Float32Array(pcm.length);
+  for (let i = 0; i < pcm.length; i += 1) {
+    float[i] = pcm[i] / 0x8000;
+  }
+  const audioBuf = ctx.createBuffer(1, float.length, POCKET_SAMPLE_RATE);
+  audioBuf.copyToChannel(float, 0);
+  return new Promise<boolean>((resolve) => {
+    const src = ctx.createBufferSource();
+    src.buffer = audioBuf;
+    src.connect(ctx.destination);
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      try {
+        src.onended = null;
+        src.stop();
+      } catch {
+        /* already stopped */
+      }
+      resolve(ok);
+    };
+    const onAbort = () => finish(false);
+    src.onended = () => finish(true);
+    signal.addEventListener("abort", onAbort, { once: true });
+    try {
+      src.start();
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+/** Play PCM blobs back-to-back. Resolves true only when every blob played
+ *  to completion -- a decode/play failure resolves false so callers can
+ *  retry instead of losing the line. */
+async function playPcmSequentially(
+  blobs: Blob[],
+  ctx: AudioContext,
+  signal: AbortSignal,
+): Promise<boolean> {
+  for (const blob of blobs) {
+    if (signal.aborted) return false;
+    const ok = await playPcmBlob(blob, ctx, signal);
+    if (!ok) return false;
+  }
+  return !signal.aborted;
+}
+
 export function VoiceLivePage() {
   const [engine, setEngine] = useState<EngineKind>("pocket");
   const [health, setHealth] = useState<PocketHealth | null>(null);
@@ -173,9 +242,11 @@ export function VoiceLivePage() {
   const [inboxLines, setInboxLines] = useState<InboxLine[]>([]);
   const inboxBusyRef = useRef(false);
   const inboxHandledRef = useRef<Set<string>>(new Set());
+  const inboxListedRef = useRef<Set<string>>(new Set());
   const inboxFailsRef = useRef<Map<string, number>>(new Map());
   const inboxCtlRef = useRef<AbortController | null>(null);
   const inboxCtxRef = useRef<AudioContext | null>(null);
+  const speakCtxRef = useRef<AudioContext | null>(null);
 
   const pollHealth = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -267,7 +338,13 @@ export function VoiceLivePage() {
   }, []);
 
   const speakPocketRun = useCallback(
-    async (trimmed: string, voiceId: string, controller: AbortController, urls: string[]) => {
+    async (
+      trimmed: string,
+      voiceId: string,
+      controller: AbortController,
+      urls: string[],
+      blobs?: Blob[],
+    ) => {
       const chunks = splitIntoChunks(trimmed);
       let completed = 0;
       for (let i = 0; i < chunks.length; i += 1) {
@@ -281,6 +358,7 @@ export function VoiceLivePage() {
           throw new Error(`Chunk ${i + 1} failed: ${msg}`, { cause: e });
         }
         urls.push(URL.createObjectURL(blob));
+        blobs?.push(blob);
         completed += 1;
       }
       return completed;
@@ -314,6 +392,19 @@ export function VoiceLivePage() {
     [],
   );
 
+  // AudioContext for Pocket PCM playback. Created/resumed inside click
+  // handlers so the user gesture satisfies the autoplay policy.
+  const ensureSpeakCtx = useCallback((): AudioContext | null => {
+    try {
+      const ctx = speakCtxRef.current ?? new AudioContext();
+      speakCtxRef.current = ctx;
+      if (ctx.state === "suspended") void ctx.resume();
+      return ctx;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const speak = useCallback(async () => {
     const trimmed = text.trim();
     if (!trimmed || !voice || running) return;
@@ -324,17 +415,30 @@ export function VoiceLivePage() {
     const controller = new AbortController();
     abortRef.current = controller;
     const urls: string[] = [];
+    let pcmBlobs: Blob[] | undefined;
     let failure = "";
     let playedAll = false;
 
     try {
       if (engine === "f5") {
         await speakF5Run(trimmed, voice, controller, urls);
+        if (!controller.signal.aborted && urls.length > 0) {
+          playedAll = await playUrlsSequentially(urls, controller.signal, audioRef);
+        }
       } else {
-        await speakPocketRun(trimmed, voice, controller, urls);
-      }
-      if (!controller.signal.aborted && urls.length > 0) {
-        playedAll = await playUrlsSequentially(urls, controller.signal, audioRef);
+        const blobs: Blob[] = [];
+        await speakPocketRun(trimmed, voice, controller, urls, blobs);
+        if (!controller.signal.aborted && blobs.length > 0) {
+          const ctx = ensureSpeakCtx();
+          playedAll = ctx
+            ? await playPcmSequentially(blobs, ctx, controller.signal)
+            : false;
+        }
+        // Pocket blobs are raw PCM -- the object URLs are undecodable, so
+        // release them; the take keeps the blobs for PCM replay instead.
+        for (const url of urls) URL.revokeObjectURL(url);
+        urls.length = 0;
+        pcmBlobs = blobs;
       }
       if (playedAll) {
         takeIdRef.current += 1;
@@ -344,6 +448,7 @@ export function VoiceLivePage() {
           voice,
           preview: trimmed.slice(0, 40),
           urls: [...urls],
+          pcmBlobs,
         };
         setTakes((prev) => [take, ...prev]);
       }
@@ -359,32 +464,50 @@ export function VoiceLivePage() {
       setProgress(null);
       abortRef.current = null;
     }
-  }, [text, voice, running, engine, speakPocketRun, speakF5Run]);
+  }, [text, voice, running, engine, speakPocketRun, speakF5Run, ensureSpeakCtx]);
 
-  const replayTake = useCallback((take: Take) => {
-    const controller = new AbortController();
-    abortRef.current?.abort();
-    abortRef.current = controller;
-    void playUrlsSequentially(take.urls, controller.signal, audioRef);
-  }, []);
+  const replayTake = useCallback(
+    (take: Take) => {
+      const controller = new AbortController();
+      abortRef.current?.abort();
+      abortRef.current = controller;
+      if (take.pcmBlobs && take.pcmBlobs.length > 0) {
+        const ctx = ensureSpeakCtx();
+        if (ctx) void playPcmSequentially(take.pcmBlobs, ctx, controller.signal);
+        return;
+      }
+      void playUrlsSequentially(take.urls, controller.signal, audioRef);
+    },
+    [ensureSpeakCtx],
+  );
 
   // -- Maya inbox ("Listen for Maya") ---------------------------------------
   // Synthesize + play one inbox entry through the same Pocket path a manual
-  // take uses (chunked speakPocket -> object URLs -> sequential playback).
-  // Resolves true only when every chunk played to completion.
+  // take uses (chunked speakPocket -> PCM decode -> AudioContext playback).
+  // Resolves true only when every chunk played to completion -- a speak or
+  // playback failure resolves false so the entry stays pending and retries.
   const playInboxEntry = useCallback(
     async (entry: InboxEntry): Promise<boolean> => {
       const controller = new AbortController();
       inboxCtlRef.current = controller;
       const urls: string[] = [];
+      const blobs: Blob[] = [];
       try {
-        await speakPocketRun(entry.text, entry.voice, controller, urls);
-        if (urls.length === 0) return false;
-        return await playUrlsSequentially(urls, controller.signal, audioRef);
+        await speakPocketRun(entry.text, entry.voice, controller, urls, blobs);
+        if (blobs.length === 0) return false;
+        let ctx = inboxCtxRef.current;
+        if (!ctx) {
+          ctx = new AudioContext();
+          inboxCtxRef.current = ctx;
+          if (ctx.state === "suspended") void ctx.resume();
+        }
+        const played = await playPcmSequentially(blobs, ctx, controller.signal);
+        for (const url of urls) URL.revokeObjectURL(url);
+        return played;
       } catch {
+        for (const url of urls) URL.revokeObjectURL(url);
         return false;
       } finally {
-        for (const url of urls) URL.revokeObjectURL(url);
         if (inboxCtlRef.current === controller) inboxCtlRef.current = null;
       }
     },
@@ -435,14 +558,10 @@ export function VoiceLivePage() {
           // Claim the entry before awaiting so overlapping ticks cannot
           // double-queue it; released below if playback fails.
           inboxHandledRef.current.add(entry.id);
-          const played = await playInboxEntry(entry);
-          if (pollAborted()) {
-            // Toggle went off (or unmount) mid-line: release the claim so
-            // the entry retries on the next ON without burning a fail.
-            inboxHandledRef.current.delete(entry.id);
-            break;
-          }
-          if (played) {
+          // The line was received this session -- list it (with replay)
+          // even if playback fails, so a failed attempt is never invisible.
+          if (!inboxListedRef.current.has(entry.id)) {
+            inboxListedRef.current.add(entry.id);
             setInboxLines((prev) =>
               [
                 {
@@ -451,9 +570,18 @@ export function VoiceLivePage() {
                   voice: entry.voice,
                   at: new Date().toLocaleTimeString(),
                 },
-                ...prev,
+                ...prev.filter((l) => l.id !== entry.id),
               ].slice(0, 5),
             );
+          }
+          const played = await playInboxEntry(entry);
+          if (pollAborted()) {
+            // Toggle went off (or unmount) mid-line: release the claim so
+            // the entry retries on the next ON without burning a fail.
+            inboxHandledRef.current.delete(entry.id);
+            break;
+          }
+          if (played) {
             void markInboxPlayed(entry.id).catch(() => undefined);
           } else {
             inboxHandledRef.current.delete(entry.id);
@@ -483,11 +611,18 @@ export function VoiceLivePage() {
       abortRef.current?.abort();
       abortRef.current = controller;
       const urls: string[] = [];
+      const blobs: Blob[] = [];
       void (async () => {
         try {
-          await speakPocketRun(line.text, line.voice, controller, urls);
-          if (urls.length > 0) {
-            await playUrlsSequentially(urls, controller.signal, audioRef);
+          await speakPocketRun(line.text, line.voice, controller, urls, blobs);
+          let ctx = inboxCtxRef.current;
+          if (!ctx) {
+            ctx = new AudioContext();
+            inboxCtxRef.current = ctx;
+            if (ctx.state === "suspended") void ctx.resume();
+          }
+          if (blobs.length > 0) {
+            await playPcmSequentially(blobs, ctx, controller.signal);
           }
         } catch {
           /* replay is best-effort */
@@ -504,6 +639,7 @@ export function VoiceLivePage() {
     return () => {
       inboxCtlRef.current?.abort();
       inboxCtxRef.current?.close().catch(() => undefined);
+      speakCtxRef.current?.close().catch(() => undefined);
     };
   }, []);
 
