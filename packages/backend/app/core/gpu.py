@@ -148,7 +148,8 @@ def get_gpu_stats(since_ms: int | None = None) -> dict:
             sl = [
                 r[0]
                 for r in conn.execute(
-                    f"SELECT {col} FROM gpu_telemetry WHERE (? IS NULL OR ts_ms >= ?) AND {col} IS NOT NULL ORDER BY ts_ms ASC LIMIT 40"
+                    f"SELECT {col} FROM gpu_telemetry WHERE (? IS NULL OR ts_ms >= ?) AND {col} IS NOT NULL ORDER BY ts_ms ASC LIMIT 40",
+                    (since_ms, since_ms),
                 ).fetchall()
             ]
             n = len(sl)

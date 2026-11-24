@@ -194,7 +194,7 @@ async def list_docs(
     entries = _scan_docs()
     if vault_only:
         entries = [e for e in entries if e.in_vault]
-    if search:
+    if search is not None:
         q = search.lower()
         entries = [
             e
@@ -253,7 +253,7 @@ async def get_doc_file(
 @router.get("/vault", response_model=list[DocEntry])
 async def list_vault() -> list[DocEntry]:
     """Shortcut: list only vault files (knowledge-library)."""
-    return await list_docs(vault_only=True)
+    return await list_docs(vault_only=True, search=None)
 
 
 @router.get("/manifest")
