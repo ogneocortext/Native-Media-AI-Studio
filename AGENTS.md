@@ -13,7 +13,7 @@
 >   0-byte placeholder that silently fell back to 5.1 — removed
 >   2026-10-10.
 > - **Your interactive shell:** `pwsh` on PATH resolves to the Microsoft
->   Store package — PowerShell **7.7.0**
+>   Store package — **pwsh 7.7.0**
 >   (`Microsoft.PowerShell_7.7.0.0_x64__8wekyb3d8bbwe\pwsh.exe`).
 >
 > Both satisfy the project's 7.6+ requirement. If a session still reports
