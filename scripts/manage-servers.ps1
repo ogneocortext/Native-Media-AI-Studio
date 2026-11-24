@@ -86,6 +86,14 @@ if (-not $comfyPython) { $comfyPython = $condaPython }
 # join() forever), while watchfiles stops the child via TerminateProcess.
 $backendTarget = Get-BackendTarget -Python $backendPython -Port $Ports.backend_port
 
+# Launch through tools/run-in-job.py: it puts the whole tree in a
+# kill-on-close Job Object, so when the backend crashes or is stopped
+# every descendant (watchfiles -> uvicorn -> ffmpeg/blender/comfyui
+# children) is reaped by the OS instead of orphaned. Degrades to a plain
+# launch if the job cannot be created. Pre-quoted: the repo path has
+# spaces and Start-Process does not quote ArgumentList elements itself.
+$jobRunner = '"' + ((Join-Path $ProjectRoot 'tools\run-in-job.py') -replace '\\', '/') + '"'
+
 $ServiceConfig = @{
     backend = @{
         Name = 'Backend'
@@ -93,7 +101,7 @@ $ServiceConfig = @{
         HealthPath = '/api/health'
         Python = $backendPython
         WorkingDir = Join-Path $ProjectRoot 'packages\backend'
-        Args = @('-m', 'watchfiles', '--filter', 'python', '--target-type', 'command', $backendTarget)
+        Args = @($jobRunner, '-m', 'watchfiles', '--filter', 'python', '--target-type', 'command', $backendTarget)
         LogFile = 'backend.log'
     }
     frontend = @{

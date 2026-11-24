@@ -1991,3 +1991,32 @@ Rules: `docs/plans/tasks/README.md`
   capture untested headlessly — needs a real mic session).
 - **Last session:** Devin, 2026-11-20 — cascade landed; ledger + commit in
   the same change.
+
+### T-PLT-54 — Backend orphan reaping via kill-on-close Job Object
+
+- **Status:** done
+- **Goal:** When the backend crashes or is stopped, its descendant
+  processes (watchfiles -> uvicorn -> ffmpeg/Blender/ComfyUI-manager/
+  music-gen children) must die with it instead of surviving as orphans
+  that hold ports and VRAM until manually killed.
+- **Changes:** `tools/run-in-job.py` (new) re-launches
+  `sys.executable <args>` inside a Windows Job Object with
+  `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (pywin32; unique per-pid job name;
+  degrades to a plain launch on non-Windows/missing pywin32/job failure).
+  `scripts/manage-servers.ps1` backend `Args` now route through it, so
+  every managed launch (start/restart/start-studio/start-services) is
+  covered — children of job members join automatically, no per-call-site
+  changes. Ctrl+C terminates the child before exit (130).
+- **Files:** tools/run-in-job.py, scripts/manage-servers.ps1,
+  docs/plans/tasks/platform-and-workflow.md
+- **Verification:** live tree test — launcher -> script -> grandchild;
+  killing the job-holding process reaped all descendants (verified via
+  Get-Process). Backend restarted through the wrapper: `/api/health`
+  responds, `/api/threestudio/models` returns 27 entries, watchfiles
+  auto-reload active again. manage-servers' port check still false-
+  positives on the tailscaled tailnet bind (known issue); backend was
+  started directly on 127.0.0.1:8004 per the gates-commit-push skill
+  note.
+- **Acceptance:** satisfied — orphan tree reaped on root kill; backend
+  serving with job protection active.
+- **Last session:** Devin, 2026-11-23 — landed in this commit.
