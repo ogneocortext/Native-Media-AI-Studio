@@ -13,6 +13,7 @@
  */
 
 import { animate } from "animejs";
+import { includesToken, normalizeSearchText } from "../visualPresets";
 
 export interface LyricLine {
   start: number;
@@ -678,19 +679,8 @@ export const kineticPresets: Record<string, KineticPreset> = {
 
 export const kineticPresetList = Object.values(kineticPresets);
 
-/** Normalize for token matching: lowercase, separators → spaces. */
-function normalizeKineticText(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9&+]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function includesKineticToken(haystack: string, token: string): boolean {
-  const t = normalizeKineticText(token);
-  if (!t) return false;
-  return ` ${haystack} `.includes(` ${t} `);
+  return includesToken(haystack, normalizeSearchText(token));
 }
 
 /**
@@ -702,7 +692,7 @@ function includesKineticToken(haystack: string, token: string): boolean {
  * closest kinetic preset (mirrors visualPresets.ts kineticPreset choices).
  */
 export function selectPresetForTrack(genre: string, energy: number): string {
-  const haystack = normalizeKineticText(genre);
+  const haystack = normalizeSearchText(genre);
   const has = (...tokens: string[]) => tokens.some((t) => includesKineticToken(haystack, t));
 
   // Specific multi-word genres first (longest-match wins over single words).
@@ -722,7 +712,7 @@ export function selectPresetForTrack(genre: string, energy: number): string {
   const candidates: { id: string; phrase: string }[] = [];
   for (const preset of Object.values(kineticPresets)) {
     for (const genreTag of preset.genres) {
-      const phrase = normalizeKineticText(genreTag);
+      const phrase = normalizeSearchText(genreTag);
       if (phrase) candidates.push({ id: preset.id, phrase });
     }
   }

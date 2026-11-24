@@ -18,13 +18,10 @@ import {
   type EditableLayer,
   type EditableSlot,
 } from "./remixRecipe";
+import { NUM_INPUT_CLASS, REMIX_LABEL_CLASS } from "./remixStyles";
 
 export type RemixBusy =
   "preview" | "build" | "master" | "separate" | "listen" | "audition" | "revise" | null;
-
-const NUM =
-  "w-14 px-1 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white text-right";
-const LABEL = "text-[9px] uppercase tracking-wide text-muted";
 
 export interface RemixSlotsEditorProps {
   slots: EditableSlot[];
@@ -148,8 +145,8 @@ export function RemixSlotsEditor({
       {slots.map((slot, si) => (
         <div key={si} className="space-y-1 rounded bg-white/[0.03] p-1.5">
           <div className="flex items-center gap-1.5">
-            <span className={LABEL}>Slot {si + 1}</span>
-            <label className={LABEL}>bars</label>
+            <span className={REMIX_LABEL_CLASS}>Slot {si + 1}</span>
+            <label className={REMIX_LABEL_CLASS}>bars</label>
             <input
               type="number"
               min={1}
@@ -161,10 +158,10 @@ export function RemixSlotsEditor({
                   ),
                 )
               }
-              className={NUM}
+              className={NUM_INPUT_CLASS}
               aria-label={`Slot ${si + 1} bars`}
             />
-            <label className={LABEL}>xfade</label>
+            <label className={REMIX_LABEL_CLASS}>xfade</label>
             <input
               type="number"
               min={0}
@@ -176,7 +173,7 @@ export function RemixSlotsEditor({
                   ),
                 )
               }
-              className={NUM}
+              className={NUM_INPUT_CLASS}
               aria-label={`Slot ${si + 1} crossfade bars`}
             />
             <button

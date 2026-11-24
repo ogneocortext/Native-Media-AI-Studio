@@ -22,8 +22,8 @@ import {
   type WizardGoal,
   type WizardInput,
 } from "./remixWizard";
+import { REMIX_LABEL_CLASS } from "./remixStyles";
 
-const LABEL = "text-[9px] uppercase tracking-wide text-muted";
 const STEP_COUNT = 4;
 
 export interface RemixWizardProps {
@@ -107,7 +107,7 @@ export function RemixWizard({
             Pick the songs. Everything else follows from these two choices.
           </p>
           <div className="flex items-center gap-1.5">
-            <label className={LABEL}>Song A</label>
+            <label className={REMIX_LABEL_CLASS}>Song A</label>
             <select
               aria-label="Wizard song A"
               value={wizA}
@@ -130,7 +130,7 @@ export function RemixWizard({
             </select>
           </div>
           <div className="flex items-center gap-1.5">
-            <label className={LABEL}>Song B</label>
+            <label className={REMIX_LABEL_CLASS}>Song B</label>
             <select
               aria-label="Wizard song B"
               value={wizB ?? ""}
@@ -203,7 +203,7 @@ export function RemixWizard({
             How long should it run? The tempo is {bpm} BPM, from song A's probe.
           </p>
           <div className="flex items-center gap-1.5">
-            <span className={LABEL}>Sections</span>
+            <span className={REMIX_LABEL_CLASS}>Sections</span>
             {([2, 4] as const).map((n) => (
               <button
                 key={n}
@@ -220,7 +220,7 @@ export function RemixWizard({
             ))}
           </div>
           <div className="flex items-center gap-1.5">
-            <span className={LABEL}>Bars each</span>
+            <span className={REMIX_LABEL_CLASS}>Bars each</span>
             {([4, 8] as const).map((n) => (
               <button
                 key={n}

@@ -51,15 +51,12 @@ import { RemixWizard } from "./RemixWizardFlow";
 import { RemixSlotsEditor, type RemixBusy } from "./RemixSlotsEditor";
 import { RemixActions } from "./RemixActions";
 import { consumePendingRemixOpen, consumePendingRemixRecipe } from "../../utils/pendingTrack";
+import { NUM_INPUT_CLASS, REMIX_LABEL_CLASS } from "./remixStyles";
 
 export interface RemixPanelProps {
   /** Track the visualizer is already showing; preselected as source A. */
   currentTrack?: string | null;
 }
-
-const NUM =
-  "w-14 px-1 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white text-right";
-const LABEL = "text-[9px] uppercase tracking-wide text-muted";
 
 // matchSource (library path <-> stem key, with the fixture guard) lives in
 // ./remixRecipe so the unit suite can exercise it without React.
@@ -794,7 +791,7 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
               aria-label="Remix name"
               className="flex-1 px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-white"
             />
-            <label className={LABEL}>BPM</label>
+            <label className={REMIX_LABEL_CLASS}>BPM</label>
             <input
               type="number"
               value={bpm}
@@ -802,7 +799,7 @@ export function RemixPanel({ currentTrack }: RemixPanelProps) {
               max={240}
               onChange={(e) => setBpm(Number(e.target.value))}
               aria-label="Target BPM"
-              className={NUM}
+              className={NUM_INPUT_CLASS}
             />
           </div>
 
