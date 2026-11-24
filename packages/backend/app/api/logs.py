@@ -29,7 +29,7 @@ _MAX_FRONTEND_MESSAGE = 2000
 
 
 @router.get("/", response_model=dict)
-async def get_log_info() -> dict:
+def get_log_info() -> dict:
     """Get log file information and statistics."""
     return {
         "log_directory": str(get_log_stats().get("app", {}).get("path", "")),
@@ -38,7 +38,7 @@ async def get_log_info() -> dict:
 
 
 @router.get("/traffic", response_model=dict)
-async def get_traffic(
+def get_traffic(
     since: int = Query(0, ge=0, description="Only records with seq greater than this"),
     limit: int = Query(200, ge=1, le=1000),
 ) -> dict:
@@ -54,7 +54,7 @@ async def get_traffic(
 
 
 @router.get("/presence", response_model=dict)
-async def get_presence() -> dict:
+def get_presence() -> dict:
     """Presence snapshot for the configured identity (logging.json -> presence).
 
     Computed from the live traffic ring buffer: state active/recent/away,
@@ -68,7 +68,7 @@ async def get_presence() -> dict:
 
 
 @router.get("/presence/journal", response_model=dict)
-async def get_presence_journal(
+def get_presence_journal(
     limit: int = Query(5, ge=1, le=50),
 ) -> dict:
     """Newest presence-journal entries first (visits of traffic-source people)."""
@@ -78,7 +78,7 @@ async def get_presence_journal(
 
 
 @router.get("/{log_name}", response_model=dict)
-async def get_log_content(
+def get_log_content(
     log_name: str,
     lines: int = Query(default=100, ge=1, le=1000),
 ) -> dict:
@@ -106,7 +106,7 @@ async def get_log_content(
 
 
 @router.post("/clear")
-async def clear_logs() -> dict:
+def clear_logs() -> dict:
     """Clear all log files (handler-safe truncation, no restart needed)."""
     cleared = clear_log_files()
 
@@ -114,7 +114,7 @@ async def clear_logs() -> dict:
 
 
 @router.post("/frontend")
-async def receive_frontend_logs(body: FrontendLogRequest) -> dict:
+def receive_frontend_logs(body: FrontendLogRequest) -> dict:
     """Receive log entries from the frontend and write them to the app log."""
     entries = body.entries[:_MAX_FRONTEND_ENTRIES]
     dropped = len(body.entries) - len(entries)

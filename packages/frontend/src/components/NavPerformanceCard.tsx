@@ -9,12 +9,14 @@ import { useState } from "react";
 import { Clock, ChevronUp, ChevronDown } from "lucide-react";
 import { Card } from "./common";
 import { getNavigationMetricsSummary } from "../utils/metrics";
+import React from "react";
 
 interface NavPerformanceCardProps {
   initiallyCollapsed?: boolean;
 }
 
-export function NavPerformanceCard({ initiallyCollapsed = true }: NavPerformanceCardProps = {}) {
+const NavPerformanceCardComponent = (props: NavPerformanceCardProps) => {
+  const { initiallyCollapsed = true } = props;
   const [collapsed, setCollapsed] = useState(initiallyCollapsed);
   const summary = getNavigationMetricsSummary();
 
@@ -91,4 +93,6 @@ export function NavPerformanceCard({ initiallyCollapsed = true }: NavPerformance
       </div>
     </Card>
   );
-}
+};
+
+export const NavPerformanceCard = React.memo(NavPerformanceCardComponent);

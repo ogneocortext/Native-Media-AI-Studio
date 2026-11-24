@@ -5,8 +5,11 @@
 import { Activity, AlertTriangle } from "lucide-react";
 import { Card } from "./common";
 import { getMetricsSummary } from "../utils/metrics";
+import React from "react";
 
-export function ApiPerformanceCard() {
+interface ApiPerformanceCardProps {}
+
+const ApiPerformanceCardComponent = (_props: ApiPerformanceCardProps) => {
   const metrics = getMetricsSummary();
 
   // Filter for API metrics only
@@ -83,4 +86,6 @@ export function ApiPerformanceCard() {
       </div>
     </Card>
   );
-}
+};
+
+export const ApiPerformanceCard = React.memo(ApiPerformanceCardComponent);

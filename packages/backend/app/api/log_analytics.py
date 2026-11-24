@@ -4,6 +4,7 @@ Log Analytics API routes.
 Provides trend-analysis endpoints backed by the SQLite log_events store.
 """
 
+import threading
 import time
 from typing import Any
 
@@ -29,18 +30,22 @@ router = APIRouter(prefix="/api/logs/analytics", tags=["Log Analytics"])
 # /summary is the heaviest endpoint because it runs multiple GROUP BY queries
 # against a potentially large log_events table.  A 30s TTL cuts redundant
 # work when the frontend polls repeatedly during active investigation.
-# ---------------------------------------------------------------------------
+# Thread-safe: /summary is a `def` endpoint running in the threadpool, so
+# concurrent threads can read/write the cache.
 _summary_cache: dict[str, tuple[float, dict]] = {}
+_summary_cache_lock = threading.Lock()
 _SUMMARY_TTL_SECONDS = 10
 
 
 def _cached_summary() -> dict:
     now = time.time()
-    hit = _summary_cache.get("data")
-    if hit and (now - hit[0]) < _SUMMARY_TTL_SECONDS:
-        return hit[1]
+    with _summary_cache_lock:
+        hit = _summary_cache.get("data")
+        if hit and (now - hit[0]) < _SUMMARY_TTL_SECONDS:
+            return hit[1]
     data = _build_summary()
-    _summary_cache["data"] = (now, data)
+    with _summary_cache_lock:
+        _summary_cache["data"] = (now, data)
     return data
 
 
@@ -73,7 +78,7 @@ class IngestResponse(BaseModel):
 
 
 @router.post("/ingest")
-async def ingest_logs(
+def ingest_logs(
     source: str = Query("app", description="Log source label"),
     log_name: str = Query("app", description="Log file key: app, error, queue, comfyui"),
     limit: int = Query(20000, ge=100, le=100000),
@@ -91,7 +96,7 @@ async def ingest_logs(
 
 
 @router.get("/trends")
-async def get_trends(
+def get_trends(
     since_ms: int | None = Query(None, description="Only events after this Unix ms timestamp"),
     limit: int = Query(5000, ge=100, le=50000),
 ) -> dict:
@@ -101,13 +106,13 @@ async def get_trends(
 
 
 @router.get("/patterns")
-async def get_patterns(limit: int = Query(20, ge=1, le=100)) -> dict:
+def get_patterns(limit: int = Query(20, ge=1, le=100)) -> dict:
     """Aggregated patterns: levels, top loggers, top messages."""
     return get_log_patterns(limit=limit)
 
 
 @router.get("/events")
-async def get_events(
+def get_events(
     level: str | None = Query(
         None, description="Filter by level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
     ),
@@ -144,7 +149,7 @@ async def get_events(
 
 
 @router.get("/errors")
-async def get_errors(limit: int = Query(20, ge=1, le=100)) -> dict:
+def get_errors(limit: int = Query(20, ge=1, le=100)) -> dict:
     """Recurring ERROR/CRITICAL patterns with normalized messages.
 
     UUIDs, Windows paths, and line numbers are normalized so job-specific
@@ -154,13 +159,13 @@ async def get_errors(limit: int = Query(20, ge=1, le=100)) -> dict:
 
 
 @router.get("/summary")
-async def get_summary() -> dict:
+def get_summary() -> dict:
     """Roll-up summary of ingested log analytics data (cached for 30s)."""
     return _cached_summary()
 
 
 @router.post("/cleanup")
-async def cleanup_log_analytics(keep_days: int = Query(30, ge=1, le=365)) -> dict:
+def cleanup_log_analytics(keep_days: int = Query(30, ge=1, le=365)) -> dict:
     """Remove old log analytics rows."""
     deleted = cleanup_old_log_events(keep_days=keep_days)
     return {"deleted": deleted, "keep_days": keep_days}

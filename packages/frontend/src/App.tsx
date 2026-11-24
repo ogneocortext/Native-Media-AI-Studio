@@ -184,7 +184,6 @@ registerRouteLoader("/create/hyperframes", async () => import("./features/hyperf
 registerRouteLoader("/library", async () => import("./features/media-library/MediaLibrary"));
 registerRouteLoader("/nsfw", async () => import("./features/media-library/NsfwLibrary"));
 registerRouteLoader("/voice-live", async () => import("./features/voice-live/VoiceLivePage"));
-registerRouteLoader("/office", async () => import("./features/office/OfficePage"));
 registerRouteLoader("/library/video", async () => import("./features/media-library/VideoLibrary"));
 registerRouteLoader("/library/audio", async () => import("./features/media-library/AudioLibrary"));
 registerRouteLoader("/library/storyboards", async () => import("./features/storyboards/StoryboardPage"));
