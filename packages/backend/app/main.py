@@ -74,6 +74,9 @@ setup_logging(
     sentry_dsn=(_logging_settings.sentry().get("dsn") or None),
     sentry_env=(_logging_settings.sentry().get("environment") or None),
 )
+# Apply traffic buffer size from logging.json (configure() also handles
+# runtime reconfiguration if the config is edited later).
+traffic_log.configure()
 logger = logging.getLogger(__name__)
 
 

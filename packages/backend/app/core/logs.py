@@ -7,6 +7,7 @@ Extracted from packages/backend/app/core/database.py (was 4121 lines).
 from __future__ import annotations
 
 import json
+import logging
 import operator
 import re
 import time as _time
@@ -18,6 +19,8 @@ from .connection import get_db
 
 if TYPE_CHECKING:
     import sqlite3
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -329,42 +332,37 @@ def get_log_analytics_sources(limit: int = 20) -> list[dict[str, Any]]:
 
 def cleanup_old_log_events(keep_days: int = 30, conn: sqlite3.Connection | None = None) -> int:
     """Delete log events older than keep_days. Returns deleted count."""
-    close_after = False
-    if conn is None:
-        conn = get_db().__enter__()
-        close_after = True
-    try:
-        cursor = conn.execute(
-            "DELETE FROM log_events WHERE ts_ms < ?",
-            (int(_time.time() - keep_days * 86400) * 1000,),
+    if conn is not None:
+        return _cleanup_old_log_events_with_conn(conn, keep_days)
+
+    with get_db() as conn:
+        return _cleanup_old_log_events_with_conn(conn, keep_days)
+
+
+def _cleanup_old_log_events_with_conn(conn: sqlite3.Connection, keep_days: int) -> int:
+    """Core cleanup logic using an already-open connection."""
+    cursor = conn.execute(
+        "DELETE FROM log_events WHERE ts_ms < ?",
+        (int(_time.time() - keep_days * 86400) * 1000,),
+    )
+    deleted = cursor.rowcount
+    ts_iso = datetime.now().isoformat()
+    set_log_analytics_last_cleanup(ts_iso, conn=conn)
+    if deleted:
+        logger.info(
+            "Cleaned up %d log analytics events older than %d days", deleted, keep_days
         )
-        deleted = cursor.rowcount
-        ts_iso = datetime.now().isoformat()
-        set_log_analytics_last_cleanup(ts_iso, conn=conn)
-        if deleted:
-            import logging as _logging
+        if deleted >= 1000:
+            from .connection import safe_vacuum
 
-            _logging.info(
-                "Cleaned up %d log analytics events older than %d days", deleted, keep_days
-            )
-            if deleted >= 1000:
-                from .connection import safe_vacuum
-
-                safe_vacuum(conn)
-        else:
-            import logging as _logging
-
-            _logging.debug(
-                "Log analytics cleanup ran at %s; no events older than %d days",
-                ts_iso,
-                keep_days,
-            )
-        if close_after:
-            conn.commit()
-        return deleted
-    finally:
-        if close_after:
-            conn.close()
+            safe_vacuum(conn)
+    else:
+        logger.debug(
+            "Log analytics cleanup ran at %s; no events older than %d days",
+            ts_iso,
+            keep_days,
+        )
+    return deleted
 
 
 def cleanup_old_system_resources(keep_days: int = 7) -> int:

@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 async def log_analytics_ingest_loop() -> None:
     """Supervised background task: keep the log analytics store fresh."""
     # Imported lazily so importing this module never triggers DB/app wiring.
-    from .database import ingest_log_file
     from .logging_config import get_log_files
+    from .logs import ingest_log_file
 
     while True:
         cfg = logging_settings.analytics()

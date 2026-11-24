@@ -35,16 +35,27 @@ if TYPE_CHECKING:  # Path is only referenced in annotations (PEP 563)
     from pathlib import Path
 
 _lock = threading.Lock()
-_records: deque[dict[str, Any]] = deque(maxlen=500)
+
+
+def _cfg() -> dict[str, Any]:
+    return logging_settings.traffic()
+
+
+def _initial_buffer_size() -> int:
+    """Read buffer_size from config at import time so traffic config is honored
+    even if configure() is never called."""
+    try:
+        return int(_cfg().get("buffer_size", 500) or 500)
+    except (TypeError, ValueError):
+        return 500
+
+
+_records: deque[dict[str, Any]] = deque(maxlen=_initial_buffer_size())
 _seq = 0
 
 _file_fh = None  # lazy-opened append handle for traffic.log
 _file_path: Path | None = None
 _file_configured = False
-
-
-def _cfg() -> dict[str, Any]:
-    return logging_settings.traffic()
 
 
 def _excluded_paths() -> set[str]:
@@ -179,3 +190,15 @@ def since(after_seq: int = 0, limit: int = 500) -> list[dict[str, Any]]:
 def latest_seq() -> int:
     with _lock:
         return _records[-1]["seq"] if _records else 0
+
+
+def shutdown() -> None:
+    """Close the traffic.log file handle. Called on backend shutdown."""
+    global _file_fh
+    if _file_fh is not None:
+        try:
+            _file_fh.flush()
+            _file_fh.close()
+        except Exception:  # noqa: BLE001
+            pass
+        _file_fh = None
