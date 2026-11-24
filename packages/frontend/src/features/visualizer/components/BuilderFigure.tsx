@@ -587,12 +587,20 @@ export function BuilderFigure({ audioData, storyBeat, visible, calm = false }: P
       // as subtitled video: the silhouette stays legible over bright shaders
       // and over blackletterbox alike.
       const accent = beat?.palette.accent ?? DEFAULT_ACCENT;
+      // Beat-hit punch: the whole figure compresses ~4.5% on the strike and
+      // recovers through the interval — the VLM re-score read the figure as
+      // "static" because every accent rode small joint deltas; a root-scale
+      // hit is readable at thumbnail size. `pulse` is already 0 under calm.
+      const punch = 1 + 0.045 * pulse;
       ctx.save();
       ctx.translate(rootX, rootY);
+      ctx.scale(punch, punch);
       ctx.rotate(sway * DEG);
       ctx.strokeStyle = accent;
       ctx.fillStyle = accent;
-      ctx.globalAlpha = isCalm ? 0.5 : 0.5 + energy * 0.2;
+      // Halo flashes with the beat on top of the energy baseline — this is
+      // the pass that makes the strike visible over any background.
+      ctx.globalAlpha = Math.min(1, (isCalm ? 0.5 : 0.5 + energy * 0.2) + pulse * 0.25);
       drawFigure(ctx, angles, 4);
       // Lamp-side wash: the same accent offset toward the lamp (~up-right)
       // at low alpha. Reads as inner volume/rim light, not a second outline.

@@ -1330,9 +1330,7 @@ evidence above.
 
 ### T-VIZ-54 — StageEnvironment: basement-club concert stage kit (v1)
 
-- **Status:** doing (acceptance artifact reproducible via
-  `tests/stage-env.spec.ts` → `output/tests/stage-env-v2.png`, verified
-  2026-11-09; mode re-score pending)
+- **Status:** done (re-scored 2026-11-24 — see below)
 - **Goal:** Give the 3D visualizer a designed space per
   `stylized-3d-environment-design-for-browser-music-visualizers-2026.md`
   — platform, truss, props, beams, crowd, reactive rig — ahead of the
@@ -1398,15 +1396,25 @@ evidence above.
   trackConceptAnalyzer.ts; packages/frontend/public/models/env/*.glb;
   packages/backend/app/services/gen3d/gen3d_service.py (.gltf ingest fix)
 - **Acceptance:** stage-env mode renders a coherent reactive stage in
-  the live visualizer (met for v1); pending re-score vs baseline.
-- **Last session:** Devin (SWE-2), 2026-11-09 — acceptance artifact made
-  reproducible: new `tests/stage-env.spec.ts` captures
-  `output/tests/stage-env-v2.png` via the `__VIZ_TEST__.setStyle` harness
-  (spec PASSED; canvas2d + lrc-visualizer specs also run — canvas2d 3/3,
-  lrc skipped, no .lrc-backed track in library). Prior session 2026-11-08:
-  prop audit done — GLbProp bbox-normalize fix (props were
-  off-screen/microscopic from Sketchfab node TRS); speakers + deck
-  verified visible; boombox marginal. Mesh-topology research completed —
+  the live visualizer (met for v1); re-score vs baseline met —
+  `viz-capture-2026-11-24T06-18-33-612Z` (track "Take the Crown",
+  audioVerified:true, qwen3.5:4b, `3d:stage-env` via new viz-capture
+  style grammar): **overall 4.0** (comp 4, react 5, read 4, motion 5,
+  color 5, polish 4). Findings are minor polish items (light clipping
+  on loud hits, top-bar overlap on up-tilts, texture detail) — no
+  redesign-blocking issues.
+- **Last session:** Devin, 2026-11-24 — mode re-score done: extended
+  `tools/vision/viz-capture.mjs` with `3d:<styleId>` grammar (drives
+  `__VIZ_TEST__.setStyle`, validated against the VisualizationStyle
+  union) and ran the capture+score pipeline end-to-end; scorecard in
+  the capture dir. Prior sessions 2026-11-08/09: prop audit done —
+  GLbProp bbox-normalize fix (props were off-screen/microscopic from
+  Sketchfab node TRS); speakers + deck verified visible; boombox
+  marginal. Acceptance artifact made reproducible: new
+  `tests/stage-env.spec.ts` captures `output/tests/stage-env-v2.png` via
+  the `__VIZ_TEST__.setStyle` harness (spec PASSED; canvas2d +
+  lrc-visualizer specs also run — canvas2d 3/3, lrc skipped, no
+  .lrc-backed track in library). Mesh-topology research completed —
   gen3d output is blockout/props only, character needs rigged base or
   cloud retopo+rig path.
 
@@ -1502,3 +1510,32 @@ evidence above.
   implementations + orchestrated re-score; evidence in
   viz-capture-2026-11-22T05-52-22-299Z (baseline) and
   viz-capture-2026-11-22T06-21-29-567Z (after).
+
+### T-VIZ-57 — BuilderFigure beat-reactivity + stacked-frequency-bands occlusion
+
+- **Status:** done (code-level; re-score folded into next mode QA pass)
+- **Goal:** Act on the top cross-mode finding from the T-VIZ-52/53/56
+  re-scores: the BuilderFigure silhouette read as "static,
+  unexplained, placeholder-like" because every accent rode small joint
+  deltas, and in `2d:stacked-frequency-bands` its bottom-left staging
+  occluded the mode's left spectrum data.
+- **What changed:**
+  - `BuilderFigure.tsx`: whole-figure beat punch — root scale
+    `1 + 0.045 * pulse` (compress on the strike, recover through the
+    interval) plus a `pulse * 0.25` alpha flash on the accent pass on
+    top of the energy baseline. `pulse` is already 0 under calm, so
+    reduced-motion/calm scenes are unaffected.
+  - `Visualizer.tsx`: BuilderFigure overlay now also excluded for
+    `vizMode === "2d" && canvas2DMode === "stacked-frequency-bands"` —
+    the figure stays available in every other 2D/FX mode and remains
+    opt-in outside 3D (existing `vizMode !== "3d"` guard unchanged).
+- **Files:** features/visualizer/components/BuilderFigure.tsx,
+  features/visualizer/Visualizer.tsx
+- **Verification:** tsc -b clean, eslint clean on visualizer dir;
+  `pulse`/`canvas2DMode`/`storyBeat` scopes confirmed at edit sites.
+  Visual re-score pending the next viz-capture pass (VLM reads the
+  figure per-mode; a dedicated capture is owed before calling the
+  finding closed).
+- **Acceptance:** partially met — reactivity code landed and is
+  scoped correctly; VLM confirmation deferred to next capture cycle.
+- **Last session:** Devin, 2026-11-24 — landed in this commit.

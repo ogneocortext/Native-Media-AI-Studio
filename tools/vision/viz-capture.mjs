@@ -19,6 +19,7 @@
  *
  * --modes grammar (comma-separated):
  *   3d | shader | 2d              — every preset/mode of that kind
+ *   3d:<styleId>                 — one 3D visualization style (e.g. 3d:stage-env)
  *   shader:<presetId>             — one FX preset (e.g. shader:neonRain)
  *   2d:<modeId>                   — one Canvas2D mode (e.g. 2d:mirrored-bars)
  *   kind-only entries expand in canonical order.
@@ -60,6 +61,13 @@ const CANVAS_2D_MODES = [
   'stacked-frequency-bands', 'dot-peak-matrix', 'waveform', 'radial',
   'spectrogram', 'lissajous', 'constellation', 'particles', 'aurora',
   'kinetic-type',
+];
+// Mirrors VisualizationStyle in trackConceptAnalyzer.ts — 3d:<style> picks
+// one style through __VIZ_TEST__.setStyle; bare `3d` keeps the current one.
+const VISUALIZATION_STYLES = [
+  'geometric', 'waveform', 'particles', 'neural', 'cosmic', 'fractal',
+  'pulse', 'storm', 'vinyl', 'synthwave', 'aurora', 'inferno', 'ocean',
+  'three-particles', 'pppanik', 'stem-scene', 'terrain', 'stage-env',
 ];
 
 const KIND_ORDER = { '3d': 0, shader: 1, '2d': 2 };
@@ -114,7 +122,15 @@ function expandModes(spec) {
       continue;
     }
     const [kind, id] = raw.includes(':') ? raw.split(':', 2) : [raw, null];
-    if (kind === '3d') { push('3d', '3d', '3D Stage'); continue; }
+    if (kind === '3d') {
+      if (!id || id === '3d') { push('3d', '3d', '3D Stage'); continue; }
+      if (!VISUALIZATION_STYLES.includes(id)) {
+        console.error(`Unknown 3D style: ${id} (want one of: ${VISUALIZATION_STYLES.join(', ')})`);
+        process.exit(1);
+      }
+      push('3d', id, `3D · ${id}`);
+      continue;
+    }
     if (kind === 'shader') {
       const ids = id ? [id] : SHADER_PRESETS;
       for (const p of ids) {
@@ -244,7 +260,10 @@ async function main() {
     marks.push({ t: t0, kind: m.kind, id: m.id, label: m.label });
     await page.evaluate((mode) => {
       const t = window.__VIZ_TEST__;
-      if (mode.kind === '3d') t.setMode('3d');
+      if (mode.kind === '3d') {
+        t.setMode('3d');
+        if (mode.id !== '3d' && typeof t.setStyle === 'function') t.setStyle(mode.id);
+      }
       else if (mode.kind === 'shader') { t.setMode('shader'); t.setShaderPreset(mode.id); }
       else { t.setMode('2d'); t.set2DMode(mode.id); }
     }, m);

@@ -1207,8 +1207,12 @@ export function Visualizer() {
             <div className={`viz-letterbox bottom ${storyState.beat?.cinematic ? "on" : ""}`} />
           )}
           {/* Builder silhouette — 2D/FX lanes only; in 3D mode the rigged
-              hero_dj inside VisualizerScene is the character layer. */}
-          {vizMode !== "3d" && (
+              hero_dj inside VisualizerScene is the character layer.
+              stacked-frequency-bands is excluded: the figure's bottom-left
+              staging occludes that mode's left spectrum data (T-VIZ-52/53
+              re-score finding). */}
+          {vizMode !== "3d" &&
+            !(vizMode === "2d" && canvas2DMode === "stacked-frequency-bands") && (
             <BuilderFigure
               audioData={liveAudioDataRef}
               storyBeat={storyState.beat}
