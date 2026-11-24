@@ -2020,3 +2020,20 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** satisfied — orphan tree reaped on root kill; backend
   serving with job protection active.
 - **Last session:** Devin, 2026-11-23 — landed in this commit.
+- **Addendum (same session, owner asked to fix found bugs):** three real
+  defects fixed in the same area. (1) `Test-PythonEnv` demanded
+  `typing.override` + Python >=3.12, but the backend uses
+  `typing_extensions.override` and `requires-python = ">=3.10"` — the
+  probe rejected every working 3.11 env and warned "skipping" on all
+  candidates; floor corrected to >=3.10. (2) Port checks counted ANY
+  listener on the port, so tailscaled's tailnet `tailscale serve` bind
+  made the backend "occupied by a non-responding process" AND the stop
+  path attempted to kill tailscaled.exe three times; new
+  `Get-ServicePortListeners` (loopback + wildcard binds only) now backs
+  `Test-PortInUse`, `Stop-PortOwner`, `Wait-ForPort`, `Test-ServicePort`,
+  `Get-ServiceStatus`, and the `Stop-StudioService` reap loop.
+  (3) `Get-ServiceStatus` duplicated `Test-ServicePort` — now delegates.
+  Also fixed stale `test-shared-utils.ps1` literal (backend_port 8000 ->
+  8004). Verified: probe resolves nma-studio-cuda cleanly, port filter
+  excludes tailscaled's two binds while counting 127.0.0.1:8004, status
+  reports RUNNING, shared-utils test ALL PASS.

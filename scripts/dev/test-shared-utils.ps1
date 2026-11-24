@@ -17,7 +17,9 @@ function Assert-Equal {
 
 Write-Host "--- Get-PortsConfig from config/ports.json ---"
 $ports = Get-PortsConfig -ProjectRoot $root
-Assert-Equal 8000 $ports.backend_port 'backend_port'
+# Expected values mirror config/ports.json (the source of truth) — update
+# both together when a port moves.
+Assert-Equal 8004 $ports.backend_port 'backend_port'
 Assert-Equal 5173 $ports.frontend_port 'frontend_port'
 Assert-Equal 8188 $ports.comfyui_port 'comfyui_port'
 Assert-Equal 8080 $ports.video_editor_port 'video_editor_port'

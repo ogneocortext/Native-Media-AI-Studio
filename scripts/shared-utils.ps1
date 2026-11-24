@@ -152,9 +152,32 @@ function Sync-PortsConfigToFrontend {
 # Port probing
 # ---------------------------------------------------------------------------
 
+function Get-ServicePortListeners {
+    <#
+    .SYNOPSIS
+        TCP listeners on a port that can actually conflict with — or be —
+        one of our services.
+    .DESCRIPTION
+        Our services bind loopback (127.0.0.1 / ::1). A listener on a
+        *specific non-loopback* address — e.g. tailscaled holding the
+        tailnet-side `tailscale serve` bind — cannot block a loopback
+        bind, so it is NOT a conflict. Counting it produced two real
+        bugs: the port-in-use check refused to start the backend while
+        `tailscale serve` held 100.x:8004, and the stop path tried to
+        kill tailscaled.exe. Wildcard binds (0.0.0.0 / ::) DO conflict
+        with loopback and are included.
+    .PARAMETER Port
+        Local TCP port.
+    #>
+    param([Parameter(Mandatory)][int]$Port)
+    $conflicting = @('127.0.0.1', '::1', '0.0.0.0', '::')
+    Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+        Where-Object { $conflicting -contains $_.LocalAddress }
+}
+
 function Test-PortInUse {
     param([int]$Port)
-    return [bool](Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+    return [bool](Get-ServicePortListeners -Port $Port)
 }
 
 function Test-ServiceRunning {
@@ -188,14 +211,14 @@ function Stop-PortOwner {
         Human-readable service name for log messages.
     #>
     param([int]$Port, [string]$Service)
-    $pids = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+    $pids = Get-ServicePortListeners -Port $Port |
             Select-Object -ExpandProperty OwningProcess -Unique
     if ($pids) {
         Write-Warn "Port $Port busy - stopping stale $Service process(es): $($pids -join ', ')"
         $pids | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
         for ($i = 1; $i -le 3; $i++) {
             Start-Sleep -Seconds 1
-            if (-not (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)) {
+            if (-not (Get-ServicePortListeners -Port $Port)) {
                 Write-Ok "Port $Port freed after ${i}s"
                 return
             }
@@ -300,9 +323,11 @@ function Test-PythonEnv {
     if ($Python -match '[\\/]' -and -not (Test-Path -LiteralPath $Python)) {
         return $false
     }
-    # Version floor: the backend uses typing.override (3.12+). A 3.11 env
-    # passes the import probe but dies at app import — check both.
-    $null = & $Python -c "import sys, typing, fastapi, uvicorn, watchfiles; assert sys.version_info >= (3, 12) and hasattr(typing, 'override')" 2>$null
+    # Version floor matches pyproject's requires-python (>=3.10). The
+    # backend uses typing_extensions.override (core/logging_config.py),
+    # NOT typing.override (3.12+) — probing for the latter rejects every
+    # working 3.11 env on this machine.
+    $null = & $Python -c "import sys, fastapi, uvicorn, watchfiles; assert sys.version_info >= (3, 10)" 2>$null
     return $LASTEXITCODE -eq 0
 }
 
@@ -863,7 +888,7 @@ function Wait-ForPort {
         [int]$MaxSeconds = 15
     )
     for ($i = 1; $i -le $MaxSeconds; $i++) {
-        if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
+        if (Get-ServicePortListeners -Port $Port) {
             Write-Ok "$Name listening on port $Port (waited ${i}s)"
             return $true
         }
@@ -911,7 +936,7 @@ function Test-ServicePort {
         [Parameter(Mandatory)][int]$Port,
         [string]$HealthPath = '/api/health'
     )
-    $listening = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    $listening = Get-ServicePortListeners -Port $Port
     if ($listening) {
         if (Test-ServiceRunning -Port $Port -HealthPath $HealthPath) {
             return @{ Running = $true; Port = $Port }

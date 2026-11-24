@@ -217,15 +217,10 @@ function Get-ServiceStatus {
     $port = $config.Port
     $healthPath = $config.HealthPath
 
-    $listening = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-    if ($listening) {
-        # Verify the service is actually responding, not just the port being bound.
-        if (Test-ServiceRunning -Port $port -HealthPath $healthPath) {
-            return @{ Running = $true; Port = $port }
-        }
-        return @{ Running = $false; Port = $port; Note = "Port bound but service not responding" }
-    }
-    return @{ Running = $false; Port = $port }
+    # Delegates to shared-utils' Test-ServicePort — one implementation of
+    # "listening + health probe" (it already filters to conflicting
+    # loopback/wildcard binds via Get-ServicePortListeners).
+    return Test-ServicePort -Port $port -HealthPath $healthPath
 }
 
 function Get-OrphanReloaders {
@@ -294,11 +289,15 @@ function Stop-StudioService {
         Stop-TrackedProcess -ProcessId $t.ProcessId
     }
 
-    # Reap all remaining listeners on the service port. Repeated passes tolerate
-    # Windows stale sockets (netstat can still show a LISTENING entry for a dead
-    # PID until the socket is released) and any respawned reloader children.
+    # Reap all remaining *conflicting* listeners on the service port.
+    # Get-ServicePortListeners excludes specific non-loopback binds
+    # (tailscaled's tailnet `tailscale serve` address) — those cannot
+    # block a loopback service and must never be killed. Repeated passes
+    # tolerate Windows stale sockets (netstat can still show a LISTENING
+    # entry for a dead PID until the socket is released) and any
+    # respawned reloader children.
     for ($attempt = 1; $attempt -le 3; $attempt++) {
-        $pids = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
+        $pids = Get-ServicePortListeners -Port $port |
                 Select-Object -ExpandProperty OwningProcess -Unique
         if (-not $pids) { break }
         Write-Warn "Stopping $($config.Name) port listeners (PIDs: $($pids -join ', '), attempt $attempt)"
