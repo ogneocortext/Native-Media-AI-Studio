@@ -72,6 +72,11 @@ test.txt
 debug_output.txt
 *.bak
 
+# Pocket TTS per-launch token file (rig-side, outside the repo). Defensive
+# ignore in case a path mistake ever drops it into the tree -- git must not
+# pick it up. The token value is a rig secret: never committed.
+pocket-token.txt
+
 # Scripts (selectively tracked)
 scripts/*.bat
 scripts/*.sh

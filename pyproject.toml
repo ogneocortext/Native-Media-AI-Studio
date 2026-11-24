@@ -117,7 +117,7 @@ preview = true
 [tool.ruff.lint.per-file-ignores]
 # Test suites inject the backend root into sys.path before importing `app.*`,
 # which necessarily places those imports after executable statements.
-"packages/backend/tests/**" = ["E402"]
+"packages/backend/tests/**" = ["E402", "FBT"]
 # Windows API constants in the process-enumeration helper mirror the Win32
 # names verbatim (TH32CS_SNAPPROCESS, PROCESSENTRY32, ...) for greppability.
 "packages/backend/app/diagnostics/resources.py" = ["N806"]

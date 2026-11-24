@@ -31,6 +31,7 @@ _DEFAULTS: dict[str, Any] = {
     "pocket": {
         "base_url": "http://127.0.0.1:8811",
         "token_env": "POCKET_TTS_TOKEN",
+        "token_file": "",
         "default_voice": "maya-blend65",
         "timeout_s": 30,
     },

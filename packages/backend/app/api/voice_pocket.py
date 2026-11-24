@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -42,6 +43,12 @@ _NOT_CONFIGURED = (
 )
 _UNREACHABLE = "Pocket TTS is unreachable -- is the server running?"
 
+# Token file (pocket.token_file) is mtime-cached like tts_settings. The file
+# lives outside the repo on the rig; the backend re-reads it on mtime change
+# or on force_refresh (401 retry). Never log the token value.
+_token_file_cache: str | None = None
+_token_file_cache_mtime: float | None = None
+
 
 def _cfg() -> dict[str, Any]:
     return tts_settings.pocket()
@@ -62,8 +69,56 @@ def _token_env_name() -> str:
     return str(_cfg().get("token_env") or "POCKET_TTS_TOKEN")
 
 
-def _token() -> str | None:
-    """Read the Bearer token from the env var named by config, at request time."""
+def _token_file_path() -> str | None:
+    """Return the configured token file path, or None if not configured."""
+    path = _cfg().get("token_file") or ""
+    return path.strip() or None
+
+
+def _read_token_file(path: str, *, force_refresh: bool = False) -> str | None:
+    """Read and trim the token file, mtime-cached.
+
+    Returns None on any OSError or empty contents. Re-reads only when mtime
+    changes (or force_refresh=True). Never logs the token value.
+    """
+    global _token_file_cache, _token_file_cache_mtime
+    try:
+        st = os.stat(path)
+    except OSError:
+        _token_file_cache = None
+        _token_file_cache_mtime = None
+        return None
+    mtime = st.st_mtime
+    if not force_refresh and _token_file_cache is not None and mtime == _token_file_cache_mtime:
+        return _token_file_cache
+    try:
+        value = Path(path).read_text(encoding="utf-8").strip()
+    except OSError:
+        _token_file_cache = None
+        _token_file_cache_mtime = None
+        return None
+    if not value:
+        _token_file_cache = None
+        _token_file_cache_mtime = None
+        return None
+    _token_file_cache = value
+    _token_file_cache_mtime = mtime
+    logger.info("token loaded from file")
+    return value
+
+
+def _token(*, force_refresh: bool = False) -> str | None:
+    """Read the Bearer token: token file first (if configured), then env var.
+
+    File wins because it is the live, per-launch source. With no token file
+    configured and no env var, returns None (caller raises the 503).
+    Never logs or returns the token value.
+    """
+    path = _token_file_path()
+    if path is not None:
+        file_value = _read_token_file(path, force_refresh=force_refresh)
+        if file_value is not None:
+            return file_value
     env = _token_env_name()
     value = os.environ.get(env)
     if not value or not value.strip():
@@ -86,14 +141,33 @@ def _auth_headers(token: str) -> dict[str, str]:
 
 
 async def _fetch_health(token: str) -> dict[str, Any]:
-    """GET Pocket /health. 503 when unreachable, 502 on upstream errors."""
+    """GET Pocket /health. 503 when unreachable, 502 on upstream errors.
+
+    On upstream 401, refreshes the token once (force_refresh) and retries
+    exactly once if the token changed. A second 401 (or any other non-200)
+    surfaces as 502.
+    """
     base = _base_url()
-    try:
+
+    async def _get(tok: str):
         async with httpx.AsyncClient(timeout=_timeout()) as client:
-            resp = await client.get(f"{base}/health", headers=_auth_headers(token))
+            return await client.get(f"{base}/health", headers=_auth_headers(tok))
+
+    try:
+        resp = await _get(token)
     except httpx.HTTPError as exc:
         logger.warning("Pocket TTS health unreachable: %s", exc)
         raise HTTPException(status_code=503, detail=_UNREACHABLE) from exc
+
+    if resp.status_code == 401:
+        refreshed = _token(force_refresh=True)
+        if refreshed is not None and refreshed != token:
+            try:
+                resp = await _get(refreshed)
+            except httpx.HTTPError as exc:
+                logger.warning("Pocket TTS health unreachable on retry: %s", exc)
+                raise HTTPException(status_code=503, detail=_UNREACHABLE) from exc
+
     if resp.status_code != 200:
         raise HTTPException(
             status_code=502,
@@ -198,22 +272,37 @@ async def pocket_speak(req: SpeakRequest) -> StreamingResponse:
     The upstream body is streamed through untouched so time-to-first-byte
     stays at the Pocket server's native latency instead of paying a full
     buffer-and-forward penalty.
+
+    On upstream 401, refreshes the token once (force_refresh) and retries
+    exactly once before streaming begins if the token changed. A second 401
+    (or any other non-200) surfaces as 502.
     """
     token = _require_token()
     base = _base_url()
-    client = httpx.AsyncClient(timeout=_timeout())
-    try:
-        upstream_req = client.build_request(
-            "POST",
-            f"{base}/speech",
-            json={"text": req.text, "voice": req.voice},
-            headers=_auth_headers(token),
-        )
-        resp = await client.send(upstream_req, stream=True)
-    except httpx.HTTPError as exc:
-        await client.aclose()
-        logger.warning("Pocket TTS speak unreachable: %s", exc)
-        raise HTTPException(status_code=503, detail=_UNREACHABLE) from exc
+
+    async def _send(tok: str):
+        client = httpx.AsyncClient(timeout=_timeout())
+        try:
+            upstream_req = client.build_request(
+                "POST",
+                f"{base}/speech",
+                json={"text": req.text, "voice": req.voice},
+                headers=_auth_headers(tok),
+            )
+            resp = await client.send(upstream_req, stream=True)
+        except httpx.HTTPError as exc:
+            await client.aclose()
+            logger.warning("Pocket TTS speak unreachable: %s", exc)
+            raise HTTPException(status_code=503, detail=_UNREACHABLE) from exc
+        return client, resp
+
+    client, resp = await _send(token)
+
+    if resp.status_code == 401:
+        refreshed = _token(force_refresh=True)
+        if refreshed is not None and refreshed != token:
+            await client.aclose()
+            client, resp = await _send(refreshed)
 
     if resp.status_code != 200:
         await resp.aclose()

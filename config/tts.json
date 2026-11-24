@@ -25,6 +25,7 @@
   "pocket": {
     "base_url": "http://100.95.60.73:8811",
     "token_env": "POCKET_TTS_TOKEN",
+    "token_file": "D:\\Tools\\streaming-tts\\pocket\\pocket-token.txt",
     "default_voice": "maya-blend65",
     "timeout_s": 30
   },
