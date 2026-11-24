@@ -133,6 +133,39 @@ SHADER_PRESETS_RE = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 
+# shaders.ts interpolates two local helpers into preset bodies:
+#   const OKLCH_TO_LINEAR_SRGB = `...glsl...`
+#   function outputGrade(strength: number) { return `...${strength}...`; }
+# Both are resolvable statically, so preset bodies are expanded before
+# compilation instead of being skipped.
+OKLCH_CONST_RE = re.compile(
+    r"const\s+OKLCH_TO_LINEAR_SRGB\s*=\s*`([^`]*)`"
+)
+OUTPUT_GRADE_FN_RE = re.compile(
+    r"function\s+outputGrade\(strength:\s*number\):\s*string\s*\{\s*return\s*`([^`]*)`"
+)
+OUTPUT_GRADE_CALL_RE = re.compile(r"\$\{outputGrade\(\s*([\d.]+)\s*\)\}")
+
+
+def resolve_shaders_ts_substitutions(text: str, body: str) -> str | None:
+    """Expand the known shaders.ts helpers inside a preset body.
+
+    Returns the resolved GLSL body, or None when an unresolvable ``${...}``
+    remains (caller then skips the shader).
+    """
+    oklch = OKLCH_CONST_RE.search(text)
+    grade_fn = OUTPUT_GRADE_FN_RE.search(text)
+
+    def grade_repl(m: re.Match) -> str:
+        if grade_fn is None:
+            return m.group(0)
+        return grade_fn.group(1).replace("${strength}", m.group(1))
+
+    resolved = OUTPUT_GRADE_CALL_RE.sub(grade_repl, body)
+    if oklch is not None:
+        resolved = resolved.replace("${OKLCH_TO_LINEAR_SRGB}", oklch.group(1))
+    return resolved
+
 
 def extract_shaders(text: str, file_path: Path) -> list[dict]:
     """Return [{name, body, start_line}] for every /* glsl */ block in text.
@@ -174,6 +207,20 @@ def extract_shaders(text: str, file_path: Path) -> list[dict]:
             prop = m.group(1)
             body = m.group(2)
             start_line = text[: m.start()].count("\n") + 1
+            body = resolve_shaders_ts_substitutions(text, body)
+            # Same rule as the /* glsl */ path: template substitutions that
+            # cannot be resolved statically skip the shader, not fail it.
+            if body is None or "${" in body:
+                found.append(
+                    {
+                        "prop": "fragmentShader",
+                        "body": m.group(2),
+                        "start_line": start_line,
+                        "skipped": True,
+                        "reason": "unresolved template substitution",
+                    }
+                )
+                continue
             found.append(
                 {
                     "prop": "fragmentShader",

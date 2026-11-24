@@ -297,7 +297,15 @@ Rules: `docs/plans/tasks/README.md`
   flags so the checker validates ESSL 1.00 directly, and fixed human-readable
   output for skipped shaders. Full-corpus gate passed: 451 files scanned,
   20 shaders extracted across 5 files, 19 checked, 1 skipped for unresolved
-  template substitution, 0 failed.
+  template substitution, 0 failed. Devin, 2026-11-23 — fixed a false-
+  positive class in the SHADER_PRESETS extractor: preset bodies
+  interpolating `${outputGrade(k)}` / `${OKLCH_TO_LINEAR_SRGB}` were
+  compiled raw and reported 8 FAILs on a stray `$`. The checker now
+  resolves both helpers statically (const inlined, `outputGrade`'s
+  numeric arg substituted into its template) and only skips bodies
+  with genuinely unresolvable substitutions. Full-corpus rerun:
+  521 files, 22 extracted, 21 checked, 1 skipped, 0 failed — all 8
+  presets compile cleanly.
 
 ### T-PLT-37 — Extract DocViews from DocsPage.tsx (1102 -> 767 + ~360)
 - **Status:** done
