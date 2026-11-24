@@ -67,7 +67,7 @@ export function LogAnalytics() {
   const [patterns, setPatterns] = useState<LogAnalyticsPatterns | null>(null);
   const [errorPatterns, setErrorPatterns] = useState<LogAnalyticsErrorPattern[]>([]);
   const [range, setRange] = useState<string>("All");
-  const [loading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [ingesting, setIngesting] = useState(false);
   const [ingestResult, setIngestResult] = useState<string | null>(null);
   const [selectedLog, setSelectedLog] = useState<string>("app");
@@ -93,6 +93,8 @@ export function LogAnalytics() {
       setLastRefreshed(new Date());
     } catch (e) {
       console.error("Failed to refresh log analytics:", e);
+    } finally {
+      setLoading(false);
     }
   }, [eventLevelFilter]);
 
@@ -619,7 +621,7 @@ export function LogAnalytics() {
                 </tr>
               </thead>
               <tbody>
-                {events.slice(-200).map((entry, idx) => (
+                {events.slice(0, 200).map((entry, idx) => (
                   <tr key={idx} className="border-b border-border/50 hover:bg-white/5">
                     <td className="py-1.5 pr-2 text-muted tabular-nums whitespace-nowrap">
                       {entry.ts_iso.slice(5)}
