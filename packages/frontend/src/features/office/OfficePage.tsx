@@ -25,8 +25,10 @@ export function OfficePage() {
 
   useEffect(() => {
     const base = getApiBase();
+    const controller = new AbortController();
+    let cancelled = false;
 
-    fetch(`${base}/api/office/config`, { signal: undefined as unknown as AbortSignal })
+    fetch(`${base}/api/office/config`, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error(`config fetch failed: ${res.status}`);
@@ -34,13 +36,22 @@ export function OfficePage() {
         return (await res.json()) as OfficeConfig;
       })
       .then((data) => {
-        setConfig(data);
-        setLoading(false);
+        if (!cancelled) {
+          setConfig(data);
+          setLoading(false);
+        }
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : String(err));
-        setLoading(false);
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+          setLoading(false);
+        }
       });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, []);
 
   if (loading) {
