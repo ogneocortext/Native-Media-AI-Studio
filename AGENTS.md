@@ -433,6 +433,30 @@ use (`run-gates.py` probes and caches its own), rediscovering which model to use
 (this table and `tools/model-reliability/roster.md`), and re-running gates that
 cannot be affected (`check-all.py --changed <files>` scopes them).
 
+### Standing skill invocation: sub-agent-orchestration
+
+Load the `sub-agent-orchestration` skill and split the work into parallel
+sub-agents ONLY when all four hold:
+1. The task divides into 2 or more parts, and no part needs another
+   part's output before it can start.
+2. No two parts edit the same file.
+3. Each part is substantial on its own: an investigation, a deliverable,
+   or a verification pass, not a lookup the main agent can finish in a
+   few steps.
+4. The split can be stated in one line per part before spawning.
+
+Do NOT split when:
+- The parts are sequential, or one part exists to fix another's output.
+- The work is one coherent change, however large. One context beats
+  four fragments.
+- Debugging a single failure chain.
+- Spawn, report, and merge would cost more than doing it directly.
+
+Free-plan caps: at most 3 sub-agents at once. Sub-agents are read-only
+scouts by default; one may write only when every file it touches is
+exclusively its own. When the conditions are borderline, run single
+and say so in one line instead of asking.
+
 ### Line endings: never flip a file's style (D82)
 
 **`Path.write_text()` on Windows silently converts every `\n` to `\r\n`.**
