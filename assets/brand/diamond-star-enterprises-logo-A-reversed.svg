@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">
+<rect width="1000" height="1000" fill="#F7F1E5"/>
+<polyline points="340,320 660,320 810,480 500,800 190,480 340,320" fill="none" stroke="#3A2270" stroke-width="15" stroke-linejoin="round"/>
+<line x1="190" y1="480" x2="810" y2="480" stroke="#3A2270" stroke-width="15" stroke-linecap="round"/>
+<line x1="340" y1="320" x2="350" y2="480" stroke="#3A2270" stroke-width="15" stroke-linecap="round"/>
+<line x1="430" y1="320" x2="350" y2="480" stroke="#3A2270" stroke-width="15" stroke-linecap="round"/>
+<line x1="430" y1="320" x2="500" y2="480" stroke="#3A2270" stroke-width="15" stroke-linecap="round"/>
+<line x1="570" y1="320" x2="500" y2="480" stroke="#3A2270" stroke-width="15" stroke-linecap="round"/>
+<line x1="570" y1="320" x2="650" y2="480" stroke="#3A2270" stroke-width="15" stroke-linecap="round"/>
+<line x1="660" y1="320" x2="650" y2="480" stroke="#3A2270" stroke-width="15" stroke-linecap="round"/>
+<line x1="350" y1="480" x2="500" y2="800" stroke="#3A2270" stroke-width="15" stroke-linecap="round"/>
+<line x1="650" y1="480" x2="500" y2="800" stroke="#3A2270" stroke-width="15" stroke-linecap="round"/>
+<path d="M 500 508 Q 515 565 555 580 Q 515 595 500 652 Q 485 595 445 580 Q 485 565 500 508 Z" fill="#E8A33D"/>
+</svg>
