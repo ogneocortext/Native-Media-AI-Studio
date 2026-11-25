@@ -48,7 +48,7 @@ _DEFAULTS: dict[str, Any] = {
         "log_file": "traffic.log",
         "capture_all": True,
         "slow_ms": 500,
-        "excluded_paths": ["/api/health", "/api/events", "/api/logs/traffic"],
+        "excluded_paths": ["/api/health", "/api/events", "/api/logs/traffic", "/api/logs/presence"],
     },
     "sentry": {"dsn": None, "environment": None},
     "analytics": {
