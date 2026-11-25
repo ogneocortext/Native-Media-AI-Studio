@@ -465,6 +465,12 @@ capture-*.cjs
 test_scan.mjs
 start-frontend.ps1
 
+# Qwen/Atomic Chat agent memory store (machine-local, never commit). The local
+# Qwen agent reads this file directly; git rm --cached keeps it on disk exactly
+# where it reads it while removing it from the public repo. Owner-approved
+# follow-up to T-PLT-58.
+memory.md
+
 # Visualizer QA capture runs: frames + video + per-mode analysis JSON, named
 # with a run-id timestamp (viz-capture-<ISO>). 225 MB of regenerable output —
 # the same class of artifact already ignored under
