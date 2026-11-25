@@ -265,6 +265,16 @@ def release_connection(conn: sqlite3.Connection) -> None:
     # see a stale 0 (which would recycle a perfectly good connection).
     _connection_created_at[id(conn)] = time.monotonic()
 
+    # Keep the query planner current: run ANALYZE on tables that would
+    # benefit, before the connection is reused or closed. Per SQLite docs,
+    # short-lived connections should run PRAGMA optimize prior to close.
+    try:
+        conn.execute("PRAGMA optimize")
+    except sqlite3.Error:
+        # optimize is a best-effort hint; never fail a connection release
+        # because of it.
+        pass
+
     if len(pool) < MAX_POOLED_CONNECTIONS:
         pool.append(conn)
         return
