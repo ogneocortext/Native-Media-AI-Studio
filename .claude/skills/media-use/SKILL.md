@@ -96,5 +96,5 @@ Rules that keep this a help, not nagware: **grounded, not generic** (no signal â
 | cut / reframe / transform existing media, exact error diffusion, HEVC     | `references/operations.md`       |
 | source-aware creative treatments, realtime effects, overlays, reveals     | `references/media-treatments.md` |
 | install + auth, provider table, RAM ladders, `--local-only`, `--provider` | `references/setup-providers.md`  |
-| remembered preferences + frozen recipes (user memory)                     | `references/memory.md`           |
+| remembered preferences + frozen recipes (user memory)                     | docs/agent-memory.md             |
 | ownership matrix, usage stats, telemetry, privacy (maintainer-facing)     | `references/meta.md`             |

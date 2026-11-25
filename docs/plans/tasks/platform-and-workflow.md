@@ -2229,8 +2229,16 @@ Rules: `docs/plans/tasks/README.md`
 - **What changed (moves via git mv):** browser_character_studio_research.md -> docs/scratch/; analyze_mcp.py, find_context.py, list_tools.py -> tools/; check-chiptune.mjs -> tools/. Zero references from other tracked files confirmed via git grep before each move.
 - **What changed (deletes):** two stale root baseline files deleted via git rm — an older root baseline artifact and a root baseline duplicate of tools/nesting-baseline.json. All references to nesting-baseline in CHANGELOG.md, check-all.py, report-nesting.py, verify-nesting-gate.py point to tools/nesting-baseline.json only.
 - **Explicitly NOT touched (in T-PLT-58 base):** cli_output.py and CLI_OUTPUT_FORMATTER.md (live shared modules imported by tests/conftest.py and tools scripts — moving would be an import refactor, out of scope).
-- **Follow-up completed (owner-approved):** memory.md untracked via `git rm --cached` (local 7185-byte file kept exactly where the Qwen/Atomic Chat agent reads it) and added to `.gitignore` so it never re-enters the public repo.
-- **Files:** docs/scratch/browser_character_studio_research.md (moved), tools/analyze_mcp.py (moved), tools/find_context.py (moved), tools/list_tools.py (moved), tools/check-chiptune.mjs (moved), two root baseline files deleted (older artifact + duplicate of tools/nesting-baseline.json), memory.md untracked + gitignored, .gitignore updated, docs/plans/tasks/platform-and-workflow.md (this entry)
+- **Follow-up completed (owner-approved):** memory.md moved from repo root to
+  `docs/agent-memory.md` (git mv, history preserved); untracked from root via
+  `git rm --cached`; removed from `.gitignore` (now tracked in docs);
+  content updated to remove false "System 1 reads / System 2 writes" claims —
+  the file is now reference documentation only, not a live memory store
+  (live memory is SQLite via `agent_memory.py` → `output/nma.db`);
+  skill file references updated from `references/memory.md` →
+  `docs/agent-memory.md` (canonical `.kilo/skills/media-use/SKILL.md` + mirrors
+  synced).
+- **Files:** docs/scratch/browser_character_studio_research.md (moved), tools/analyze_mcp.py (moved), tools/find_context.py (moved), tools/list_tools.py (moved), tools/check-chiptune.mjs (moved), two root baseline files deleted (older artifact + duplicate of tools/nesting-baseline.json), memory.md moved to docs/agent-memory.md (untracked from root), .gitignore updated, .kilo/skills/media-use/SKILL.md + mirrors updated (references/memory.md → docs/agent-memory.md), docs/plans/tasks/platform-and-workflow.md (this entry)
 - **Verification:** check-path-references.py clean; report-nesting.py runs against tools/nesting-baseline.json; git ls-files | grep -v "/" shows root free of moved files and deleted baselines; check-all.py --changed passes apart from pre-existing nuked-opn2 reference in decision-log.md.
 - **Acceptance:** satisfied — root listing free of scratch files and stale baselines; no dangling references; nesting gate unaffected.
 - **Last session:** Kilo, 2026-11-25 — landed in this commit.
