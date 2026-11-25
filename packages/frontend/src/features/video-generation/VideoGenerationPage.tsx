@@ -15,7 +15,7 @@
  * Main orchestrator — composes extracted components and delegates
  * stateful logic to custom hooks.
  */
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Film,
   Wand2,
@@ -161,34 +161,6 @@ export function VideoGenerationPage() {
 
   const { queueInfo } = useQueueStatus();
 
-  // Poll ComfyUI system stats (VRAM, GPU, RAM) every 10 seconds when online
-  const fetchComfySystemStats = useCallback(async () => {
-    if (comfyStatus !== "online") return;
-    try {
-      const stats = await getSystemStats();
-      const device = stats.devices[0];
-      const sys = stats.system;
-      setComfySystemStats({
-        gpuName: device.name,
-        vramTotalMB: device.vram_total,
-        vramFreeMB: device.vram_free,
-        vramUsedMB: device.vram_total - device.vram_free,
-        torchVramTotalMB: device.torch_vram_total,
-        torchVramFreeMB: device.torch_vram_free,
-        ramTotalGB: Math.round(sys.ram_total / 1024),
-        ramFreeGB: Math.round(sys.ram_free / 1024),
-      });
-    } catch {
-      // Ignore — stats are best-effort
-    }
-  }, [comfyStatus]);
-
-  useEffect(() => {
-    void fetchComfySystemStats();
-    const id = setInterval(() => void fetchComfySystemStats(), 10000);
-    return () => clearInterval(id);
-  }, [fetchComfySystemStats]);
-
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("blurry, low quality, distorted");
   const [selectedModel, setSelectedModel] = useState("");
@@ -222,6 +194,68 @@ export function VideoGenerationPage() {
     torchVramTotalMB?: number;
     torchVramFreeMB?: number;
   } | null>(null);
+
+  // Track document visibility so we never poll while the tab is hidden.
+  const [visible, setVisible] = useState(
+    typeof document !== "undefined" ? !document.hidden : true,
+  );
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVisibilityChange = () => setVisible(!document.hidden);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
+  // Fetch ComfyUI system stats (VRAM, GPU, RAM) once on mount.
+  // Poll at the 10s interval ONLY while a generation is active
+  // (`generating` is the page's source of truth for "queued or running")
+  // and the document is visible. One final fetch happens when the
+  // generation stops (see the effect below).
+  const fetchComfySystemStats = useCallback(async () => {
+    if (comfyStatus !== "online") return;
+    try {
+      const stats = await getSystemStats();
+      const device = stats.devices[0];
+      const sys = stats.system;
+      setComfySystemStats({
+        gpuName: device.name,
+        vramTotalMB: device.vram_total,
+        vramFreeMB: device.vram_free,
+        vramUsedMB: device.vram_total - device.vram_free,
+        torchVramTotalMB: device.torch_vram_total,
+        torchVramFreeMB: device.torch_vram_free,
+        ramTotalGB: Math.round(sys.ram_total / 1024),
+        ramFreeGB: Math.round(sys.ram_free / 1024),
+      });
+    } catch {
+      // Ignore — stats are best-effort
+    }
+  }, [comfyStatus]);
+
+  useEffect(() => {
+    // Initial readout on mount (and whenever ComfyUI comes online).
+    void fetchComfySystemStats();
+
+    // Interval polling only while a generation is active and visible.
+    if (!generating || !visible) return;
+
+    const id = setInterval(() => void fetchComfySystemStats(), 10000);
+    return () => clearInterval(id);
+  }, [fetchComfySystemStats, generating, visible]);
+
+  // One final stats fetch when a generation stops so the display reflects
+  // the post-generation state. Polling has already been torn down by the
+  // effect above.
+  const prevGenerating = useRef(generating);
+  useEffect(() => {
+    const wasGenerating = prevGenerating.current;
+    prevGenerating.current = generating;
+    if (wasGenerating && !generating && comfyStatus === "online") {
+      void fetchComfySystemStats();
+    }
+  }, [generating, comfyStatus, fetchComfySystemStats]);
 
   // Auto-select first 8GB-safe video model on load
   useEffect(() => {
