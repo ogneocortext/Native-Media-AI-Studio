@@ -166,19 +166,17 @@ export function VideoGenerationPage() {
     if (comfyStatus !== "online") return;
     try {
       const stats = await getSystemStats();
-      const device = stats.devices?.[0];
+      const device = stats.devices[0];
       const sys = stats.system;
       setComfySystemStats({
-        gpuName: device?.name,
-        vramTotalMB: device?.vram_total,
-        vramFreeMB: device?.vram_free,
-        vramUsedMB: device?.vram_total && device?.vram_free
-          ? device.vram_total - device.vram_free
-          : undefined,
-        torchVramTotalMB: device?.torch_vram_total,
-        torchVramFreeMB: device?.torch_vram_free,
-        ramTotalGB: sys?.ram_total ? Math.round(sys.ram_total / 1024) : undefined,
-        ramFreeGB: sys?.ram_free ? Math.round(sys.ram_free / 1024) : undefined,
+        gpuName: device.name,
+        vramTotalMB: device.vram_total,
+        vramFreeMB: device.vram_free,
+        vramUsedMB: device.vram_total - device.vram_free,
+        torchVramTotalMB: device.torch_vram_total,
+        torchVramFreeMB: device.torch_vram_free,
+        ramTotalGB: Math.round(sys.ram_total / 1024),
+        ramFreeGB: Math.round(sys.ram_free / 1024),
       });
     } catch {
       // Ignore — stats are best-effort
