@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added - Backend single-instance guard: duplicate processes can no longer share :8004
+- **`_enforce_single_instance()` runs first in `lifespan()`** — uvicorn binds sockets only after lifespan startup, so a positive probe there can only mean another instance owns the port. `main()`'s sticky-port guard never ran for `python -m uvicorn app.main:app` (what the watchfiles launchers use), and Windows `SO_REUSEADDR` let two backends bind :8004 simultaneously — requests split across instances with divergent adapter state (observed 2026-11-25: duplicate stacks → music-gen 503s).
+- **Two layers:** a per-port named mutex (`Global\NMA-Backend-<port>`, `CreateMutexW`) — atomic, catches simultaneous launches, auto-released on exit/crash; plus the existing `is_service_running` health probe with a 10 s grace window covering watchfiles restart races. Legacy instances predating the mutex are still caught by the probe.
+- Opt-outs: `NMA_SINGLE_INSTANCE=0`, and automatic skip under pytest (TestClient enters lifespan in-process while a dev backend may legitimately hold the port).
+- Verified: manual `uvicorn app.main:app --port 8004` against the live backend logged CRITICAL and exited without binding; a legitimate watchfiles reload passed after the grace window; `test_voice_inbox`/`test_office` 19/19.
+
 ### Fixed - Music generation: ACE-Step pass-through params, instrumental mode, progress polling; adapter adoption bugs
 - **`POST /api/music-gen/generate` 503'd on a healthy service after any backend reload.** `adapter.is_running` only tracked the instance-local `Popen` handle, so a watchfiles restart (or a second backend worker) orphaned it while the detached subprocess kept serving — the API refused with "Service not running" while `/health` answered 200. `is_running` now falls back to a fast TCP probe of the service port, matching its own docstring; `GET /status` reports the adopted service (`running:true, pid:null`) and `/progress` works again.
 - **`start_service` only adopted an external service when `loaded:true`** — an idle-but-healthy service failed the check and a duplicate subprocess was spawned, dying on `WinError 10048` (port already bound). Adoption now happens on any 200 `/health`.

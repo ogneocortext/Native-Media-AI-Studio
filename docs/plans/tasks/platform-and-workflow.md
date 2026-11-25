@@ -2242,3 +2242,13 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** check-path-references.py clean; report-nesting.py runs against tools/nesting-baseline.json; git ls-files | grep -v "/" shows root free of moved files and deleted baselines; check-all.py --changed passes apart from pre-existing nuked-opn2 reference in decision-log.md.
 - **Acceptance:** satisfied — root listing free of scratch files and stale baselines; no dangling references; nesting gate unaffected.
 - **Last session:** Kilo, 2026-11-25 — landed in this commit.
+
+### T-PLT-59 — Backend single-instance guard: named mutex + health probe in lifespan
+
+- **Status:** done
+- **Goal:** Stop duplicate backend processes from binding :8004. `main()`'s sticky-port guard only runs on the `python -m app.main` path; `python -m uvicorn app.main:app` (what the watchfiles launchers run) bypassed it, and Windows SO_REUSEADDR let two uvicorns bind the same port — requests split across instances with divergent adapter state (observed 2026-11-25: two backend stacks, music-gen 503s on the instance that never started the service).
+- **What changed:** `_enforce_single_instance()` runs first in `lifespan()` (uvicorn binds sockets only after lifespan startup, so a positive probe can only mean another instance owns the port). Two layers: (1) per-port named mutex `Global\NMA-Backend-<port>` via CreateMutexW — atomic, catches simultaneous launches, auto-released by the OS on exit/crash (no stale state); (2) `port_manager.is_service_running` HTTP probe with a 10 s grace window covering the watchfiles restart race. Skipped under pytest (`"pytest" in sys.modules` — TestClient enters lifespan in-process while a dev backend may legitimately hold the port) and via `NMA_SINGLE_INSTANCE=0`. Duplicate exits with a CRITICAL log + SystemExit(1) before binding.
+- **Files:** packages/backend/app/main.py
+- **Verification:** ruff clean; live duplicate test — `uvicorn app.main:app --port 8004` while the dev backend ran logged "Another backend instance already holds the single-instance lock" and exited without binding; legitimate watchfiles reload passed the guard after the grace window; `pytest tests/test_voice_inbox.py tests/test_office.py` 19/19 (TestClient path unaffected).
+- **Acceptance:** satisfied — a second `uvicorn app.main:app` on :8004 can no longer serve alongside the real backend.
+- **Last session:** Devin, 2026-11-25 — landed in this commit.

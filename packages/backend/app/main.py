@@ -228,6 +228,90 @@ async def _ensure_backend_port_free(port: int) -> None:
         logger.info("Backend port %d is now free", port)
 
 
+# Held for the process lifetime so the OS releases it on exit/crash.
+_single_instance_mutex = None
+
+
+def _acquire_single_instance_mutex(port: int) -> bool:
+    """Take the per-port named mutex that serializes backend instances.
+
+    ``main()``'s sticky-port guard only runs on the ``python -m app.main``
+    path; ``python -m uvicorn app.main:app`` (what the watchfiles
+    launchers run) bypasses it, and Windows ``SO_REUSEADDR`` lets two
+    processes bind :8004 at once — requests then split across instances
+    with divergent adapter state (observed 2026-11-25: duplicate backend
+    stacks -> music-gen 503s). A named mutex is atomic, so it also catches
+    two instances launched at the same instant, which a port probe cannot.
+
+    Returns True when this process owns the mutex, False when another
+    live backend already does. Non-Windows falls through to the HTTP
+    probe in ``_enforce_single_instance``.
+    """
+    global _single_instance_mutex
+    if sys.platform != "win32":
+        return True
+    import ctypes
+
+    kernel32 = ctypes.windll.kernel32
+    # Keep the handle referenced for the process lifetime; the OS releases
+    # it automatically on exit or crash, so there is no stale-lock state.
+    initial_owner = False  # we only need the named token, not ownership
+    handle = kernel32.CreateMutexW(None, initial_owner, f"Global\\NMA-Backend-{port}")
+    if not handle:
+        return True  # cannot determine -- do not block startup
+    if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        kernel32.CloseHandle(handle)
+        return False
+    _single_instance_mutex = handle
+    return True
+
+
+async def _enforce_single_instance() -> None:
+    """Refuse to serve when another backend already owns our port.
+
+    Uvicorn runs ``lifespan`` before binding sockets, so a positive
+    ``is_service_running`` probe here can only mean *another* instance is
+    already serving. The named mutex catches simultaneous launches; the
+    probe additionally catches legacy instances started before the mutex
+    existed. A short grace period covers the watchfiles restart race
+    (old worker still draining while its replacement starts).
+
+    Skipped under pytest (TestClient enters this lifespan in-process while
+    a dev backend may legitimately hold the port) and via
+    ``NMA_SINGLE_INSTANCE=0``.
+    """
+    if os.environ.get("NMA_SINGLE_INSTANCE") == "0" or "pytest" in sys.modules:
+        return
+
+    port_config = port_manager.get_resolved_config()
+    port = (port_config or {}).get("backend_port") or config.backend_port
+
+    if not _acquire_single_instance_mutex(port):
+        logger.critical(
+            "Another backend instance already holds the single-instance "
+            "lock for port %d; refusing to start a duplicate "
+            "(override with NMA_SINGLE_INSTANCE=0).",
+            port,
+        )
+        raise SystemExit(1)
+
+    # Wait out the restart race: if the incumbent disappears within the
+    # grace window this process is the legitimate replacement.
+    import time as _time
+
+    deadline = _time.monotonic() + 10.0
+    while await port_manager.is_service_running("backend", port):
+        if _time.monotonic() >= deadline:
+            logger.critical(
+                "A backend is already serving port %d and did not release "
+                "within the grace period; refusing to start a duplicate "
+                "(override with NMA_SINGLE_INSTANCE=0).",
+                port,
+            )
+            raise SystemExit(1)
+        await asyncio.sleep(0.5)
+
+
 # NOTE: Port cleanup is intentionally deferred to `main()` / `lifespan()`
 # so importing this module does not perform network I/O or mutate system state.
 # This keeps test imports and `python -c "import app.main"` side-effect free.
@@ -518,6 +602,11 @@ async def _cancel_background_tasks():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Native Media AI Studio...")
+
+    # Single-instance guard: runs before any bind or side effects so a
+    # duplicate launch (e.g. `uvicorn app.main:app` bypassing main()'s
+    # sticky-port check) exits instead of serving alongside the real one.
+    await _enforce_single_instance()
 
     # Initialize SQLite database
     try:
