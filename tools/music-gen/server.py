@@ -51,7 +51,7 @@ from acestep.inference import create_sample, format_sample
 from acestep.llm_inference import LLMHandler
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 logging.basicConfig(
     level=logging.INFO,
@@ -88,11 +88,21 @@ def _validate_output_name(name: str) -> str:
 class SongRequest(BaseModel):
     style: str = Field(..., min_length=1, max_length=2000,
                        description="Genre, instruments, mood, tempo, vocal type")
-    lyrics: str = Field(..., min_length=1, max_length=10000,
-                        description="Full lyrics with [Verse]/[Chorus]/[Bridge] tags")
+    lyrics: str = Field("", max_length=10000,
+                        description="Full lyrics with [Verse]/[Chorus]/[Bridge] tags; "
+                                    "empty allowed only when instrumental=true")
+    instrumental: bool = Field(default=False, description="Generate instrumental (no vocals)")
     seed: int | None = Field(None, description="Deterministic seed")
     cfg_scale: float = Field(7.0, ge=0.5, le=20.0, description="Classifier-free guidance")
     inference_steps: int = Field(8, ge=1, le=200, description="Diffusion steps")
+    audio_duration: float | None = Field(None, ge=10, le=600,
+                                         description="Target audio length in seconds")
+    bpm: int | None = Field(None, ge=30, le=300, description="Beats per minute")
+    key_scale: str = Field("", max_length=64, description="Musical key, e.g. 'C Major', 'Am'")
+    time_signature: str = Field("", max_length=16,
+                                description="Time signature, e.g. '4/4', '3/4', '6/8'")
+    vocal_language: str = Field("en", max_length=16,
+                                description="ISO 639-1 vocal language code")
     output_name: str | None = Field(None, description="Custom output filename")
 
     @field_validator("output_name")
@@ -104,6 +114,12 @@ class SongRequest(BaseModel):
                 "starting with a letter or digit"
             )
         return v
+
+    @model_validator(mode="after")
+    def _check_lyrics_or_instrumental(self):
+        if not self.instrumental and not self.lyrics.strip():
+            raise ValueError("lyrics is required unless instrumental=true")
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +181,12 @@ class ACEngine:
                 use_flash_attention=False,
                 compile_model=False,
                 offload_to_cpu=True,
-                offload_dit_to_cpu=True,
+                # int8_weight_only produces AffineQuantizedTensors whose
+                # param-by-param CPU offload hard-crashes c10.dll on Pascal
+                # (sm_61) -- keep the DiT resident on GPU instead.
+                offload_dit_to_cpu=os.environ.get(
+                    "ACESTEP_OFFLOAD_DIT_TO_CPU", "0"
+                ).lower() in ("1", "true", "yes"),
                 quantization="int8_weight_only",
             )
             # Pre-Ampere GPUs (Pascal sm_61) default to float16 inside ACE-Step,
@@ -176,6 +197,20 @@ class ACEngine:
                 if ok and hasattr(self.handler, "dtype"):
                     self.handler.dtype = torch.float32
                     logger.info("ACE-Step: Override dtype -> float32 for Pascal stability")
+                    # With offload_dit_to_cpu=False the DiT stays resident, so the
+                    # per-generation _load_model_context dtype cast never runs.
+                    # Cast the resident model once here (handles AffineQuantized
+                    # tensors) or prepare_condition feeds fp32 inputs into fp16
+                    # weights -> "expected mat1 and mat2 to have the same dtype".
+                    model = getattr(self.handler, "model", None)
+                    if model is not None:
+                        dev = getattr(self.handler, "device", None) or "cuda"
+                        self.handler._recursive_to_device(model, dev, torch.float32)
+                        if hasattr(self.handler, "silence_latent"):
+                            self.handler.silence_latent = (
+                                self.handler.silence_latent.to(dev).to(torch.float32)
+                            )
+                        logger.info("ACE-Step: Cast resident DiT to float32")
                 # Workaround: some model configs may expose tensor flags where bool is expected.
                 if ok and hasattr(self.handler, "config"):
                     cfg = self.handler.config
@@ -248,15 +283,30 @@ class ACEngine:
             raise HTTPException(400, "output_name escapes the output directory")
         out_path.mkdir(parents=True, exist_ok=True)
 
+        # ACE-Step convention: instrumental tracks carry the "[Instrumental]"
+        # lyrics tag (the generate_music API has no separate vocal flag).
+        lyrics = "[Instrumental]" if req.instrumental else req.lyrics
+
+        def _report_progress(ratio: float, desc: str = "") -> None:
+            _GENERATION_PROGRESS.update(
+                {"ratio": float(ratio), "desc": str(desc), "active": True}
+            )
+
         def _gen():
             result = self.handler.generate_music(
                 captions=req.style,
-                lyrics=req.lyrics,
+                lyrics=lyrics,
+                bpm=req.bpm,
+                key_scale=req.key_scale or "",
+                time_signature=req.time_signature or "",
+                vocal_language=req.vocal_language or "en",
+                audio_duration=req.audio_duration,
                 inference_steps=req.inference_steps,
                 guidance_scale=req.cfg_scale,
                 seed=seed,
                 task_type="text2music",
                 use_tiled_decode=True,
+                progress=_report_progress,
             )
             # Extract audio tensor
             audio = result.get("audio") or result.get("pred_wavs") or result.get("audios")
@@ -333,9 +383,17 @@ class ACEngine:
                 "sample_rate": sample_rate,
             }
 
-        result = await asyncio.to_thread(_gen)
+        _GENERATION_PROGRESS.update(
+            {"active": True, "ratio": 0.0, "desc": "Starting...", "output_name": output_name}
+        )
+        try:
+            result = await asyncio.to_thread(_gen)
+        finally:
+            _GENERATION_PROGRESS["active"] = False
         result["output_name"] = output_name
         result["engine"] = "ace"
+        _GENERATION_PROGRESS["ratio"] = 1.0
+        _GENERATION_PROGRESS["desc"] = "Done"
         return result
 
 
@@ -345,6 +403,16 @@ class ACEngine:
 
 _engines: dict[str, Any] = {}
 _active_engine: str = ""
+
+# Latest diffusion progress reported by generate_music's progress callback.
+# Written from the worker thread inside _gen(); read by GET /progress.
+_GENERATION_PROGRESS: dict[str, Any] = {
+    "active": False,
+    "ratio": 0.0,
+    "desc": "",
+    "output_name": None,
+    "seed": None,
+}
 
 
 @asynccontextmanager
@@ -564,6 +632,11 @@ def create_app(engine_type: str = "ace",
                 "fallback": True,
                 "error": str(e),
             }
+
+    @app.get("/progress")
+    async def generation_progress():
+        """Latest diffusion progress for the in-flight (or last) generation."""
+        return dict(_GENERATION_PROGRESS)
 
     @app.post("/unload")
     async def unload():

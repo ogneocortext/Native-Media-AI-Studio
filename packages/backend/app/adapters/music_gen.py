@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -194,16 +195,15 @@ class MusicGenAdapter(BaseAdapter):
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    if data.get("loaded", False):
-                        self._ready = True
-                        self.set_status(AdapterStatus.CONNECTED)
-                        logger.info(
-                            "Music-gen service already reachable on %s (loaded=%s, model=%s)",
-                            self.base_url,
-                            data.get("loaded"),
-                            data.get("model"),
-                        )
-                        return True
+                    self._ready = True
+                    self.set_status(AdapterStatus.CONNECTED)
+                    logger.info(
+                        "Music-gen service already reachable on %s (loaded=%s, model=%s)",
+                        self.base_url,
+                        data.get("loaded"),
+                        data.get("model"),
+                    )
+                    return True
         except Exception:
             pass  # Service not reachable, proceed to start it
 
@@ -473,7 +473,16 @@ class MusicGenAdapter(BaseAdapter):
         externally reachable on the port."""
         if self._process is not None and self._process.poll() is None:
             return True
-        return self._ready
+        if self._ready:
+            return True
+        # A backend reload orphans the Popen handle while the detached
+        # subprocess keeps serving; a live listener on our port means the
+        # service is usable even though this adapter didn't spawn it.
+        try:
+            with socket.create_connection(("127.0.0.1", self.port), timeout=0.3):
+                return True
+        except OSError:
+            return False
 
     @property
     def pid(self) -> int | None:

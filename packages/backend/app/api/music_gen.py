@@ -20,7 +20,7 @@ from typing import Any
 import aiohttp
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..adapters.music_gen import (
     VRAM_BUDGETS,
@@ -207,14 +207,22 @@ class GenerateRequest(BaseModel):
         description="Genre, instruments, mood, tempo, vocal type",
     )
     lyrics: str = Field(
-        ...,
-        min_length=1,
+        "",
         max_length=10000,
-        description="Full lyrics with [Verse]/[Chorus]/[Bridge] tags",
+        description="Full lyrics with [Verse]/[Chorus]/[Bridge] tags; "
+        "empty allowed only when instrumental=true",
     )
+    instrumental: bool = Field(default=False, description="Generate instrumental (no vocals)")
     seed: int | None = Field(None, description="Deterministic seed")
     cfg_scale: float = Field(7.0, ge=0.5, le=20.0, description="Classifier-free guidance")
     inference_steps: int = Field(8, ge=1, le=200, description="Diffusion steps")
+    audio_duration: float | None = Field(
+        None, ge=10, le=600, description="Target audio length in seconds"
+    )
+    bpm: int | None = Field(None, ge=30, le=300, description="Beats per minute")
+    key_scale: str = Field("", max_length=64, description="Musical key, e.g. 'C Major', 'Am'")
+    time_signature: str = Field("", max_length=16, description="Time signature, e.g. '4/4'")
+    vocal_language: str = Field("en", max_length=16, description="ISO 639-1 vocal language code")
     output_name: str | None = Field(None, description="Custom output filename")
     display_name: str | None = Field(None, description="Human-friendly display name")
 
@@ -228,6 +236,12 @@ class GenerateRequest(BaseModel):
             )
         return v
 
+    @model_validator(mode="after")
+    def _check_lyrics_or_instrumental(self):
+        if not self.instrumental and not self.lyrics.strip():
+            raise ValueError("lyrics is required unless instrumental=true")
+        return self
+
 
 # ---------------------------------------------------------------------------
 # Service management endpoints
@@ -239,12 +253,30 @@ async def get_status() -> dict[str, Any]:
     """Get status of the music generation service."""
     adapter = get_music_gen_adapter("ace")
     healthy = False
+    loaded = False
+    model = ""
     if adapter.is_running:
         healthy = await adapter.health_check()
+        # health_check() is an HTTP-200 probe; the subprocess /health payload
+        # carries the real model state (loaded only after first generate/load).
+        try:
+            session = await _get_shared_session()
+            async with session.get(
+                f"{adapter.base_url}/health",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    loaded = bool(data.get("loaded"))
+                    model = str(data.get("model") or "")
+        except Exception:
+            pass
     adapters = {
         "ace": {
             "running": adapter.is_running,
             "healthy": healthy,
+            "loaded": loaded,
+            "model": model,
             "port": adapter.port,
             "pid": adapter.pid,
         }
@@ -315,6 +347,25 @@ async def start_service(req: StartServiceRequest) -> dict[str, Any]:
         raise
 
 
+@router.get("/progress")
+async def get_progress() -> dict[str, Any]:
+    """Proxy the subprocess's latest diffusion progress for /generate."""
+    adapter = get_music_gen_adapter("ace")
+    if not adapter.is_running:
+        return {"active": False, "ratio": 0.0, "desc": "", "output_name": None}
+    try:
+        session = await _get_shared_session()
+        async with session.get(
+            f"{adapter.base_url}/progress",
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            if resp.status == 200:
+                return await resp.json()
+    except Exception:
+        pass
+    return {"active": False, "ratio": 0.0, "desc": "", "output_name": None}
+
+
 @router.post("/stop")
 async def stop_service(engine: str = "ace") -> dict[str, Any]:
     """Stop the music generation service."""
@@ -363,9 +414,15 @@ async def generate(req: GenerateRequest) -> dict[str, Any]:
                 {
                     "style": req.style,
                     "lyrics": req.lyrics,
+                    "instrumental": req.instrumental,
                     "seed": req.seed,
                     "cfg_scale": req.cfg_scale,
                     "inference_steps": req.inference_steps,
+                    "audio_duration": req.audio_duration,
+                    "bpm": req.bpm,
+                    "key_scale": req.key_scale,
+                    "time_signature": req.time_signature,
+                    "vocal_language": req.vocal_language,
                     "output_name": output_name,
                 }
             )
