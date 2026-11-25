@@ -1,6 +1,6 @@
 # API Reference
 
-> **Base URL:** `http://127.0.0.1:8000` (see `config/ports.json` for current port)
+> **Base URL:** `http://127.0.0.1:8004` (see `config/ports.json` for current port)
 > **Last Updated:** 2026-09-26 (worker lifecycle, Vite 8.3.1, TypeScript check command)
 > **Freshness note (2026-11-05):** this reference predates several API
 > surfaces added since — remix jobs (`/api/audio/remix/*`), Remotion
@@ -442,12 +442,12 @@ Generates a 3D model from text prompt using Hunyuan3D-2mini. Returns `{success, 
 ### Connect
 
 ```
-GET http://127.0.0.1:8000/api/events
+GET http://127.0.0.1:8004/api/events
 Accept: text/event-stream
 # Browser: const es = new EventSource('/api/events'); es.onmessage = (e) => { JSON.parse(e.data) }
 ```
 
-Legacy `ws://127.0.0.1:8000/ws` returns `426 Upgrade Required` (compat shim for old clients) — use SSE `events_url`/`sse_url` from `config/ports.json`. Vite proxy `/ws` entry is legacy compat.
+Legacy `ws://127.0.0.1:8004/ws` returns `426 Upgrade Required` (compat shim for old clients) — use SSE `events_url`/`sse_url` from `config/ports.json`. Vite proxy `/ws` entry is legacy compat.
 
 ### Event types received
 
@@ -601,7 +601,7 @@ GET  /api/health/ping
 
 ```json
 {
-  "backend": { "status": "ok", "port": 8000 },
+  "backend": { "status": "ok", "port": 8004 },
   "frontend": { "status": "ok", "port": 5173 },
   "comfyui": { "status": "ok", "port": 8188 },
   "unity": { "status": "ok", "port": 7800 },

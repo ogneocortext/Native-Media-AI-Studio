@@ -267,6 +267,22 @@ packages/backend/app/
 | `/api/integrations/ollama/chat`     | POST   | Chat with tool calling |
 | `/api/integrations/ollama/generate` | POST   | Legacy text generation |
 
+Model routing, embeddings, and agent helpers (verified against OpenAPI 2026-11-25):
+
+| Route                                    | Method | Description                              |
+| ---------------------------------------- | ------ | ---------------------------------------- |
+| `/api/integrations/models/unified`       | GET    | Unified model list across providers      |
+| `/api/integrations/models/task-routes`   | GET    | Per-task model routing                   |
+| `/api/integrations/models/status`        | GET    | Model service status                     |
+| `/api/integrations/ollama/embed`         | POST   | Embeddings (`nomic-embed-text` primary)  |
+| `/api/integrations/ollama/loop`          | POST   | Agent loop execution                     |
+| `/api/integrations/ollama/search`        | POST   | Retrieval search (BM25 + vector + rerank)|
+| `/api/integrations/ollama/tools`         | GET    | Available tool definitions               |
+| `/api/integrations/ollama/benchmark/*`   | GET/POST | Generation benchmark run/results/best  |
+| `/api/integrations/ollama/coding-benchmark/*` | GET/POST | Coding benchmark run/results/best  |
+| `/api/integrations/ollama/visualizer*`   | GET/POST/DELETE | Visualizer preset management      |
+| `/api/integrations/ollama/scene-*`       | GET/POST | 3D scene state helpers                 |
+
 ### Chat Request Format
 
 ```json

@@ -50,7 +50,7 @@ JTBDs are stated as the problem the user brings to the screen.
 | `/` Dashboard | Dashboard (Home) | Get oriented: see recent outputs and pick up where I left off | Resume work, launch a flow | **Multi-job** — overview + output management (recent videos, with delete) + feature launcher grid (P1's diagnosis) |
 | `/music-video-wizard` | Music Video (Create) | Turn one track into a finished music video end-to-end | A rendered music video | — flagship flow |
 | `/audio-analysis` | Audio Analysis (Create) | Analyze a track (tempo, key, energy, suggested visual) — and finish it (mastering) | An analysis record; a mastered file | **Two jobs, one door** — understand a track / finish a track; both start from a track, so the pairing is defensible — monitor, don't split (see C5) |
-| `/visualizer` | Visualizer (Create) | Watch a track as a live visual and tune the look (modes, stem mixer, remix panel) | A look worth rendering | Stage + workshop in one; also the preview surface other flows borrow |
+| `/visualizer` | Visualizer (Create) | Watch a track as a live visual and tune the look (modes, stem mixer; remixing hands off to `/create/remix`) | A look worth rendering | Stage + workshop in one; also the preview surface other flows borrow |
 | `/three-js-studio` | Three.js Studio (Create) | Build and render 3D shader scenes | A rendered 3D scene/clip | Q1's primary 3D path |
 | `/kinetic-typography` | Kinetic Type (Create) | Make lyric-driven kinetic typography videos | A typography clip | — |
 | `/hyperframes` | HyperFrames (Create) | Compose and render HTML-based video compositions | A rendered composition | Receives compiled storyboards (§Orphans 4) |

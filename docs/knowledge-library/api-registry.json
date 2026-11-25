@@ -1,7 +1,7 @@
 {
   "title": "API Registry — Endpoint Schemas",
-  "version": "2026-09-05",
-  "base_url": "http://localhost:8000",
+  "version": "2026-11-25",
+  "base_url": "http://localhost:8004",
   "description": "Complete API endpoint registry with request/response schemas for AI agents. Use this to make correct API calls without reading source code.",
   "quick_reference": {
     "full_pipeline": [
@@ -223,18 +223,6 @@
             "model": "list[OutputFile]"
           }
         },
-        "GET /api/outputs/duplicates/groups": {
-          "description": "Find duplicate file groups by SHA256 hash",
-          "request": {
-            "query": {
-              "quick": "bool (default true)",
-              "limit": "int (default 50)"
-            }
-          },
-          "response": {
-            "model": "list[dict] — groups of duplicate files"
-          }
-        },
         "GET /api/outputs/{file_type}": {
           "description": "List outputs by type (audio/video/image)",
           "request": {
@@ -307,7 +295,7 @@
             "status": 201
           }
         },
-        "GET /api/jobs/": {
+        "GET /api/jobs": {
           "description": "List all jobs, optionally filter by status",
           "request": {
             "query": {
@@ -1016,21 +1004,23 @@
         }
       }
     },
-    "/api/transcription": {
+    "/api/audio/transcript": {
       "tags": [
         "Transcription"
       ],
+      "note": "Router mounts under /api/audio (api/transcription.py), not /api/transcription.",
       "endpoints": {
-        "POST /api/transcription/transcribe": {
+        "POST /api/audio/transcribe": {
           "description": "Whisper/WhisperX transcription -> LRC + word-level timestamps",
           "request": {
-            "content_type": "multipart/form-data"
+            "content_type": "application/json",
+            "model": "TranscriptionRequest {filename, language?, model_size?}"
           },
           "response": {
             "model": "dict"
           }
         },
-        "GET /api/transcription/transcript/lrc/{filename:path}": {
+        "GET /api/audio/transcript/lrc/{filename:path}": {
           "description": "Get LRC lyrics",
           "request": {
             "path": {
@@ -1041,7 +1031,7 @@
             "model": "str (LRC text)"
           }
         },
-        "GET /api/transcription/transcript/lrc-word/{filename:path}": {
+        "GET /api/audio/transcript/lrc-word/{filename:path}": {
           "description": "Get word-level LRC",
           "request": {
             "path": {
@@ -1052,7 +1042,7 @@
             "model": "dict"
           }
         },
-        "GET /api/transcription/transcript/{filename:path}": {
+        "GET /api/audio/transcript/{filename:path}": {
           "description": "Get raw transcript JSON",
           "request": {
             "path": {
@@ -1109,42 +1099,6 @@
           "request": {
             "content_type": "multipart/form-data"
           },
-          "response": {
-            "model": "dict"
-          }
-        }
-      }
-    },
-    "/api/comfyui": {
-      "tags": [
-        "ComfyUI"
-      ],
-      "endpoints": {
-        "GET /api/comfyui/status": {
-          "description": "ComfyUI process status",
-          "response": {
-            "model": "dict"
-          }
-        },
-        "POST /api/comfyui/start": {
-          "description": "Start ComfyUI",
-          "request": {
-            "query": {
-              "port": "int (default 8188)"
-            }
-          },
-          "response": {
-            "model": "dict"
-          }
-        },
-        "POST /api/comfyui/stop": {
-          "description": "Stop ComfyUI",
-          "response": {
-            "model": "dict"
-          }
-        },
-        "POST /api/comfyui/restart": {
-          "description": "Restart ComfyUI",
           "response": {
             "model": "dict"
           }

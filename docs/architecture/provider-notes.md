@@ -210,7 +210,8 @@ not a candidate.
   now **validates `tools` against the model's advertised capabilities**
   and answers HTTP 400 `<model> does not support tools` instead of
   silently dropping the definitions. The backend already gates this
-  (`ollama_adapter._supports_tools`), but any new standalone caller must
+  (`ollama_models._supports_tools`, capability-based since 2026-11-25),
+  but any new standalone caller must
   check `capabilities` first — this is a hard error now, not a no-op.
   (b) Tool-parameter JSON-Schema keywords Ollama does not model
   (`minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`,

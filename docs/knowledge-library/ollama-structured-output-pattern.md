@@ -12,7 +12,7 @@ type: entity
 
 # Ollama Structured Output Pattern - think:false + Client-Side Validation
 
-**Version**: Ollama 0.40.10  
+**Version**: Ollama 0.40.10 (pattern re-checked against 0.40.18 on 2026-11-25 — `think`/`format` handling unchanged; the client-side validation requirement still stands)  
 **Date**: 2026-10-24  
 **Status**: Partially implemented — `validate_ollama_json_response()` and the prompt templates exist; the `maybe_validate_and_retry()` / `run_with_ollama_structured_output()` wrappers described below were **never added** (verified 2026-11-05). Compose the pattern manually as shown.
 
