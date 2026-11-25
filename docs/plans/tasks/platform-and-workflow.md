@@ -2211,3 +2211,13 @@ Rules: `docs/plans/tasks/README.md`
 - **Acceptance:** satisfied — output_path populated from the
   authoritative result at completion.
 - **Last session:** Devin, 2026-11-24 — landed in this commit.
+
+### T-PLT-57 — Sidebar brand: Signal Mark + one-line wordmark
+
+- **Status:** done
+- **Goal:** Replace the old animated BrandMark SVG with the owner-approved Signal Mark logo image in the sidebar brand header; declutter the two-line name + tagline block into a single-line title.
+- **Plan:** Swap `<BrandMark size={20} />` for `` at `/brand/logo-signal-mark-gradient.png`; remove the tagline line; delete `BrandMark.tsx` (Sidebar.tsx was its only consumer); strip `.sidebar-logo` gradient background, glow box-shadow, and border; remove `.sidebar-logo-animated` rule and `brand-eq` keyframes / `.brand-eq-bar` rules; keep `.sidebar-title` white-space: nowrap on the one-line name.
+- **Files:** packages/frontend/src/components/layout/Sidebar.tsx, packages/frontend/src/styles/sidebar.css; BrandMark.tsx deleted (Sidebar.tsx was its only consumer)
+- **Verification:** tsc --noEmit clean; eslint 0 errors on Sidebar.tsx; GET /brand/logo-signal-mark-gradient.png returns 200; mark crisp (not stretched), title one line, no "2026 Pipeline" text anywhere.
+- **Acceptance:** satisfied — mark renders crisply, title is "Native Media AI Studio" on one line, no "2026 Pipeline" text anywhere, BrandMark component and its keyframes removed.
+- **Last session:** Kilo, 2026-11-25 — landed in this commit.

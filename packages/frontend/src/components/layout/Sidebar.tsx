@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { BrandMark } from "./BrandMark";
+
 import { useHealthStore } from "../../state/healthStore";
 import { useNsfwStore } from "../../state/nsfwStore";
 import { useUIStore } from "../../state/uiStore";
@@ -665,13 +665,12 @@ export function Sidebar() {
               className={`sidebar-brand${collapsed && !isMobile ? " sidebar-brand-centered" : ""}`}
               title="Native Media AI Studio — home"
             >
-              <span className="sidebar-logo sidebar-logo-animated" aria-hidden>
-                <BrandMark size={20} />
+              <span className="sidebar-logo" aria-hidden>
+                <img src="/brand/logo-signal-mark-gradient.png" alt="" className="sidebar-logo-img" />
               </span>
               {showText && (
                 <span className="sidebar-brand-text">
-                  <span className="sidebar-title">Native Media AI</span>
-                  <span className="sidebar-tagline">Studio · 2026 Pipeline</span>
+                  <span className="sidebar-title">Native Media AI Studio</span>
                 </span>
               )}
             </Link>

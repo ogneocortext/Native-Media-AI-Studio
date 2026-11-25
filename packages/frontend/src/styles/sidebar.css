@@ -66,42 +66,21 @@
   inline-size: 38px;
   block-size: 38px;
   border-radius: 12px;
-  background: linear-gradient(135deg in oklch, var(--color-primary), var(--color-accent));
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow:
-    0 4px 14px var(--glow-primary),
-    inset 0 1px 0 oklch(100% 0 0 / 0.25);
-  border: 1px solid oklch(100% 0 0 / 0.12);
+  overflow: hidden;
 }
 
-/* Ambient brand motion: slow gradient drift on the tile... */
-.sidebar-logo-animated {
-  background-size: 200% 200%;
-  animation: gradient-shift 7s ease-in-out infinite;
+.sidebar-logo-img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  display: block;
 }
 
-/* ...plus gently breathing equalizer bars (staggered via inline delay).
-   transform-box: fill-box makes each bar scale around its own center. */
-@keyframes brand-eq {
-  0%,
-  100% {
-    transform: scaleY(0.35);
-  }
-  50% {
-    transform: scaleY(1);
-  }
-}
-
-.brand-eq-bar {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: brand-eq 2.2s ease-in-out infinite;
-}
-
-/* Brand lockup — logo + two-line wordmark, links home */
+/* Brand lockup — logo + wordmark, links home */
 .sidebar-brand {
   display: flex;
   align-items: center;
