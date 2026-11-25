@@ -9,6 +9,7 @@
 #   .\comfyui-safe-update.ps1 -Rollback
 #   .\comfyui-safe-update.ps1 -DryRun
 #   .\comfyui-safe-update.ps1 -KeepBackups 10
+#   .\comfyui-safe-update.ps1 -SkipVersionCheck   # Skip pinned-version drift check
 
 param(
     [switch]$Rollback,
@@ -16,6 +17,7 @@ param(
     [switch]$DryRun,
     [switch]$ContinueOnPatchError,
     [switch]$SkipBackup,
+    [switch]$SkipVersionCheck,
     [switch]$Force,
     [int]$KeepBackups = 5,
     [string]$ComfyUIPath = 'D:\Backup of Important Data for Windows 11 Upgrade\ComfyUI',
@@ -36,6 +38,81 @@ function Test-ComfyUI {
     if (-not (Test-Path "$ComfyUIPath\.git")) {
         Write-Fail "ComfyUI is not a git checkout at: $ComfyUIPath"
         exit 1
+    }
+}
+
+function Test-ComfyUIVersions {
+    <#
+    .SYNOPSIS
+        Verify installed ComfyUI Python packages match requirements.txt pins.
+    .DESCRIPTION
+        Reads the pinned package versions from ComfyUI's requirements.txt
+        and compares them against the versions actually installed in the
+        comfyui-cuda venv. Warns about mismatches so the user knows an update
+        will trigger re-downloads — or that the environment has drifted from
+        its pinned, Pascal-safe state.
+    #>
+    if ($SkipVersionCheck) {
+        Write-Warn "Skipping version check (-SkipVersionCheck)"
+        return
+    }
+
+    $requirementsFile = Join-Path $ComfyUIPath 'requirements.txt'
+    if (-not (Test-Path $requirementsFile)) {
+        Write-Warn "requirements.txt not found at $requirementsFile — skipping version check"
+        return
+    }
+
+    $comfyPy = 'D:\conda-envs\comfyui-cuda\Scripts\python.exe'
+    if (-not (Test-Path $comfyPy)) {
+        Write-Warn "comfyui-cuda python not found at $comfyPy — skipping version check"
+        return
+    }
+
+    # Parse pinned packages from requirements.txt (package==version lines)
+    $pinPattern = '^([A-Za-z0-9_.\-]+)\s*==\s*([^\s#]+)'
+    $pins = @{}
+    Get-Content $requirementsFile | ForEach-Object {
+        if ($_ -match $pinPattern) {
+            $name = $Matches[1].ToLower()
+            $ver = $Matches[2]
+            $pins[$name] = $ver
+        }
+    }
+
+    if ($pins.Count -eq 0) {
+        Write-Warn "No pinned packages found in requirements.txt — skipping version check"
+        return
+    }
+
+    # Probe installed versions inside the venv
+    $pkgList = ($pins.Keys | ForEach-Object { "'$_'" }) -join ','
+    $code = "import importlib.metadata, json; pkgs = [$pkgList]; out = {}; [out.__setitem__(p, importlib.metadata.version(p)) for p in pkgs]; print(json.dumps(out))"
+    $out = & $comfyPy -c $code 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "Could not probe installed package versions — skipping version check"
+        return
+    }
+
+    $installed = $out | ConvertFrom-Json
+    $mismatches = @()
+    foreach ($name in $pins.Keys) {
+        $pinned = $pins[$name]
+        $actual = $installed.$name
+        if (-not $actual) {
+            $mismatches += "${name}: NOT INSTALLED (pinned $pinned)"
+        } elseif ($actual -ne $pinned) {
+            $mismatches += "${name}: installed $actual, pinned $pinned"
+        }
+    }
+
+    if ($mismatches.Count -gt 0) {
+        Write-Warn "ComfyUI package versions drift from requirements.txt pins:"
+        $mismatches | ForEach-Object { Write-Host "    $_" -ForegroundColor Yellow }
+        Write-Warn "An update will re-download packages to restore pinned versions."
+        Write-Warn "If you want to keep current versions, edit requirements.txt to match."
+    } else {
+        Write-OK "All $($pins.Count) pinned ComfyUI packages match requirements.txt"
     }
 }
 
@@ -274,6 +351,7 @@ function Show-Status {
 
 # Main
 Test-ComfyUI
+Test-ComfyUIVersions
 
 if ($Rollback) {
     Write-Step "Rolling back ComfyUI to last backup..."

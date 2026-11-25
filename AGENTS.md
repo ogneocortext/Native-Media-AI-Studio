@@ -516,6 +516,42 @@ The trailer is a commit-message convention only -- it says nothing about a
 model's provenance. Do not rewrite published history to backfill it; it
 applies to new commits from 2026-10-06 onward.
 
+### Push policy: auto-push with scoped gates
+
+An agent may push its own commits to origin/main without waiting for
+approval when ALL hold:
+
+1. Every commit is scoped to its assigned task, one commit per task item.
+2. The pre-push gates pass scoped to the pushed range.
+3. The push is a fast-forward — never force-push, never rewrite pushed history.
+4. The session report lists the pushed hashes and the gate results as evidence.
+
+Approval is still required before: force pushes, deleting branches, pushing
+another agent's commits, changing CI or security configuration, and editing
+AGENTS.md or the gate/hook scripts themselves (this prompt is the one
+approved exception for the AGENTS.md edit).
+
+If scoped gates fail on files outside your range: do NOT use --no-verify,
+do NOT fix another agent's files unless your task says so. Stop and report
+the failing checks, the files, and whose work they appear to be. The push
+waits for a clean scoped pass.
+
+### Self-healing clause
+
+Every approval gate in AGENTS.md must name the verification that could
+replace it. When an automated check demonstrably covers what a manual gate
+checked, the gate converts to a reporting requirement: do the work, report
+the evidence, no approval wait.
+
+Mechanical updates may self-heal (a gate replaced by an equivalent check,
+a version stamp, a renamed path): the discovering agent makes the update in
+the same commit as the work and flags it in the session report as a rule
+change, quoting old and new text.
+
+Judgment rules never self-update (scope, security, money, what agents may
+do unsupervised): propose replacement text in the session report and wait
+for Nate's ruling, relayed through Maya.
+
 **Moving or renaming a file:** update every reference to it in the
 same commit. `tools/check-path-references.py` (in check-all, decision
 D39) finds references to moved files; once the hooks are installed, the

@@ -452,12 +452,17 @@ Rules: `docs/plans/tasks/README.md`
   Linux), MLX runner tensor helpers + Inkling 2 decode/prefill
   (Apple Silicon). This Windows build runs `ggml`/`llamacpp`; none of it
   touches the API surface.
-- **Changes:** documentation and compatibility notes only — no code
-  change required. Files: CHANGELOG.md, config/hardware-profile.json
-  (`notes_0.40_18`), ollama_client.py + ollama_adapter.py (0.40.18
-  notes), provider-notes.md, SYSTEM_REQUIREMENTS.md,
+- **Changes:** documentation and compatibility notes only — no code change required. Files: CHANGELOG.md, config/hardware-profile.json
+  (`notes_0.40_18`), ollama_client.py + ollama_adapter.py (0.40.18 notes), provider-notes.md, SYSTEM_REQUIREMENTS.md,
   ollama-model-ops SKILL.md (+ mirrors), KB version stamps,
   decision-log.md (D85).
+- **Files:** CHANGELOG.md, config/hardware-profile.json,
+  packages/backend/app/core/ollama_client.py,
+  packages/backend/app/adapters/ollama_adapter.py,
+  docs/architecture/provider-notes.md, docs/setup/SYSTEM_REQUIREMENTS.md,
+  .kilo/skills/ollama-model-ops/SKILL.md,
+  docs/knowledge-library/ollama-utilization-2026.md,
+  docs/architecture/decision-log.md
 - **Acceptance:** probe exits 0 against 0.40.18; live tests 10/10; D85
   indexed; docs gate green.
 - **Last session:** Devin, 2026-11-24 — measured live, documented, D85.

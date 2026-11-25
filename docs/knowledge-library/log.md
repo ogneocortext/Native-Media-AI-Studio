@@ -233,4 +233,6 @@ for AI agents.
 - Added `docs/knowledge-library/real-time-duplex-voice-open-source-landscape-and-local-cascade-plan-2026.md` → `#ai`
 ## 2026-11-22 — Knowledge library additions
 - Added `docs/knowledge-library/stylized-character-modeling-blender-mcp-workflow-best-practices-nov-2026.md` → `#technical`
+## 2026-11-24 — Knowledge library additions
+- Added `docs/knowledge-library/comfyui-update-hardening-2026.md` → `#technical`
 

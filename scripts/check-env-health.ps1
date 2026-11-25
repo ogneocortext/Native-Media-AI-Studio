@@ -222,6 +222,28 @@ if ($Torch) {
     }
 }
 
+# --- 8.5. Optional: torch / CUDA validation in ComfyUI env ---
+if ($Torch) {
+    Write-Host "`n[8.5] Torch CUDA validation (comfyui-cuda)"
+    $py = Join-Path $ComfyEnv 'Scripts\python.exe'
+    if (Test-Path $py) {
+        $code = "import torch; print('torch', torch.__version__, '| cuda', torch.version.cuda); print('arch', torch.cuda.get_arch_list()); print('available', torch.cuda.is_available())"
+        $out = & $py -c $code 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $out | ForEach-Object { Write-Host "         $_" }
+            $pascalOK = ($out -join ' ') -match 'sm_61'
+            $avail    = ($out -join ' ') -match 'available True'
+            if ($avail -and $pascalOK) { Write-Result 'PASS' 'CUDA available and sm_61 (Pascal) kernels present' }
+            elseif ($avail) { Write-Result 'WARN' 'CUDA available but sm_61 not in arch list - GPU ops may fail' }
+            else { Write-Result 'FAIL' 'torch.cuda.is_available() is False (wrong wheel for GTX 1070 Ti?)' }
+        } else {
+            Write-Result 'FAIL' "torch import failed: $($out | Select-Object -First 3)"
+        }
+    } else {
+        Write-Result 'FAIL' "ComfyUI python not found: $py"
+    }
+}
+
 # --- Summary ---
 Write-Host ''
 Write-Host ('=== Summary: {0} pass, {1} warn, {2} fail ===' -f $script:pass, $script:warn, $script:fail) -ForegroundColor Cyan

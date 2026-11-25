@@ -32,10 +32,12 @@ import {
   Grid,
   Camera,
   ArrowRight,
+  Activity,
 } from "lucide-react";
 import { DS } from "../../styles/designSystem";
 import { StatusBadge, ServiceOfflineBanner } from "../../components/common";
 import { startComfyUI } from "../../services/api";
+import { getSystemStats } from "../../services/comfyui";
 import { Link } from "react-router-dom";
 import { useVideoModels } from "./hooks/useVideoModels";
 import { useQueueStatus } from "./hooks";
@@ -159,6 +161,36 @@ export function VideoGenerationPage() {
 
   const { queueInfo } = useQueueStatus();
 
+  // Poll ComfyUI system stats (VRAM, GPU, RAM) every 10 seconds when online
+  const fetchComfySystemStats = useCallback(async () => {
+    if (comfyStatus !== "online") return;
+    try {
+      const stats = await getSystemStats();
+      const device = stats.devices?.[0];
+      const sys = stats.system;
+      setComfySystemStats({
+        gpuName: device?.name,
+        vramTotalMB: device?.vram_total,
+        vramFreeMB: device?.vram_free,
+        vramUsedMB: device?.vram_total && device?.vram_free
+          ? device.vram_total - device.vram_free
+          : undefined,
+        torchVramTotalMB: device?.torch_vram_total,
+        torchVramFreeMB: device?.torch_vram_free,
+        ramTotalGB: sys?.ram_total ? Math.round(sys.ram_total / 1024) : undefined,
+        ramFreeGB: sys?.ram_free ? Math.round(sys.ram_free / 1024) : undefined,
+      });
+    } catch {
+      // Ignore — stats are best-effort
+    }
+  }, [comfyStatus]);
+
+  useEffect(() => {
+    void fetchComfySystemStats();
+    const id = setInterval(() => void fetchComfySystemStats(), 10000);
+    return () => clearInterval(id);
+  }, [fetchComfySystemStats]);
+
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("blurry, low quality, distorted");
   const [selectedModel, setSelectedModel] = useState("");
@@ -182,6 +214,16 @@ export function VideoGenerationPage() {
   const [motionStrength, setMotionStrength] = useState(5);
   const [promptEnhance, setPromptEnhance] = useState(true);
   const [selectedResult, setSelectedResult] = useState<string | null>(null);
+  const [comfySystemStats, setComfySystemStats] = useState<{
+    gpuName?: string;
+    vramTotalMB?: number;
+    vramFreeMB?: number;
+    vramUsedMB?: number;
+    ramTotalGB?: number;
+    ramFreeGB?: number;
+    torchVramTotalMB?: number;
+    torchVramFreeMB?: number;
+  } | null>(null);
 
   // Auto-select first 8GB-safe video model on load
   useEffect(() => {
@@ -403,6 +445,40 @@ export function VideoGenerationPage() {
             {selectedModelInfo.name} may exceed 8 GB VRAM. Generation could be slow or fail on this
             GPU.
           </span>
+        </div>
+      )}
+
+      {/* ComfyUI System Stats */}
+      {comfyStatus === "online" && comfySystemStats && (
+        <div className={DS.card} style={{ padding: 12 }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Activity size={16} />
+            <h3 className="text-sm font-semibold text-foreground">ComfyUI System</h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div className="bg-surface rounded p-2 border border-border/50">
+              <div className="text-[10px] text-muted">GPU</div>
+              <div className="text-sm text-foreground truncate">{comfySystemStats.gpuName ?? "—"}</div>
+            </div>
+            <div className="bg-surface rounded p-2 border border-border/50">
+              <div className="text-[10px] text-muted">VRAM</div>
+              <div className="text-sm text-foreground font-mono">
+                {comfySystemStats.vramUsedMB?.toFixed(0) ?? "—"}/{comfySystemStats.vramTotalMB?.toFixed(0) ?? "—"} MB
+              </div>
+            </div>
+            <div className="bg-surface rounded p-2 border border-border/50">
+              <div className="text-[10px] text-muted">Torch VRAM</div>
+              <div className="text-sm text-foreground font-mono">
+                {comfySystemStats.torchVramFreeMB?.toFixed(0) ?? "—"} free
+              </div>
+            </div>
+            <div className="bg-surface rounded p-2 border border-border/50">
+              <div className="text-[10px] text-muted">RAM</div>
+              <div className="text-sm text-foreground font-mono">
+                {comfySystemStats.ramFreeGB ?? "—"} GB free
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

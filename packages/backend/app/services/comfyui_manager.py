@@ -4,8 +4,10 @@ Handles starting, stopping, and updating ComfyUI headlessly.
 """
 
 import asyncio
+import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -114,6 +116,75 @@ def _find_git() -> str | None:
 
     _GIT_RESOLVED = True
     return None  # Git not found
+
+
+_PIN_RE = re.compile(r"^([A-Za-z0-9_.\-]+)\s*==\s*([^\s#]+)")
+
+
+def _parse_requirement_pins(requirements_file: Path) -> dict[str, str]:
+    """Parse `package==version` pins from a requirements.txt file.
+
+    Returns a dict mapping lowercase package name -> pinned version string.
+    Lines with version specifiers other than `==` (>=, ~=, bare) are skipped
+    since they cannot be checked for exact-match satisfaction.
+    """
+    pins: dict[str, str] = {}
+    for line in requirements_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith(("#", "-")):
+            continue
+        m = _PIN_RE.match(line)
+        if m:
+            pins[m.group(1).lower()] = m.group(2)
+    return pins
+
+
+def _check_installed_versions(
+    venv_python: Path, pins: dict[str, str]
+) -> list[str]:
+    """Check which pinned packages are NOT at their pinned version.
+
+    Runs a single Python probe inside the target venv that reports the
+    installed version of every pinned package via importlib.metadata.
+    Returns a list of human-readable mismatch descriptions (empty when all
+    packages match their pins).
+    """
+    code = (
+        "import importlib.metadata, json, sys; "
+        "pkgs = " + repr(list(pins.keys())) + "; "
+        "out = {}; "
+        "for p in pkgs: "
+        "  try: out[p] = importlib.metadata.version(p) "
+        "  except Exception: out[p] = None; "
+        "print(json.dumps(out))"
+    )
+    proc = subprocess.run(
+        [str(venv_python), "-c", code],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+    )
+    if proc.returncode != 0:
+        # Probe failed — cannot verify, treat everything as mismatched so
+        # the pip install still runs.
+        return [f"{name}: cannot verify installed version" for name in pins]
+
+    installed: dict[str, str | None] = {}
+    try:
+        installed = json.loads(proc.stdout.strip())
+    except (json.JSONDecodeError, ValueError):
+        return [f"{name}: could not parse version probe output" for name in pins]
+
+    mismatches: list[str] = []
+    for name, pinned in pins.items():
+        actual = installed.get(name)
+        if actual is None:
+            mismatches.append(f"{name}: not installed (pinned {pinned})")
+        elif actual != pinned:
+            mismatches.append(f"{name}: installed {actual}, pinned {pinned}")
+    return mismatches
 
 
 class ComfyUIManager:
@@ -515,7 +586,13 @@ class ComfyUIManager:
             self._start_time = None
 
     async def _update_requirements(self, comfyui_dir: Path) -> dict:
-        """Update Python requirements for ComfyUI."""
+        """Update Python requirements for ComfyUI.
+
+        Skips the pip install entirely when every pinned package in
+        requirements.txt is already at its pinned version in the target
+        venv — this avoids re-downloading packages that are already
+        installed and prevents surprise upgrades to breaking versions.
+        """
         result = {"success": False, "step": "requirements"}
 
         requirements_file = comfyui_dir / "requirements.txt"
@@ -523,13 +600,32 @@ class ComfyUIManager:
             result["message"] = "requirements.txt not found"
             return result
 
-        # ComfyUI updates must use the comfyui-cuda venv. Never fall back to the
-        # project venv or sys.executable -- those can be parented to space-analyzer-cuda.
+        # ComfyUI updates must use the comfyui-cuda venv.
         try:
             venv_python = _get_venv_python()
         except RuntimeError as e:
             result["message"] = str(e)
             return result
+
+        # Pre-flight: check if all pinned packages are already at their
+        # pinned versions. If so, skip the pip install to avoid
+        # re-downloading already-installed packages.
+        pins = _parse_requirement_pins(requirements_file)
+        if pins:
+            mismatches = _check_installed_versions(venv_python, pins)
+            if not mismatches:
+                result["success"] = True
+                result["message"] = "All pinned requirements already satisfied — skipping pip install"
+                result["skipped"] = True
+                result["python"] = str(venv_python)
+                result["checked_packages"] = len(pins)
+                logger.info("ComfyUI requirements already satisfied — skipping pip install")
+                return result
+            logger.info(
+                "ComfyUI requirements out of sync (%d mismatches) — running pip install",
+                len(mismatches),
+            )
+            result["mismatches"] = mismatches
 
         try:
             proc = await _run_subprocess(
@@ -561,6 +657,58 @@ class ComfyUIManager:
             result["message"] = str(e)
 
         return result
+
+    async def _pip_install_node_requirements(
+        self, venv_python: Path, requirements_file: Path, node_name: str
+    ) -> tuple[str, str]:
+        """Check and install a custom node's pip requirements.
+
+        Returns ("skipped", message) when all pins already match (no install
+        needed), ("installed", "") when pip ran successfully, or
+        ("failed", error_message) on pip error.
+        """
+        node_pins = _parse_requirement_pins(requirements_file)
+        if node_pins:
+            node_mismatches = _check_installed_versions(venv_python, node_pins)
+            if not node_mismatches:
+                return "skipped", (
+                    f"Custom node {node_name} requirements already satisfied — skipping pip install"
+                )
+            logger.info(
+                "Custom node %s requirements out of sync (%d mismatches) — running pip install",
+                node_name,
+                len(node_mismatches),
+            )
+
+        pip = await _run_subprocess(
+            [
+                str(venv_python),
+                "-m",
+                "pip",
+                "install",
+                "-r",
+                str(requirements_file),
+                "--upgrade",
+            ],
+            capture_output=True,
+        )
+        pip_stdout = (
+            pip.stdout.decode("utf-8", errors="replace").strip()
+            if isinstance(pip.stdout, bytes)
+            else (pip.stdout or "").strip()
+        )
+        pip_stderr = (
+            pip.stderr.decode("utf-8", errors="replace").strip()
+            if isinstance(pip.stderr, bytes)
+            else (pip.stderr or "").strip()
+        )
+
+        if pip.returncode != 0:
+            return "failed", (
+                f"{node_name}: pip upgrade failed ({pip_stderr or pip_stdout})"
+            )
+
+        return "installed", ""
 
     async def _update_custom_nodes(self, comfyui_dir: Path) -> dict:
         """Update ComfyUI custom nodes directly by iterating git repos."""
@@ -619,35 +767,18 @@ class ComfyUIManager:
                 failed.append(f"{node_dir.name}: git pull failed ({stderr or stdout})")
                 continue
 
-            # pip upgrade if requirements.txt exists
+            # pip upgrade if requirements.txt exists — skip when all pins
+            # are already satisfied to avoid re-downloading installed packages
             if requirements_file.exists():
-                pip = await _run_subprocess(
-                    [
-                        str(venv_python),
-                        "-m",
-                        "pip",
-                        "install",
-                        "-r",
-                        str(requirements_file),
-                        "--upgrade",
-                    ],
-                    capture_output=True,
+                pip_result, pip_error = await self._pip_install_node_requirements(
+                    venv_python, requirements_file, node_dir.name
                 )
-                pip_stdout = (
-                    pip.stdout.decode("utf-8", errors="replace").strip()
-                    if isinstance(pip.stdout, bytes)
-                    else (pip.stdout or "").strip()
-                )
-                pip_stderr = (
-                    pip.stderr.decode("utf-8", errors="replace").strip()
-                    if isinstance(pip.stderr, bytes)
-                    else (pip.stderr or "").strip()
-                )
-
-                if pip.returncode != 0:
-                    failed.append(
-                        f"{node_dir.name}: pip upgrade failed ({pip_stderr or pip_stdout})"
-                    )
+                if pip_result == "skipped":
+                    logger.info(pip_error)
+                    updated.append(node_dir.name)
+                    continue
+                if pip_result == "failed":
+                    failed.append(pip_error)
                     continue
 
             updated.append(node_dir.name)

@@ -54,6 +54,7 @@ date: 2026-09-30
 - [[organizational-consistency-2026|🧭 Organizational Consistency]] — One source per organizational fact: the 2026-11-06 drift census, canonical task-block/index/frontmatter rules (R1–R6), the area↔category crosswalk, and the checker that enforces them (NEW 2026-11-06)
 
 ### 🛠️ Technical Implementation (Code & Systems)
+- [[comfyui-update-hardening-2026|ComfyUI Update Hardening]] — ComfyUI Update Hardening
 - [[stylized-character-modeling-blender-mcp-workflow-best-practices-nov-2026|character modeling best practices]] — Stylized Character Modeling + Blender MCP Workflow Best Practices (Nov 2026)
 - [[prompting-guide-for-local-gguf-image-models-flux-1-schnell-and-sd3-5-turbo-2026|FLUX schnell prompting]] — Prompting guide for local GGUF image models — FLUX.1-schnell and SD3.5 Turbo
 - [[voice-synthesis-api-2026|Voice API]] — Voice Synthesis API
@@ -222,7 +223,7 @@ date: 2026-09-30
 || Tag Category | Description | Documents |
 ||--------------|-------------|-----------|
 || `#production/*` | Production workflow & creative guides | 24 documents |
-|| `#technical/*` | System implementation & code | 42 documents |
+|| `#technical/*` | System implementation & code | 43 documents |
 || `#platform/*` | Platform-specific integrations | 14 documents |
 || `#creative/*` | Design, effects & visualization | 24 documents |
 || `#performance/*` | Hardware & optimization | 9 documents |
@@ -236,7 +237,7 @@ date: 2026-09-30
 || `#platform-youtube` | YouTube-specific content | 4 documents |
 || `#platform-unity` | Unity-specific integration | 3 documents |
 || `#platform-blender` | Blender-specific | 3 documents |
-|| `#platform-comfyui` | ComfyUI-specific | 8 documents |
+|| `#platform-comfyui` | ComfyUI-specific | 9 documents |
 || `#platform-remotion` | Remotion video compositing | 3 documents |
 || `#hardware-8gb` | 8GB VRAM constraints | 18 documents |
 || `#hardware-pascal` | Pascal architecture specifics | 10 documents |
