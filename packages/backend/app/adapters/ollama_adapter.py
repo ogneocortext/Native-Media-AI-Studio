@@ -16,6 +16,14 @@ Ollama 0.40.14 compatibility note (2026-11-03):
    - All callers pass ``temperature`` explicitly in ``options`` where it
      matters, so explicit values continue to override model defaults
      under 0.40.14. No code change required for 0.40.14.
+
+Ollama 0.40.18 compatibility note (2026-11-24, verified live):
+   - Engine-level release only (llama.cpp b12651, MLX runner helpers,
+     Inkling 2 decode) — no API surface change on this ``ggml``/
+     ``llamacpp`` Windows build. The 0.40.17 rules still apply: ``tools``
+     on a model without the ``tools`` capability is HTTP 400, and
+     ``_supports_tools`` already gates on ``capabilities``. No code
+     change required.
 """
 
 from __future__ import annotations

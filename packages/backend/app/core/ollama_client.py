@@ -39,6 +39,13 @@ Ollama 0.40.17 compatibility note (2026-11-21, verified live):
      Constraints no longer need duplicating into the parameter description.
    - No endpoints added or removed; ``details.runner`` is still ``ggml``/
      ``llamacpp`` on this Windows build.
+
+Ollama 0.40.18 compatibility note (2026-11-24, verified live):
+   - Engine-level release only (llama.cpp b12651, MLX runner helpers,
+     Inkling 2 decode) — none of it touches this Windows ``ggml``/
+     ``llamacpp`` build's API surface. No endpoints, fields, or
+     capabilities changed; every note above still stands. Probe exits 0
+     and ``test_ollama_live.py`` passes 10/10 against the live server.
 """
 
 from __future__ import annotations

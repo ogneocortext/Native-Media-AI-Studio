@@ -185,8 +185,9 @@ not a candidate.
   `qwen3-vl:2b`/`minicpm-v:8b` vision fallbacks and `qwen3.5:9b` text
   model were pruned 2026-10-22 (decision-log D37/D46/D47;
   `vision.py` `FALLBACK_MODEL = None`). Server upgraded
-  to **0.40.17** on 2026-11-21 (verified live via
-  `GET /api/version` -> `{"version":"0.40.17"}`, 15 models, D81). No API surface change since 0.40.0 — the
+  to **0.40.18** on 2026-11-24 (verified live via
+  `GET /api/version` -> `{"version":"0.40.18"}`, 15 models, D85;
+  probe exits 0, `test_ollama_live.py` 10/10). No API surface change since 0.40.0 — the
   endpoints this repo calls (`/api/tags`, `/api/show`, `/api/chat`,
   `/api/generate`, `/api/embed`) are unchanged, so the `think: false`
   guidance and capability handling stand. Notable for this studio:
@@ -200,6 +201,11 @@ not a candidate.
   were never affected by this change — and all callers explicitly pass
   `temperature`, so behavior is unchanged. Explicit values still override
   model defaults under 0.40.14.
+  **0.40.18 changes (verified live 2026-11-24, D85):** none on this
+  surface — llama.cpp b12651, MLX runner helpers, and Inkling 2 decode
+  work are all engine-level; this Windows build runs `ggml`/`llamacpp`.
+  No endpoints, fields, or capabilities changed; the 0.40.17
+  capability-validation and schema-keyword behaviours are unchanged.
   **0.40.17 changes (verified live 2026-11-21, D81):** (a) `/api/chat`
   now **validates `tools` against the model's advertised capabilities**
   and answers HTTP 400 `<model> does not support tools` instead of

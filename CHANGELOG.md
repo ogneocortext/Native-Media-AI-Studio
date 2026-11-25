@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed - Ollama 0.40.18: engine-level bumps only, no API surface change (D85)
+- **Server and CLI moved 0.40.17 → 0.40.18** (released 2026-11-24). Verified live: `GET /api/version` → `{"version":"0.40.18"}`; `tools/probe-ollama.py` exits 0 and `packages/backend/tests/test_ollama_live.py` passes 10/10 against the running server.
+- Upstream delta is engine-only: llama.cpp bump to b12651 (jetpack5 support removed — irrelevant on Windows), MLX runner changes for Apple Silicon (this build is `ggml`/`llamacpp`, unaffected), and Inkling 2 decode/prefill improvements (Apple-silicon path). No endpoints added or removed, no request/response fields changed, no model re-pulls.
+- The 0.40.17 capability-validation rule still holds: `tools` on a model without the `tools` capability is still HTTP 400, and the probe + live tests still route around it via `llama3.2:3b`.
+
 ### Changed - Ollama 0.40.17: tools are capability-validated, tool schema keywords survive (D81)
 - **`/api/chat` rejects `tools` for a model that does not advertise the `tools` capability** with HTTP 400 `<model> does not support tools`, where earlier releases silently ignored the definitions. Verified live: `moondream:latest` (caps: completion, vision) -> 400; `qwen3.5:4b` (caps include tools) -> 200 with parsed `tool_calls`. The backend adapter already gates on `capabilities` (`ollama_adapter._supports_tools`), so no app change was needed — but any new standalone caller must check first, because this is a hard error now rather than a no-op.
 - **Tool-parameter JSON-Schema keywords Ollama does not model are now preserved and reach the model** (`minimum`, `maximum`, `exclusiveMinimum`/`exclusiveMaximum`, `multipleOf`, `default`, `format`, `pattern`, `minLength`/`maxLength`, `minItems`/`maxItems`, `const`) instead of being dropped at parse time (upstream #17142). Verified live: a parameter carrying `minimum: 0 / maximum: 11 / default: 5` was described back correctly and `99` was refused as out of range. Constraints no longer need duplicating into the parameter description.

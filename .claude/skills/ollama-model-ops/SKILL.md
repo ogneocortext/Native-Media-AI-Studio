@@ -19,9 +19,12 @@ description: >-
 
 ## Environment
 
-- Ollama **v0.40.17** (verified live 2026-11-21: `GET /api/version` ->
-  `{"version":"0.40.17"}`). Background model upgrades were paused in 0.40.5 —
-  do not try to force them; that is what wedged the stack before. Two 0.40.17
+- Ollama **v0.40.18** (verified live 2026-11-24: `GET /api/version` ->
+  `{"version":"0.40.18"}`). Background model upgrades were paused in 0.40.5 —
+  do not try to force them; that is what wedged the stack before. 0.40.18 is
+  engine-level only (llama.cpp b12651, MLX/Inkling — Apple-Silicon paths);
+  this Windows `ggml`/`llamacpp` build's API surface is unchanged from
+  0.40.17. Two 0.40.17
   behaviours to know:
   - **`tools` are validated against capabilities.** `/api/chat` returns
     HTTP 400 `<model> does not support tools` for a model whose `/api/show`

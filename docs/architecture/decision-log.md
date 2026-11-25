@@ -110,6 +110,7 @@ line here is an incomplete decision.
 - `D82` **Never flip a text file's line endings; write through `tools/_ioutil.write_text_like()`** (2026-11-21) — `Path.write_text` on Windows turns LF into CRLF and turns a one-line edit into a whole-file diff; new gate `tools/check-line-endings.py`.
 - `D83` **Stated facts in AGENTS.md are checked, not trusted** (2026-11-21) — new gate `tools/check-doc-facts.py` fails when a number or model in AGENTS.md no longer matches the repo.
 - `D84` **AGENTS.md stays a router, not a library** (2026-11-21) — reference material moved to `docs/agents/`; ~3.0k tokens/request saved, zero lines lost.
+- `D85` **Ollama 0.40.18: engine-level bumps only, no surface change** (2026-11-24) — Adopt by upgrade; llama.cpp b12651 + MLX/Inkling work are off this Windows build's path, verified live with probe + 10/10 live tests.
 
 **Open / in evaluation / resolved questions**
 
@@ -2561,3 +2562,36 @@ line here is an incomplete decision.
   its new home rather than in AGENTS.md, so a model added to `ollama list` still
   fails the gate until it is documented. Adding a section to AGENTS.md is now
   something to justify: if it is reference material, it belongs in `docs/agents/`.
+
+### D85 — Ollama 0.40.18: engine-level bumps only, no API surface change (2026-11-24)
+
+- **Status:** Decided
+- **Context:** The local server and CLI were upgraded to **0.40.18**
+  (released 2026-11-24; verified live: `GET /api/version` returns
+  `{"version":"0.40.18"}`). The upstream delta is entirely engine-level:
+  llama.cpp bumped to b12651 with jetpack5 support removed (embedded
+  Linux path, irrelevant on Windows), MLX runner tensor-helper sharing
+  and Inkling 2 decode/prefill work (Apple-Silicon path — this build
+  reports `details.runner` `ggml`/`llamacpp`). No endpoint, field, or
+  capability change. Characterised against the live server rather than
+  the changelog (D22): `tools/probe-ollama.py` exits 0 (capability
+  list, `think=false` chat, tool-call round-trip via `llama3.2:3b`,
+  404/empty-message handling all unchanged) and
+  `packages/backend/tests/test_ollama_live.py` passes 10/10.
+- **Decision:** Adopt by upgrade; documentation and compatibility notes
+  only, no code change. The 0.40.17 rules stand verbatim: `tools` on a
+  model without the capability is still HTTP 400 (the probe still
+  reroutes to `llama3.2:3b`), schema keywords still reach the model,
+  and the 0.40.14 sampler note still does not apply (this repo calls
+  native `/api/chat` and `/api/generate`, never the OpenAI-compatible
+  routes).
+- **Files:** CHANGELOG.md, config/hardware-profile.json
+  (`_ollama_0.40_notes.notes_0.40_18`),
+  packages/backend/app/core/ollama_client.py +
+  packages/backend/app/adapters/ollama_adapter.py (0.40.18 notes),
+  docs/architecture/provider-notes.md, docs/setup/SYSTEM_REQUIREMENTS.md,
+  .claude/skills/ollama-model-ops/SKILL.md (+ mirrors),
+  docs/plans/tasks/local-models-and-vision-loop.md (T-MOD-14).
+- **Consequences:** None for callers — the integration surface is
+  identical to 0.40.17. Re-run `tools/probe-ollama.py` after the next
+  upgrade; it remains the record of what the server actually serves.

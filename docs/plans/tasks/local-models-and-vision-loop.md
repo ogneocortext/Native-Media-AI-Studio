@@ -434,3 +434,31 @@ Rules: `docs/plans/tasks/README.md`
 - **Last session:** Kilo, 2026-11-21 — measured live, fixed the probe,
   documented, D81. Verified: probe exits 0, tool_calls list returned,
   0.40.17 confirmed by `GET /api/version`.
+
+### T-MOD-14 — Ollama 0.40.18 characterization: engine-level only, no surface change
+- **Status:** done
+- **Goal:** Record what 0.40.18 actually does, the way T-MOD-13 did for
+  0.40.17 — measured against the live server, not read from the changelog
+  (D22). Server and CLI are on 0.40.18 (released 2026-11-24).
+- **Measured (2026-11-24, live at 127.0.0.1:11434):**
+  - `GET /api/version` -> `{"version":"0.40.18"}`; same 15-model inventory
+    (10 local, 5 `:cloud` proxies).
+  - `tools/probe-ollama.py` exits 0: capabilities, `think=false` chat,
+    tool-call round-trip via `llama3.2:3b` (the 0.40.17 capability rule
+    still routes around `moondream`), 404/empty-message handling all
+    unchanged.
+  - `packages/backend/tests/test_ollama_live.py` — 10/10 passed live.
+- **Upstream delta:** llama.cpp b12651 (jetpack5 removed — embedded
+  Linux), MLX runner tensor helpers + Inkling 2 decode/prefill
+  (Apple Silicon). This Windows build runs `ggml`/`llamacpp`; none of it
+  touches the API surface.
+- **Changes:** documentation and compatibility notes only — no code
+  change required. Files: CHANGELOG.md, config/hardware-profile.json
+  (`notes_0.40_18`), ollama_client.py + ollama_adapter.py (0.40.18
+  notes), provider-notes.md, SYSTEM_REQUIREMENTS.md,
+  ollama-model-ops SKILL.md (+ mirrors), KB version stamps,
+  decision-log.md (D85).
+- **Acceptance:** probe exits 0 against 0.40.18; live tests 10/10; D85
+  indexed; docs gate green.
+- **Last session:** Devin, 2026-11-24 — measured live, documented, D85.
+  Verified: `GET /api/version` = 0.40.18, probe exit 0, live tests 10/10.

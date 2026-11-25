@@ -638,4 +638,4 @@ const response = await fetch(`${OLLAMA_URL}/api/chat`, {
 
 ---
 
-_Last updated: 2026-11-04 (Ollama 0.40.14 version bump — OpenAI-compatible sampler defaults now respect model-packaged values instead of 1.0; no API surface change for native /api/chat and /api/generate endpoints this repo calls)_
+_Last updated: 2026-11-24 (Ollama 0.40.18 version bump — engine-level only: llama.cpp b12651, MLX runner helpers, Inkling 2 decode; no API surface change on this Windows ggml/llamacpp build. Prior: 0.40.14 sampler defaults fix)_

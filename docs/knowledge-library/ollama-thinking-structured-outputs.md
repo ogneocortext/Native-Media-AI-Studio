@@ -13,9 +13,13 @@ type: concept
 
 # Ollama Thinking Mode & Structured Outputs
 
-> **Last Updated:** 2026-11-04
-> **Ollama Version:** 0.40.14 (server, verified via `GET /api/version`)
+> **Last Updated:** 2026-11-24
+> **Ollama Version:** 0.40.18 (server, verified via `GET /api/version`)
 > **Relevant Models:** Qwen3.5, Qwen3, Gemma4, DeepSeek R1
+
+## 2026-11-24: 0.40.18 — Engine-level bumps only, no API surface change
+
+Server moved 0.40.17 → 0.40.18 (released 2026-11-24). Upstream delta is llama.cpp b12651 (jetpack5 removed), MLX runner tensor helpers, and Inkling 2 decode — all engine paths this Windows `ggml`/`llamacpp` build does not use. Verified live: `tools/probe-ollama.py` exits 0, `test_ollama_live.py` 10/10, capability-validation (0.40.17) and schema-keyword behaviour unchanged. Every measurement below still stands.
 
 ## 2026-11-03: 0.40.14 — Sampler defaults fix, no API surface change
 
