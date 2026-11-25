@@ -2221,3 +2221,15 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** tsc --noEmit clean; eslint 0 errors on Sidebar.tsx; GET /brand/logo-signal-mark-gradient.png returns 200; mark crisp (not stretched), title one line, no "2026 Pipeline" text anywhere.
 - **Acceptance:** satisfied — mark renders crisply, title is "Native Media AI Studio" on one line, no "2026 Pipeline" text anywhere, BrandMark component and its keyframes removed.
 - **Last session:** Kilo, 2026-11-25 — landed in this commit.
+
+### T-PLT-58 — Repo root cleanup: move scratch and stale files out of the public root
+
+- **Status:** done
+- **Goal:** Move research scratch and loose dev scripts out of the repo root (where a visitor lands first) into proper subdirectories; delete stale baseline duplicates that shadow the live gate baseline at tools/nesting-baseline.json.
+- **What changed (moves via git mv):** browser_character_studio_research.md -> docs/scratch/; analyze_mcp.py, find_context.py, list_tools.py -> tools/; check-chiptune.mjs -> tools/. Zero references from other tracked files confirmed via git grep before each move.
+- **What changed (deletes):** two stale root baseline files deleted via git rm — an older root baseline artifact and a root baseline duplicate of tools/nesting-baseline.json. All references to nesting-baseline in CHANGELOG.md, check-all.py, report-nesting.py, verify-nesting-gate.py point to tools/nesting-baseline.json only.
+- **Explicitly NOT touched:** memory.md (Qwen/Atomic Chat memory store — untrack + gitignore recommended as separately approved step); cli_output.py and CLI_OUTPUT_FORMATTER.md (live shared modules imported by tests/conftest.py and tools scripts).
+- **Files:** docs/scratch/browser_character_studio_research.md (moved), tools/analyze_mcp.py (moved), tools/find_context.py (moved), tools/list_tools.py (moved), tools/check-chiptune.mjs (moved), two root baseline files deleted (older artifact + duplicate of tools/nesting-baseline.json), docs/plans/tasks/platform-and-workflow.md (this entry)
+- **Verification:** check-path-references.py clean; report-nesting.py runs against tools/nesting-baseline.json; git ls-files | grep -v "/" shows root free of moved files and deleted baselines; check-all.py --changed passes apart from pre-existing nuked-opn2 reference in decision-log.md.
+- **Acceptance:** satisfied — root listing free of scratch files and stale baselines; no dangling references; nesting gate unaffected.
+- **Last session:** Kilo, 2026-11-25 — landed in this commit.
