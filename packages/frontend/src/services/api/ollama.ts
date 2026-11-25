@@ -4,6 +4,7 @@
 
 import { getApiBase } from "./core";
 import { getJson, postJson } from "./typed-fetch";
+import { fetchWithTimeout } from "../fetchWithTimeout";
 import type {
   OllamaModel,
   UnifiedModel,
@@ -11,6 +12,7 @@ import type {
   ChatMessage,
   ToolDefinition,
   OllamaBenchmarkResult,
+  HardwareBenchmarkRun,
   HardwareBenchmarkSummary,
   CodingBenchmarkResult,
   OllamaChatResponse,
@@ -23,17 +25,102 @@ const BASE = "/api/integrations/ollama";
  * Get Ollama models with normalized fields.
  */
 export async function getOllamaModels(verifiedOnly = false): Promise<OllamaModel[]> {
-  return getJson<OllamaModel[]>(`${BASE}/models?verified_only=${verifiedOnly}`, { timeout: 30000 });
+  const payload = await getJson<OllamaModel[] | { models?: OllamaModel[] }>(
+    `${BASE}/models?verified_only=${verifiedOnly}`,
+    { timeout: 30000 },
+  );
+  const entries = Array.isArray(payload) ? payload : (payload.models ?? []);
+  // The endpoint returns snake_case (`model_name`, `supports_tools`,
+  // `vram_required`), while this type declares camelCase. Normalise at this
+  // one boundary so the rest of the frontend can trust the type.
+  return entries
+    .map((model) => {
+      const raw = model as OllamaModel & Record<string, unknown>;
+      const caps = raw.capabilities ?? [];
+      const pick = (...keys: string[]): unknown => {
+        for (const k of keys) {
+          if (raw[k] !== undefined && raw[k] !== null) return raw[k];
+        }
+        return undefined;
+      };
+      return {
+        ...raw,
+        name: (pick("name", "model_name", "id") as string | undefined) ?? "",
+        size: (pick("size", "model_size") as number | undefined) ?? 0,
+        capabilities: caps,
+        // Prefer the server's explicit flags; fall back to the capability list.
+        supportsTools:
+          (pick("supportsTools", "supports_tools") as boolean | undefined) ??
+          caps.includes("tools"),
+        supportsVision:
+          (pick("supportsVision", "supports_vision") as boolean | undefined) ??
+          caps.includes("vision"),
+        supportsThinking:
+          (pick("supportsThinking", "supports_thinking") as boolean | undefined) ??
+          caps.includes("thinking"),
+        vram_estimate_mb: (pick("vram_estimate_mb", "vram_required") as number | undefined) ?? 0,
+        // Verification fields
+        verified: pick("verified") as boolean | undefined,
+        verified_features: pick("verified_features") as string[] | undefined,
+        performance: pick("performance") as
+          | { tokens_per_sec?: number; vision_latency_sec?: number }
+          | undefined,
+        verification_notes: pick("verification_notes") as string | undefined,
+        broken_reason: pick("broken_reason") as string | undefined,
+      };
+    })
+    .filter((m) => {
+      const name = m.name.toLowerCase();
+      return (
+        name && !name.includes("embed") && !name.includes("nomic") && !name.includes("minigpt")
+      );
+    });
 }
 
 /**
  * Get unified models (Ollama + Atomic Chat).
  */
 export async function getUnifiedModels(verifiedOnly = false): Promise<UnifiedModel[]> {
-  return getJson<UnifiedModel[]>(
-    `${BASE}/models/unified?verified_only=${verifiedOnly}`,
+  const payload = await getJson<UnifiedModel[] | { models?: UnifiedModel[] }>(
+    `/api/integrations/models/unified?verified_only=${verifiedOnly}`,
     { timeout: 30000 },
   );
+  const entries = Array.isArray(payload) ? payload : (payload.models ?? []);
+  return entries.map((m) => {
+    const raw = m as UnifiedModel & Record<string, unknown>;
+    const caps = (raw.capabilities as string[] | undefined) ?? [];
+    const pick = (...keys: string[]): unknown => {
+      for (const k of keys) {
+        if (raw[k] !== undefined && raw[k] !== null) return raw[k];
+      }
+      return undefined;
+    };
+    return {
+      ...raw,
+      source: (pick("source") as UnifiedModel["source"] | undefined) ?? "ollama",
+      name: (pick("name", "id") as string | undefined) ?? "",
+      size: (pick("size", "model_size") as number | undefined) ?? 0,
+      capabilities: caps,
+      supports_tools: (pick("supports_tools") as boolean | undefined) ?? caps.includes("tools"),
+      supports_vision: (pick("supports_vision") as boolean | undefined) ?? caps.includes("vision"),
+      supports_thinking:
+        (pick("supports_thinking") as boolean | undefined) ?? caps.includes("thinking"),
+      supports_embedding:
+        (pick("supports_embedding") as boolean | undefined) ?? caps.includes("embed"),
+      supports_rerank: (pick("supports_rerank") as boolean | undefined) ?? caps.includes("rerank"),
+      vram_required: (pick("vram_required") as number | undefined) ?? 0,
+      verified: (pick("verified") as boolean | undefined) ?? false,
+      verified_features: (pick("verified_features") as string[] | undefined) ?? [],
+      performance:
+        (pick("performance") as
+          | { tokens_per_sec?: number; vision_latency_sec?: number }
+          | undefined) ?? {},
+      verification_notes: (pick("verification_notes") as string | undefined) ?? "",
+      broken_reason: (pick("broken_reason") as string | undefined) ?? "",
+      chat_eligible: (pick("chat_eligible") as boolean | undefined) ?? true,
+      task_routes: (pick("task_routes") as string[] | undefined) ?? [],
+    };
+  });
 }
 
 /**
@@ -46,7 +133,7 @@ export async function getTaskModelRoutes(): Promise<{
   return getJson<{
     routes: Record<string, TaskModelRoute>;
     excluded_from_chat: string[];
-  }>(`${BASE}/models/task-routes`, { timeout: 10000 });
+  }>(`/api/integrations/models/task-routes`, { timeout: 10000 });
 }
 
 /**
@@ -110,14 +197,47 @@ export async function getBestBenchmarkModel(): Promise<{
   }>(`${BASE}/benchmark/best`, { timeout: 30000 });
 }
 
+function median(values: number[]): number | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
 /**
- * Get hardware benchmarks (aggregated).
+ * Get hardware benchmarks (aggregated per model from raw runs).
+ * Only completed ollama runs count: a timed-out run's duration_ms is the
+ * timeout budget, not a latency measurement.
  */
 export async function getHardwareBenchmarks(): Promise<Record<string, HardwareBenchmarkSummary>> {
-  return getJson<Record<string, HardwareBenchmarkSummary>>(
-    `${BASE}/hardware/benchmarks?limit=200`,
-    { timeout: 30000 },
-  );
+  const runs = await getJson<HardwareBenchmarkRun[]>(`/api/hardware/benchmarks?limit=200`, {
+    timeout: 30000,
+  });
+  const byModel = new Map<string, HardwareBenchmarkRun[]>();
+  for (const run of runs) {
+    if (run.engine !== "ollama" || run.status !== "completed") continue;
+    const list = byModel.get(run.model) ?? [];
+    list.push(run);
+    byModel.set(run.model, list);
+  }
+  const summary: Record<string, HardwareBenchmarkSummary> = {};
+  for (const [model, list] of byModel) {
+    const latencies = list
+      .map((r) => r.metrics?.median_latency_ms ?? r.duration_ms)
+      .filter((v): v is number => typeof v === "number" && v > 0);
+    const tokPerSec = list
+      .map((r) => r.metrics?.tokens_per_second)
+      .filter((v): v is number => typeof v === "number" && v > 0);
+    const sortedRuns = [...list].sort((a, b) => b.started_at.localeCompare(a.started_at));
+    summary[model] = {
+      model,
+      median_latency_ms: median(latencies) ?? 0,
+      tokens_per_second: median(tokPerSec),
+      runs: list.length,
+      last_run_at: sortedRuns[0]?.started_at ?? "",
+    };
+  }
+  return summary;
 }
 
 /**
@@ -233,9 +353,11 @@ export async function ollamaChatStream(
   ]) {
     if (optionsRecord?.[k] !== undefined) ollamaOpts[k] = optionsRecord[k];
   }
-  const response = await postJson<Response>(
-    `${base}${BASE}/chat`,
-    {
+  // Raw fetch, not postJson: the response is an SSE stream, not JSON.
+  const response = await fetchWithTimeout(`${base}${BASE}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       message,
       model,
       history: options?.history ?? [],
@@ -245,9 +367,21 @@ export async function ollamaChatStream(
       max_tool_calls: options?.maxToolCalls ?? 5,
       system: options?.system,
       ...(Object.keys(ollamaOpts).length ? { options: ollamaOpts } : {}),
-    },
-    { signal, timeout: 300000 },
-  );
+    }),
+    signal,
+    timeout: 300000,
+  });
+  if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      const err = (await response.json()) as { detail?: unknown };
+      if (typeof err.detail === "string") detail = err.detail;
+      else if (err.detail != null) detail = JSON.stringify(err.detail);
+    } catch {
+      // non-JSON error body — keep statusText
+    }
+    throw new Error(`Ollama chat failed (${response.status}): ${detail}`);
+  }
   const body = response.body;
   if (!body) throw new Error("Ollama chat response had no body");
   return body;
