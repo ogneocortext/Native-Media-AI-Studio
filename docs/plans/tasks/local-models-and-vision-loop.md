@@ -467,3 +467,34 @@ Rules: `docs/plans/tasks/README.md`
   indexed; docs gate green.
 - **Last session:** Devin, 2026-11-24 — measured live, documented, D85.
   Verified: `GET /api/version` = 0.40.18, probe exit 0, live tests 10/10.
+
+### T-MOD-15 — Ollama client/adapter hardening: capability tool gate, native think, cached model list
+- **Status:** done
+- **Goal:** Fix the Ollama-surface issues found in the 2026-11-25 review —
+  the tool gate used a disproved name heuristic, `think` bypassed the
+  documented field, embed checks paid `/api/tags` per call, and error
+  paths were indistinguishable.
+- **Changes:**
+  - `ollama_models._supports_tools` is now async and consults
+    `get_model_capabilities()` (authoritative `/api/show`, 300s cache);
+    name heuristic is fallback-only. Verified live on 0.40.18:
+    granite4.2/Bonsai → True (previously stripped), moondream → False.
+  - `ollama_adapter.chat()` sends top-level `think` (documented field,
+    supports level names); `chat_template_kwargs.enable_thinking` kept
+    for bool values only (Bolt-era template compat).
+  - `_installed_model_names` caches `/api/tags` for 30s behind
+    `_embed_model_available`; cleared by `clear_capability_cache()`.
+  - `_post_json` helper dedupes the four POST boilerplates in
+    ollama_client; non-200s now log status + body snippet.
+  - `_stream_chat` skips malformed NDJSON lines.
+  - `AtomicChatAdapter._supports_tools` dead code removed.
+- **Files:** packages/backend/app/core/ollama_client.py,
+  app/adapters/ollama_adapter.py, app/adapters/ollama_models.py,
+  app/adapters/atomic_chat.py, tests/test_ollama_capabilities.py
+  (`_Resp.text` stub), tests/test_retrieval_service.py (cache reset in
+  fixture), CHANGELOG.md, provider-notes.md.
+- **Acceptance:** ruff clean; test_ollama_capabilities +
+  test_retrieval_service + test_adapter_reasoning 58/58; live
+  `_supports_tools` verified per-model; test_ollama_live 10/10.
+- **Last session:** Devin, 2026-11-25 — implemented, live-verified,
+  committed.

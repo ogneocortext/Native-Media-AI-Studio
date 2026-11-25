@@ -8,6 +8,8 @@ which models happen to be installed, which differs per machine.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from app.core import ollama_client
@@ -20,6 +22,9 @@ class _Resp:
 
     async def json(self, content_type=None):
         return self._payload
+
+    async def text(self):
+        return json.dumps(self._payload)
 
     async def __aenter__(self):
         return self

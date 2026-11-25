@@ -379,11 +379,8 @@ Generate 3-8 scenes based on the input theme or concept."""
         options = kwargs.pop("options", None) or {}
         options.update(kwargs)
 
-        if tools and not self._supports_tools(model):
-            logger.warning(
-                "Model %s is not known to support tools; sending without tool definitions", model
-            )
-            tools = None
+        # Atomic Chat serves tool calling for every model it hosts —
+        # no per-model capability gate exists on that server.
 
         # VRAM-aware num_ctx: default to 8192 on the 8GB workstation.
         if options is None:
@@ -429,14 +426,6 @@ Generate 3-8 scenes based on the input theme or concept."""
             keep_alive=keep_alive,
             options=options,
         )
-
-    def _supports_tools(self, model: str) -> bool:
-        """Whether the given model is known to support tool calling."""
-        # Qwen models support tools; be permissive for unknown models.
-        name = (model or "").lower()
-        if any(k in name for k in ("qwen", "llama", "gemma", "mistral", "mixtral")):
-            return True
-        return True
 
     async def _chat_request(
         self,

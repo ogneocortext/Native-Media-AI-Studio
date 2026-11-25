@@ -238,7 +238,11 @@ not a candidate.
   `tools` in `/api/show` `capabilities` is a **400 error**, not a
   silent no-op (`registry.ollama.ai/library/<model>:latest does not
   support tools`). Verified with `moondream:latest` (caps:
-  completion, vision) vs `qwen3.5:4b` (caps include tools).
+  completion, vision) vs `qwen3.5:4b` (caps include tools). The
+  adapter gate (`ollama_models._supports_tools`) now consults those
+  capabilities directly (2026-11-25) — the earlier name-substring
+  heuristic both stripped tools from capable models (granite4.2,
+  Bonsai-27B) and could admit incapable ones.
   On 0.40.0, `/api/show` reports the authoritative
   per-model `thinking` controls and `capabilities`,
   and `/api/tags` entries carry `capabilities` plus

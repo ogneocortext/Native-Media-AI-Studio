@@ -82,7 +82,19 @@ class OllamaModelMixin:
     # Tool capability
     # ------------------------------------------------------------------
 
-    def _supports_tools(self, model: str) -> bool:
-        from ..core.ollama_client import is_tool_capable_model
+    async def _supports_tools(self, model: str) -> bool:
+        """Whether `model` supports tool calling.
 
+        The authoritative answer is the model's advertised ``capabilities``
+        from ``/api/show`` — since Ollama 0.40.17, ``tools`` on a model
+        without the capability is an HTTP 400, not a silent no-op. The
+        name-substring heuristic is only a fallback for when ``/api/show``
+        is unreachable (e.g. a remote ``:cloud`` model that cannot be
+        inspected locally).
+        """
+        from ..core.ollama_client import get_model_capabilities, is_tool_capable_model
+
+        caps = await get_model_capabilities(model)
+        if caps is not None:
+            return "tools" in caps
         return is_tool_capable_model(model)

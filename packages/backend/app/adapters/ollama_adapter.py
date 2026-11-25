@@ -330,9 +330,10 @@ Generate 3-8 scenes based on the input theme or concept."""
         options = kwargs.pop("options", None) or {}
         options.update(kwargs)
 
-        if tools and not self._supports_tools(model):
+        if tools and not await self._supports_tools(model):
             logger.warning(
-                "Model %s is not known to support tools; sending without tool definitions", model
+                "Model %s does not advertise the tools capability; sending without tool definitions",
+                model,
             )
             tools = None
         if "num_ctx" not in options:
@@ -354,9 +355,16 @@ Generate 3-8 scenes based on the input theme or concept."""
         }
         if tools:
             payload["tools"] = tools
-        # Bolt-era thinking policy: map `think` to chat_template_kwargs.
+        # Thinking control: the documented field is top-level `think`
+        # (bool or a level name from /api/show's `thinking.values`).
+        # `chat_template_kwargs.enable_thinking` is kept for bool values
+        # only — it was the measured path for Bolt-era templates, but it
+        # is not a documented /api/chat field and string levels like
+        # "low"/"high"/"max" are only meaningful through `think`.
         if think is not None:
-            payload["chat_template_kwargs"] = {"enable_thinking": think}
+            payload["think"] = think
+            if isinstance(think, bool):
+                payload["chat_template_kwargs"] = {"enable_thinking": think}
         if format is not None:
             payload["format"] = format
         if keep_alive is not None:
@@ -445,10 +453,20 @@ Generate 3-8 scenes based on the input theme or concept."""
                 raise RuntimeError(f"Ollama error: {error}")
 
             async for line in resp.content:
-                if line.strip():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
                     chunk = json.loads(line)
-                    chunk_count += 1
-                    yield chunk
+                except json.JSONDecodeError:
+                    # A malformed NDJSON line (truncated write, proxy noise)
+                    # must not kill the whole stream — skip and continue.
+                    logger.warning(
+                        "Ollama stream: skipping malformed line: %r", line[:200]
+                    )
+                    continue
+                chunk_count += 1
+                yield chunk
         logger.info("Ollama stream complete: %d chunks received", chunk_count)
 
     # ------------------------------------------------------------------

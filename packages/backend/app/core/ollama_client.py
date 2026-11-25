@@ -51,6 +51,7 @@ Ollama 0.40.18 compatibility note (2026-11-24, verified live):
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from typing import Any
@@ -95,6 +96,40 @@ async def get_shared_session() -> aiohttp.ClientSession:
 async def close_shared_session() -> None:
     """Close the shared session (app shutdown)."""
     await _http.close_shared_session(_SESSION_KEY)
+
+
+async def _post_json(
+    path: str, payload: dict[str, Any], timeout: float
+) -> tuple[int, str] | None:
+    """POST ``path`` with a JSON body; returns ``(status, body_text)``.
+
+    Returns None on transport failure or timeout (logged at debug). The
+    caller decides what a non-200 means and parses the body — this keeps
+    one place owning the session + dual-timeout boilerplate instead of
+    repeating it in every endpoint helper. The outer ``asyncio.timeout``
+    bounds session acquisition plus the whole exchange; the inner
+    ``ClientTimeout`` bounds the request itself.
+    """
+    try:
+        session = await get_shared_session()
+        async with asyncio.timeout(timeout), session.post(
+            ollama_url(path),
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as resp:
+            return resp.status, await resp.text()
+    except Exception as e:
+        logger.debug("Ollama %s failed: %s", path, e)
+        return None
+
+
+def _json_body(body: str) -> dict[str, Any] | None:
+    """Parse a response body as a JSON object; None on malformed input."""
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 async def list_models(timeout: float = 10) -> list[dict] | None:
@@ -208,6 +243,35 @@ def normalize_capabilities(raw: list[str] | None) -> list[str]:
     return out
 
 
+#: Short-lived cache of installed model names. ``/api/tags`` is a local
+#: round trip but not free — embed callers were paying it on EVERY call.
+#: 30 s is short enough to notice a pull/delete promptly.
+_MODEL_NAMES_CACHE: tuple[float, frozenset[str]] | None = None
+_MODEL_NAMES_TTL_SEC = 30.0
+
+
+async def _installed_model_names(timeout: float = 5) -> frozenset[str] | None:
+    """Installed model names from ``/api/tags``, cached for
+    ``_MODEL_NAMES_TTL_SEC``. Returns None when the server can't be
+    reached (failures are never cached)."""
+    global _MODEL_NAMES_CACHE
+    now = time.monotonic()
+    if _MODEL_NAMES_CACHE and now - _MODEL_NAMES_CACHE[0] < _MODEL_NAMES_TTL_SEC:
+        return _MODEL_NAMES_CACHE[1]
+    models = await list_models(timeout=timeout)
+    if models is None:
+        return None
+    names = frozenset(m["name"] for m in models if m.get("name"))
+    _MODEL_NAMES_CACHE = (time.monotonic(), names)
+    return names
+
+
+def clear_model_names_cache() -> None:
+    """Drop the cached model list (after a pull/delete, or in tests)."""
+    global _MODEL_NAMES_CACHE
+    _MODEL_NAMES_CACHE = None
+
+
 async def get_model_capabilities(model: str, timeout: float = 8) -> list[str] | None:
     """Authoritative capabilities for `model` via ``/api/show``, or None on failure.
 
@@ -221,19 +285,16 @@ async def get_model_capabilities(model: str, timeout: float = 8) -> list[str] | 
     hit = _CAPABILITY_CACHE.get(model)
     if hit and now - hit[0] < CAPABILITY_TTL_SEC:
         return list(hit[1])
-    try:
-        session = await get_shared_session()
-        async with asyncio.timeout(timeout), session.post(
-            ollama_url("/api/show"),
-            json={"model": model},
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                logger.debug("Ollama /api/show %s -> HTTP %s", model, resp.status)
-                return None
-            data = await resp.json(content_type=None)
-    except (TimeoutError, aiohttp.ClientError, ValueError) as exc:
-        logger.debug("Ollama /api/show failed for %s: %s", model, exc)
+    result = await _post_json("/api/show", {"model": model}, timeout)
+    if result is None:
+        return None
+    status, body = result
+    if status != 200:
+        logger.debug("Ollama /api/show %s -> HTTP %s", model, status)
+        return None
+    data = _json_body(body)
+    if data is None:
+        logger.debug("Ollama /api/show %s -> malformed JSON", model)
         return None
     caps = normalize_capabilities(data.get("capabilities"))
     _CAPABILITY_CACHE[model] = (time.monotonic(), caps)
@@ -291,12 +352,21 @@ async def resolve_capabilities_for_entries(
 
 
 def clear_capability_cache() -> None:
-    """Drop cached capabilities (after a pull, or in tests)."""
+    """Drop cached capabilities and the model-name list (after a pull,
+    delete, or rebuild — or in tests)."""
     _CAPABILITY_CACHE.clear()
+    clear_model_names_cache()
 
 
 def is_tool_capable_model(model_name: str) -> bool:
-    """Heuristic tool-calling support from the model family name."""
+    """Fallback tool-support guess from the model family name.
+
+    Only used when ``/api/show`` capabilities are unreachable — the
+    authoritative check is ``get_model_capabilities`` (see
+    ``ollama_models._supports_tools``). Name matching both misses capable
+    models (e.g. ``ibm/granite4.2``, ``Bonsai-27B``) and can admit
+    incapable ones, which is a hard HTTP 400 on Ollama >= 0.40.17.
+    """
     name = model_name.lower()
     return any(
         k in name
@@ -333,17 +403,14 @@ async def _embed_warmup(model: str) -> None:
 async def _embed_model_available(model: str, timeout: float = 5) -> bool:
     """Return True if `model` is listed in Ollama /api/tags.
 
-    Used to verify the embedding model is actually installed before we commit
-    to it, so failures surface as configuration errors rather than silent
+    Uses the short-lived ``_installed_model_names`` cache so repeated
+    embed calls don't each pay a /api/tags round trip. Used to verify the
+    embedding model is actually installed before we commit to it, so
+    failures surface as configuration errors rather than silent
     vector-search degradation.
     """
-    try:
-        models = await list_models(timeout=timeout)
-    except Exception:
-        return False
-    if not models:
-        return False
-    return any(m.get("name", "") == model for m in models)
+    names = await _installed_model_names(timeout=timeout)
+    return names is not None and model in names
 
 
 async def embed_text_raw(
@@ -360,21 +427,19 @@ async def embed_text_raw(
     Bounded by ``asyncio.timeout(timeout)``."""
     if not (text or "").strip():
         return None
-    try:
-        session = await get_shared_session()
-        async with asyncio.timeout(timeout), session.post(
-            ollama_url("/api/embed"),
-            json={"model": model, "input": text},
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                return None
-            data = await resp.json()
-            embs = data.get("embeddings") or [data.get("embedding")]
-            return embs[0] if embs and embs[0] is not None else None
-    except Exception as e:
-        logger.debug("Ollama /api/embed failed for %s: %s", model, e)
+    result = await _post_json("/api/embed", {"model": model, "input": text}, timeout)
+    if result is None:
         return None
+    status, body = result
+    if status != 200:
+        logger.debug("Ollama /api/embed %s -> HTTP %s: %s", model, status, body[:200])
+        return None
+    data = _json_body(body)
+    if data is None:
+        logger.debug("Ollama /api/embed %s -> malformed JSON", model)
+        return None
+    embs = data.get("embeddings") or [data.get("embedding")]
+    return embs[0] if embs and embs[0] is not None else None
 
 
 async def embed_text(
@@ -523,20 +588,21 @@ async def chat_content(
     if think is not None:
         payload["think"] = think
     payload.update(extra or {})
-    try:
-        session = await get_shared_session()
-        async with asyncio.timeout(timeout), session.post(
-            ollama_url("/api/chat"),
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                return None
-            data = await resp.json()
-            return (data.get("message", {}).get("content") or "").strip() or None
-    except Exception as e:
-        logger.debug("Ollama /api/chat failed: %s", e)
+    result = await _post_json("/api/chat", payload, timeout)
+    if result is None:
         return None
+    status, body = result
+    if status != 200:
+        # A 400 here is usually meaningful (bad model, tools on an
+        # incapable model, malformed think level) — log enough to tell
+        # it apart from a timeout, which logs at debug inside the helper.
+        logger.warning("Ollama /api/chat -> HTTP %s: %s", status, body[:300])
+        return None
+    data = _json_body(body)
+    if data is None:
+        logger.debug("Ollama /api/chat -> malformed JSON")
+        return None
+    return (data.get("message", {}).get("content") or "").strip() or None
 
 
 async def generate_content(
@@ -569,17 +635,15 @@ async def generate_content(
     if think is not None:
         payload["think"] = think
     payload.update(extra or {})
-    try:
-        session = await get_shared_session()
-        async with asyncio.timeout(timeout), session.post(
-            ollama_url("/api/generate"),
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                return None
-            data = await resp.json()
-            return (data.get("response", "") or "").strip() or None
-    except Exception as e:
-        logger.debug("Ollama /api/generate failed: %s", e)
+    result = await _post_json("/api/generate", payload, timeout)
+    if result is None:
         return None
+    status, body = result
+    if status != 200:
+        logger.warning("Ollama /api/generate -> HTTP %s: %s", status, body[:300])
+        return None
+    data = _json_body(body)
+    if data is None:
+        logger.debug("Ollama /api/generate -> malformed JSON")
+        return None
+    return (data.get("response", "") or "").strip() or None

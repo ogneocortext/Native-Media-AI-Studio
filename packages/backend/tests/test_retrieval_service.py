@@ -390,6 +390,9 @@ class TestEmbeddingSetup:
             return [{"name": m} for m in available]
 
         monkeypatch.setattr(oc, "list_models", fake_list)
+        # _installed_model_names caches /api/tags for 30s — drop it so each
+        # test's `available` list is what the next call actually sees.
+        oc.clear_capability_cache()
         return available
 
     async def test_embed_warmup_marks_model(self, _fake_embed, _fake_list_models):

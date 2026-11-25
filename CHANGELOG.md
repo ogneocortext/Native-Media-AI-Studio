@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed - Ollama tool gate now uses real capabilities; thinking uses the documented `think` field
+- **`OllamaAdapter.chat()` gated `tools` on a model-name substring heuristic** (`is_tool_capable_model`) even though `/api/show` capabilities are authoritative — the module's own comments documented that name guesses were proven wrong. Measured live on 0.40.18: `ibm/granite4.2:3b` and `Bonsai-27B` advertise `tools` but matched no heuristic substring, so their tool definitions were **silently stripped**; a name-matched model without the capability would now hit the 0.40.17 HTTP 400. `_supports_tools` is now async and consults `get_model_capabilities()` (300s TTL cache), falling back to the heuristic only when `/api/show` is unreachable. Verified live: granite4.2/Bonsai → True, moondream/nonexistent → False.
+- **`think` now goes through the documented top-level field.** The adapter previously sent only `chat_template_kwargs.enable_thinking` (a Bolt-era template workaround, not a documented `/api/chat` field) — string levels like `"low"`/`"high"`/`"max"` had no valid path at all. Bool values still send both fields for template compatibility; string levels now reach the server correctly via `think`.
+- **`/api/embed` availability checks no longer hit `/api/tags` every call** — installed model names are cached for 30s (`_installed_model_names`), cleared alongside the capability cache on pull/delete/tests.
+- **`chat_content`/`generate_content`/`embed_text_raw`/`get_model_capabilities` share one `_post_json` helper** (was four copies of session+timeout+POST boilerplate) and now log HTTP status + body snippet on non-200, so a 400 is distinguishable from a timeout.
+- **`_stream_chat` skips malformed NDJSON lines** instead of letting one `json.loads` failure kill the stream.
+- **`AtomicChatAdapter._supports_tools` dead code removed** — it could only ever return True; the provider has no per-model capability gate.
+
 ### Changed - Ollama 0.40.18: engine-level bumps only, no API surface change (D85)
 - **Server and CLI moved 0.40.17 → 0.40.18** (released 2026-11-24). Verified live: `GET /api/version` → `{"version":"0.40.18"}`; `tools/probe-ollama.py` exits 0 and `packages/backend/tests/test_ollama_live.py` passes 10/10 against the running server.
 - Upstream delta is engine-only: llama.cpp bump to b12651 (jetpack5 support removed — irrelevant on Windows), MLX runner changes for Apple Silicon (this build is `ggml`/`llamacpp`, unaffected), and Inkling 2 decode/prefill improvements (Apple-silicon path). No endpoints added or removed, no request/response fields changed, no model re-pulls.
