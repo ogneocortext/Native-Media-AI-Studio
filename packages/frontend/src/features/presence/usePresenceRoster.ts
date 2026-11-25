@@ -17,9 +17,6 @@ import {
 } from "../../services/api";
 
 const POLL_MS = 15000;
-/** "working" = real activity within the last 15 minutes (same window the
- *  backend chip status uses). */
-export const PRESENCE_WORKING_WINDOW_SECONDS = 900;
 
 let roster: PresenceRoster | null = null;
 let pollTimer: number | null = null;
@@ -73,12 +70,23 @@ export function usePresenceRoster(): PresenceRoster | null {
 
 export type PresenceStatus = "working" | "idle" | "unavailable";
 
-/** Status for one roster person — shared so every surface agrees. */
+/** Status for one roster person — shared so every surface agrees.
+ *
+ * Maps the backend-computed ``state`` (active / recent / away) to the
+ * frontend dot status rather than re-deriving from ``seconds_since`` with
+ * a hardcoded threshold that never matched the per-person windows in
+ * config/logging.json (Maya uses 300s active; Kilo/ERNIE/Devin use 1800s
+ * recent).
+ */
 export function presenceStatusFor(person: PresencePerson | null): PresenceStatus {
   if (!person || person.unavailable) return "unavailable";
-  const seconds = person.seconds_since;
-  if (seconds != null && seconds >= 0 && seconds <= PRESENCE_WORKING_WINDOW_SECONDS) {
-    return "working";
+  switch (person.state) {
+    case "active":
+      return "working";
+    case "recent":
+    case "away":
+      return "idle";
+    default:
+      return "idle";
   }
-  return "idle";
 }
