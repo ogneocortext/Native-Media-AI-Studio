@@ -55,7 +55,7 @@ function lastVisitLine(person: PresencePerson): string | null {
   if (person.state === "active") return null;
   if (!person.session_started_ts || !person.last_seen_ts) return null;
   const start = formatLocalTime(person.session_started_ts).replace(/\s*(AM|PM)$/i, "");
-  const end = formatLocalTime(person.last_seen_ts);
+  const end = formatLocalTime(person.last_seen_ts).replace(/\s*(AM|PM)$/i, "");
   if (!start || !end) return null;
   return `Last visit ${start}–${end}`;
 }
@@ -229,6 +229,17 @@ export function Presence() {
   const [journal, setJournal] = useState<PresenceJournalEntry[]>([]);
   const [toast, setToast] = useState<{ person: PresencePerson } | null>(null);
   const [failed, setFailed] = useState<Set<string>>(new Set());
+  const [visible, setVisible] = useState(
+    typeof document !== "undefined" ? !document.hidden : true,
+  );
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVisibilityChange = () => setVisible(!document.hidden);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
 
   // Entrance toast: new active session for a traffic-source worker.
   // Runs whenever the shared roster updates (single poller upstream).
@@ -251,13 +262,14 @@ export function Presence() {
 
   // Journal (for hover panels) — independent of the roster poll.
   const pollJournal = useCallback(async () => {
+    if (!visible) return;
     try {
       const j = await getPresenceJournal(5);
       setJournal(j.entries);
     } catch {
       /* journal is optional */
     }
-  }, []);
+  }, [visible]);
 
   useEffect(() => {
     void pollJournal();

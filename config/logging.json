@@ -56,7 +56,8 @@
     "excluded_paths": [
       "/api/health",
       "/api/events",
-      "/api/logs/traffic"
+      "/api/logs/traffic",
+      "/api/logs/presence"
     ]
   },
   "sentry": {
@@ -116,7 +117,7 @@
         "role": "Builder",
         "avatar": null,
         "color": "#0C4F65",
-        "commit_match": "Kilo",
+        "commit_match": "ERNIE",
         "recent_window_seconds": 1800
       },
       {

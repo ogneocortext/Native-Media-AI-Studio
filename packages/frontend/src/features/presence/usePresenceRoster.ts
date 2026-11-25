@@ -24,8 +24,10 @@ export const PRESENCE_WORKING_WINDOW_SECONDS = 900;
 let roster: PresenceRoster | null = null;
 let pollTimer: number | null = null;
 const listeners = new Set<() => void>();
+let visible = typeof document !== "undefined" ? !document.hidden : true;
 
 async function poll(): Promise<void> {
+  if (!visible) return;
   try {
     const next = await getLogPresence();
     roster = next;
@@ -51,6 +53,13 @@ function subscribe(listener: () => void): () => void {
       pollTimer = null;
     }
   };
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    visible = !document.hidden;
+    if (visible) void poll();
+  });
 }
 
 function getSnapshot(): PresenceRoster | null {
