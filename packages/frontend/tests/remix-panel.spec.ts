@@ -34,56 +34,35 @@ const KNOWN_ENV_FILTERS = [
 ];
 
 /**
- * Select a library track the remix panel can source, then return its name in
- * the shape the panel reports.
+ * Open the standalone Remix studio the way a user arrives from the
+ * Visualizer or Media Library: pending-track + pending-open handoffs in
+ * sessionStorage, then /create/remix (the panel moved off the Visualizer —
+ * `openRemixStudio` there navigates here with the same handoffs).
+ * Returns the seeded source track name in the shape the panel reports,
+ * or null when the backend lists no usable sources.
  */
-async function selectSourcedTrack(page: Page): Promise<string | null> {
-  const trackSelect = page.locator('[data-testid="viz-track-select"]');
-  await expect(trackSelect).toBeVisible({ timeout: 15_000 });
-  // The store populates the options after mount: a select now reads the
-  // placeholder only (measured: 1 option at this instant, 62 once it lands).
-  await expect.poll(() => trackSelect.locator("option").count(), { timeout: 20_000 }).toBeGreaterThan(1);
-
+async function openRemixStudio(page: Page): Promise<string | null> {
+  await page.goto(getBaseUrl() + "/");
   const target = await page.evaluate(async () => {
-    const select = document.querySelector(
-      '[data-testid="viz-track-select"]',
-    ) as HTMLSelectElement | null;
-    const options = Array.from(select?.options ?? [])
-      .map((o) => o.value)
-      .filter(Boolean);
-    if (!options.length) return null;
-
-    // The same normalization `matchSource` uses: basename without extension,
-    // case-folded, punctuation stripped. Fixtures are excluded, exactly as the
-    // panel's own seeding guard does.
     const fixture = /demucs_test_input|^test[-_]/i;
-    const normalize = (s: string) =>
-      s
-        .split("/")
-        .pop()!
-        .replace(/\.[^.]+$/, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "");
-
     try {
       const response = await fetch("/api/audio/remix/sources");
-      if (!response.ok) return options[0] ?? null;
-      const body = (await response.json()) as { sources?: Array<{ track: string }> };
-      const tracks = (body.sources ?? []).map((s) => s.track);
-      for (const option of options) {
-        const base = option.split("/").pop() ?? option;
-        if (fixture.test(base)) continue;
-        if (tracks.some((t) => normalize(t) === normalize(option))) return option;
-      }
+      if (!response.ok) return null;
+      const body = (await response.json()) as {
+        sources?: Array<{ track: string; library_file?: string }>;
+      };
+      const src = (body.sources ?? []).find(
+        (s) => !fixture.test(s.track) && !fixture.test(s.library_file ?? ""),
+      );
+      if (!src) return null;
+      sessionStorage.setItem("__pendingTrackFilename", src.library_file || src.track);
+      sessionStorage.setItem("__pendingRemixOpen", "1");
+      return src.track;
     } catch {
-      // Backend unreachable: fall back to the first real option so the test
-      // fails on the panel assertion rather than on a null selection.
+      return null;
     }
-    return options[0] ?? null;
   });
-
-  if (!target) return null;
-  await trackSelect.selectOption(target);
+  await navigateWithWait(page, "/create/remix");
   return target;
 }
 
@@ -95,13 +74,10 @@ test.describe("Remix / Mashup panel", () => {
   test("opens from the handoff and resolves its source stems (A1)", async ({ page }) => {
     const errors = setupConsoleErrorCapture(page);
 
-    // The handoff flag has to exist *before* the panel mounts, and the panel
-    // only mounts once a track is loaded — so seed it on the origin first.
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    // The handoff flag has to exist *before* the panel mounts — the helper
+    // seeds pending-track + pending-open on the origin, then opens
+    // /create/remix where the standalone panel consumes them.
+    const target = await openRemixStudio(page);
     expect(target, "no library track the remix panel can source").not.toBeNull();
 
     // "N stems ready" appears in both panel states, so it proves the sources
@@ -131,10 +107,7 @@ test.describe("Remix / Mashup panel", () => {
   test("timeline caption agrees with the seeded tempo, and the advisory names its reliability (A6 + A7)", async ({
     page,
   }) => {
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    const target = await openRemixStudio(page);
     expect(target).not.toBeNull();
 
     await expect(page.locator('[data-testid="remix-timeline"]')).toBeVisible({ timeout: 20_000 });
@@ -172,10 +145,7 @@ test.describe("Remix / Mashup panel", () => {
   });
 
   test("exposes labelled layer controls instead of micro-inputs (A4)", async ({ page }) => {
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    const target = await openRemixStudio(page);
     expect(target).not.toBeNull();
     await expect(page.locator('[data-testid="remix-timeline"]')).toBeVisible({ timeout: 20_000 });
 
@@ -212,10 +182,7 @@ test.describe("Remix / Mashup panel", () => {
       if (request.url().includes("/api/audio/remix/preview-audio")) requests.push(request.url());
     });
 
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    const target = await openRemixStudio(page);
     expect(target).not.toBeNull();
     await expect(page.locator('[data-testid="remix-timeline"]')).toBeVisible({ timeout: 20_000 });
 
@@ -224,7 +191,7 @@ test.describe("Remix / Mashup panel", () => {
     const player = page.locator('[data-testid="remix-listen"] audio');
     await expect(player).toBeVisible({ timeout: 150_000 });
     const src = await player.getAttribute("src");
-    expect(src).toContain("/api/audio/remix/preview-file/");
+    expect(src).toContain("/api/audio/remix/preview/");
 
     // The element must be *playable*, not merely present: a 404 on the excerpt
     // URL surfaces as a media error on the element, not as a failed assertion.
@@ -243,10 +210,7 @@ test.describe("Remix / Mashup panel", () => {
     // contention, so both the test and the fetch must outlast that.
     test.setTimeout(300_000);
 
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    const target = await openRemixStudio(page);
     expect(target).not.toBeNull();
     await expect(page.locator('[data-testid="remix-timeline"]')).toBeVisible({ timeout: 20_000 });
 
@@ -293,10 +257,7 @@ test.describe("Remix / Mashup panel", () => {
       }
     });
 
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    const target = await openRemixStudio(page);
     expect(target).not.toBeNull();
     const timeline = page.locator('[data-testid="remix-timeline"]');
     await expect(timeline).toBeVisible({ timeout: 20_000 });
@@ -306,7 +267,7 @@ test.describe("Remix / Mashup panel", () => {
     const player = page.locator('[data-testid="remix-listen"] audio');
     await expect(player).toBeVisible({ timeout: 150_000 });
     const src = await player.getAttribute("src");
-    expect(src).toContain("/api/audio/remix/preview-file/");
+    expect(src).toContain("/api/audio/remix/preview/");
     await expect
       .poll(() => player.evaluate((el) => (el as HTMLAudioElement).error?.code ?? 0))
       .toBe(0);
@@ -317,10 +278,7 @@ test.describe("Remix / Mashup panel", () => {
   });
 
   test("reorders slots from the timeline keyboard path (R2 drag)", async ({ page }) => {
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    const target = await openRemixStudio(page);
     expect(target).not.toBeNull();
     const timeline = page.locator('[data-testid="remix-timeline"]');
     await expect(timeline).toBeVisible({ timeout: 20_000 });
@@ -356,10 +314,7 @@ test.describe("Remix / Mashup panel", () => {
       }
     });
 
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    const target = await openRemixStudio(page);
     expect(target).not.toBeNull();
     const timeline = page.locator('[data-testid="remix-timeline"]');
     await expect(timeline).toBeVisible({ timeout: 20_000 });
@@ -405,10 +360,7 @@ test.describe("Remix / Mashup panel", () => {
     // the assertions do not care which source seeds as A.
     test.setTimeout(180_000);
 
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    const target = await openRemixStudio(page);
     expect(target).not.toBeNull();
     const timeline = page.locator('[data-testid="remix-timeline"]');
     await expect(timeline).toBeVisible({ timeout: 20_000 });
@@ -429,10 +381,7 @@ test.describe("Remix / Mashup panel", () => {
     // the player.
     test.setTimeout(300_000);
 
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    const target = await openRemixStudio(page);
     expect(target).not.toBeNull();
     const timeline = page.locator('[data-testid="remix-timeline"]');
     await expect(timeline).toBeVisible({ timeout: 20_000 });
@@ -497,10 +446,7 @@ test.describe("Remix / Mashup panel", () => {
     // would render - the pins are snapshots, not decorations.
     test.setTimeout(180_000);
 
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    const target = await openRemixStudio(page);
     expect(target).not.toBeNull();
     const timeline = page.locator('[data-testid="remix-timeline"]');
     await expect(timeline).toBeVisible({ timeout: 20_000 });
@@ -555,10 +501,7 @@ test.describe("Remix / Mashup panel", () => {
     // order instead of inferred.
     test.setTimeout(180_000);
 
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    const target = await openRemixStudio(page);
     expect(target).not.toBeNull();
     await expect(page.locator('[data-testid="remix-timeline"]')).toBeVisible({ timeout: 20_000 });
 
@@ -617,10 +560,7 @@ test.describe("Remix / Mashup panel", () => {
     // check, where they can be measured rather than raced.
     test.setTimeout(180_000);
 
-    await page.goto(getBaseUrl() + "/");
-    await page.evaluate(() => sessionStorage.setItem("__pendingRemixOpen", "1"));
-    await navigateWithWait(page, "/visualizer");
-    const target = await selectSourcedTrack(page);
+    const target = await openRemixStudio(page);
     expect(target).not.toBeNull();
     const timeline = page.locator('[data-testid="remix-timeline"]');
     await expect(timeline).toBeVisible({ timeout: 20_000 });

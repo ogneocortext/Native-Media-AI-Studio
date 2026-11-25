@@ -21,6 +21,7 @@ import {
   getBestCodingModel,
   getBestBenchmarkModel,
   type ChatMessage,
+  type OllamaModel,
   type ToolDefinition,
 } from "./ollama";
 import { skillsList, executeTool, type ExecuteToolResponse, type SkillInfo } from "./mcp-skills";
@@ -72,16 +73,6 @@ function stripMarkdownFences(content: string): string {
 // endpoints on every call.
 let modelSelectionCache: { model: string; expiresAt: number } | null = null;
 const MODEL_SELECTION_TTL_MS = 30_000;
-
-interface OllamaModel {
-  name: string;
-  size?: number;
-  is_available?: boolean;
-  capabilities?: string[];
-  supports_tools?: boolean;
-  supports_vision?: boolean;
-  verified?: boolean;
-}
 
 /**
  * Automatically select the best model to use, preferring a model already
@@ -170,7 +161,7 @@ export async function selectModel(taskType = "default", preferred?: string): Pro
           }
           // Fall back to any installed coding-capable model
           const codingCandidates = installed.filter(
-            (m) => m.supports_tools && m.is_available !== false,
+            (m) => m.supportsTools && m.is_available !== false,
           );
           if (codingCandidates.length > 0) {
             const model = codingCandidates[0].name;
@@ -185,7 +176,7 @@ export async function selectModel(taskType = "default", preferred?: string): Pro
         case "vision": {
           // Prefer verified vision-capable installed models
           const visionCandidates = installed.filter(
-            (m) => m.supports_vision && m.is_available !== false && m.verified,
+            (m) => m.supportsVision && m.is_available !== false && m.verified,
           );
           if (visionCandidates.length > 0) {
             const model = visionCandidates[0].name;
@@ -196,7 +187,7 @@ export async function selectModel(taskType = "default", preferred?: string): Pro
             return model;
           }
           // Fall back to any vision-capable installed model
-          const anyVision = installed.find((m) => m.supports_vision && m.is_available !== false);
+          const anyVision = installed.find((m) => m.supportsVision && m.is_available !== false);
           if (anyVision) {
             modelSelectionCache = {
               model: anyVision.name,
@@ -218,7 +209,7 @@ export async function selectModel(taskType = "default", preferred?: string): Pro
           }
           // Fall back to smallest tool-capable model for lightweight chat
           const chatCandidates = installed.filter(
-            (m) => m.supports_tools && m.is_available !== false,
+            (m) => m.supportsTools && m.is_available !== false,
           );
           if (chatCandidates.length > 0) {
             const model = chatCandidates[0].name;
@@ -240,7 +231,7 @@ export async function selectModel(taskType = "default", preferred?: string): Pro
             };
             return best.best;
           }
-          const anyTool = installed.find((m) => m.supports_tools && m.is_available !== false);
+          const anyTool = installed.find((m) => m.supportsTools && m.is_available !== false);
           if (anyTool) {
             modelSelectionCache = {
               model: anyTool.name,

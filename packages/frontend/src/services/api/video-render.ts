@@ -111,7 +111,7 @@ export async function getStemVisualization(params: {
   filename: string;
 }): Promise<StemVisualizationResponse> {
   return postJson<StemVisualizationResponse>(
-    `${BASE}/stem-visualization`,
+    "/api/audio/stem-visualization",
     params,
     { timeout: 120000 },
   );

@@ -356,3 +356,30 @@ Rules: `docs/plans/tasks/README.md`
   tools list mid-dict) that had taken the whole backend down.
 - **Acceptance:** satisfied at completion (entry predates the R1 field requirement; normalized 2026-11-06 under T-LIB-04).
 - **Last session:** Devin, 2026-11-06
+
+### T-AUD-15 — Fix remix build job crashes (keyword-only arg + LogRecord collision); repair spec drift
+- **Status:** done
+- **Goal:** `POST /api/audio/remix/build` returned 500s / hung jobs; the
+  Playwright remix spec had drifted from the `/create/remix` move.
+- **What changed:**
+  - ``app/api/audio_remix.py``: ``render_remix(recipe, overwrite, ...)``
+    was called with ``overwrite`` positionally but the parameter is
+    keyword-only → TypeError killed every build. Fixed to
+    ``overwrite=overwrite``.
+  - Same file: ``structured_logger`` calls passed ``name=`` which
+    collides with ``LogRecord.name`` → "Attempt to overwrite 'name' in
+    LogRecord" crashed ``remix.build.completed`` after a successful
+    render. Kwargs renamed (``remix_name=`` etc.); audited remaining
+    call sites.
+  - ``tests/remix-panel.spec.ts``: handoff helper now navigates to
+    ``/create/remix`` (panel left ``/visualizer``); preview assertion
+    updated to the real ``/api/audio/remix/preview/`` endpoint.
+- **Files:** packages/backend/app/api/audio_remix.py,
+  packages/frontend/tests/remix-panel.spec.ts
+- **Verification:** live ``POST /api/audio/remix/build`` → job
+  ``929a8e24`` state=done, error=null, 4 stems in 7.4 s; Playwright
+  remix-panel.spec.ts 13/13 (was 9/13, 4 failures all traced to these
+  backend bugs). ruff clean on audio_remix.py.
+- **Acceptance:** satisfied — builds complete end-to-end and the spec
+  suite is green.
+- **Last session:** Devin, 2026-11-25

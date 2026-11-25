@@ -330,12 +330,14 @@ async def _remix_build_handler(job: Job) -> dict[str, Any]:
         )
 
     # render_remix is CPU-bound (numpy/soundfile); run off the event loop.
-    result = await asyncio.to_thread(render_remix, recipe, overwrite, progress_cb=_progress)
+    result = await asyncio.to_thread(
+        render_remix, recipe, overwrite=overwrite, progress_cb=_progress
+    )
 
     structured_logger.info(
         "remix.build.completed",
         job_id=job.id,
-        name=result.name,
+        remix_name=result.name,
         directory=result.directory,
         duration_sec=result.duration_sec,
         warnings_count=len(result.warnings),

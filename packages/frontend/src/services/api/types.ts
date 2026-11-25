@@ -1261,6 +1261,7 @@ export interface OllamaModel {
   name: string;
   size: number;
   modified_at?: string;
+  is_available?: boolean;
   capabilities?: string[];
   supportsTools?: boolean;
   supportsVision?: boolean;
