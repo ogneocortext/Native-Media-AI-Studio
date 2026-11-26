@@ -170,6 +170,22 @@ class DependencyChecker:
             self._print(f"Failed to parse pnpm outdated output: {e}", "error")
             return []
 
+    @staticmethod
+    def _resolve_alias(spec: str) -> tuple[str, str] | None:
+        """Resolve an `npm:` alias spec to (real package name, range).
+
+        Catalog entries like `typescript: npm:@typescript/typescript6@^6.0.2`
+        install the aliased package under the catalog key, so `pnpm view
+        <key>` queries the wrong package. Returns None for non-alias specs.
+        """
+        if not spec.startswith("npm:"):
+            return None
+        rest = spec[4:]
+        name, sep, rng = rest.rpartition("@")
+        if not sep:
+            return rest, "*"
+        return name, rng or "*"
+
     def get_catalog_outdated(self) -> list[dict]:
         """Check catalog packages for updates"""
         outdated = []
@@ -178,7 +194,10 @@ class DependencyChecker:
             return outdated
 
         for name, spec in self.catalog.items():
-            stdout, stderr, code = self.run_pnpm(["view", name, "version", "--json"])
+            alias = self._resolve_alias(spec)
+            view_name = alias[0] if alias else name
+            view_spec = alias[1] if alias else spec
+            stdout, stderr, code = self.run_pnpm(["view", view_name, "version", "--json"])
             if code != 0 or not stdout.strip():
                 continue
             try:
@@ -195,9 +214,9 @@ class DependencyChecker:
                     continue
 
                 try:
-                    spec_obj = packaging.specifiers.SpecifierSet(spec)
+                    spec_obj = packaging.specifiers.SpecifierSet(view_spec)
                     if spec_obj.contains(latest):
-                        base_version = re.sub(r'^[\^~>=<]+', '', spec)
+                        base_version = re.sub(r'^[\^~>=<]+', '', view_spec)
                         if packaging.version.parse(latest) > packaging.version.parse(base_version):
                             outdated.append({
                                 "name": name,
@@ -216,7 +235,7 @@ class DependencyChecker:
                             "major_bump": True
                         })
                 except packaging.specifiers.InvalidSpecifier:
-                    base_version = re.sub(r'^[\^~>=<]+', '', spec)
+                    base_version = re.sub(r'^[\^~>=<]+', '', view_spec)
                     if latest != base_version:
                         outdated.append({
                             "name": name,
@@ -551,7 +570,15 @@ class DependencyChecker:
 
     def _auto_fix(self, result: CheckResult, *, yes: bool = False):
         """Auto-upgrade catalog packages (safe updates only)"""
-        catalog_updates = [p for p in result.packages if p.is_catalog and not p.breaking and not p.deprecated]
+        catalog_updates = [
+            p for p in result.packages
+            if p.is_catalog
+            and not p.breaking
+            and not p.deprecated
+            # npm: alias specs (e.g. typescript -> @typescript/typescript6)
+            # must not be rewritten to a plain ^range — that would drop the alias.
+            and not str(self.catalog.get(p.name, "")).startswith("npm:")
+        ]
 
         if not catalog_updates:
             self._print("No safe catalog updates available (all have breaking changes or deprecated)", "warn")
