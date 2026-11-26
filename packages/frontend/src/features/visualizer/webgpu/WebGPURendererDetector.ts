@@ -202,7 +202,7 @@ export async function detectWebGPUSupport(timeoutMs = 3000): Promise<boolean> {
     try {
       // The adapter object itself is never inspected — only its presence —
       // so `unknown` is the honest type for the probe result.
-      const nav = navigator as Navigator & {
+      const nav = navigator as Omit<Navigator, "gpu"> & {
         gpu?: { requestAdapter: () => Promise<unknown> };
       };
       if (!nav.gpu) return false;

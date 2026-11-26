@@ -6,36 +6,45 @@ packages:
 catalog:
   react: ^19.3.1
   react-dom: ^19.3.1
-  typescript: ^5.9.3
+  # TypeScript 7 side-by-side (official Microsoft layout, see
+  # devblogs.microsoft.com/typescript/announcing-typescript-7-0):
+  # `typescript` resolves to @typescript/typescript6 so API consumers
+  # (typescript-eslint peer <6.1.0, ts-api-utils, @svgr) keep a stable
+  # JS API; `@typescript/native` is typescript@7 and provides the `tsc`
+  # binary used by type-check/build scripts.
+  typescript: npm:@typescript/typescript6@^6.0.2
+  '@typescript/native': npm:typescript@^7.0.2
   tailwindcss: ^4.3.5
   '@tailwindcss/vite': ^4.3.5
-  eslint: ^10.14.0
-  '@playwright/test': ^1.65.0
-  playwright: ^1.65.0
-  '@remotion/captions': ^4.0.541
-  '@remotion/cli': ^4.0.541
-  '@remotion/effects': ^4.0.541
-  '@remotion/eslint-config-flat': ^4.0.541
-  '@remotion/media': ^4.0.541
-  '@remotion/media-utils': ^4.0.541
-  '@remotion/noise': ^4.0.541
-  '@remotion/shapes': ^4.0.541
-  '@remotion/tailwind-v4': ^4.0.541
-  '@remotion/three': ^4.0.541
-  '@remotion/transitions': ^4.0.541
-  remotion: ^4.0.541
+  eslint: ^10.15.0
+  '@playwright/test': ^1.65.1
+  playwright: ^1.65.1
+  '@remotion/captions': ^4.0.545
+  '@remotion/cli': ^4.0.545
+  '@remotion/effects': ^4.0.545
+  '@remotion/eslint-config-flat': ^4.0.545
+  '@remotion/media': ^4.0.545
+  '@remotion/media-utils': ^4.0.545
+  '@remotion/noise': ^4.0.545
+  '@remotion/renderer': ^4.0.545
+  '@remotion/shapes': ^4.0.545
+  '@remotion/tailwind-v4': ^4.0.545
+  '@remotion/three': ^4.0.545
+  '@remotion/transitions': ^4.0.545
+  remotion: ^4.0.545
   zod: ^4.6.7
-  vite: 8.3.6
+  vite: 8.3.8
   comfyui-mcp: 0.52.206
-  '@playwright/mcp': ^0.0.84
-  '@tanstack/react-query': ^5.107.1
+  '@playwright/mcp': ^0.0.86
+  '@tanstack/react-query': ^5.108.0
 # ---------------------------------------------------------------------------
-# TypeScript stays on 5.x: typescript-eslint 8.x (the lint toolchain)
-# peer-caps typescript at >=4.8.4 <6.1.0 AND hard-fails at import time on
-# TS 7 ("typescript-eslint does not support TS 7.0" — verified live), so
-# neither TS 6 nor the TS 7 native port can be adopted until
-# typescript-eslint ships support. The `typescript` catalog entry above
-# is the single source of truth; do not bump it past 5.x.
+# TypeScript runs side-by-side: `typescript` (catalog) is
+# @typescript/typescript6 — the JS API that typescript-eslint (<6.1.0
+# peer cap), ts-api-utils and @svgr still require — while
+# `@typescript/native` is typescript@7 (native Go port, `tsc` bin) used
+# by `tsc -b` / `tsc -p` in type-check and build scripts. Do NOT point
+# `typescript` at 7.x: TS 7.0 ships no programmatic API and eslint
+# crashes at import time. TS 7.1+ may unify this again.
 # ---------------------------------------------------------------------------
 linkWorkspacePackages: true
 preferWorkspacePackages: true
@@ -49,7 +58,7 @@ saveWorkspaceProtocol: true
 catalogMode: strict
 catalogPrune: true
 auditLevel: high
-nodeVersion: 26.13.0
+nodeVersion: 26.13.1
 # The runtime pnpm uses for `pnpm run`/`pnpm exec`/`pnpm node` is declared
 # via devEngines.runtime in package.json (pnpm 12 removed useNodeVersion;
 # without it scripts ran on the ambient fnm node v24 while engines and
@@ -68,43 +77,43 @@ allowBuilds:
   esbuild: true
 overrides:
   typescript-eslint: 8.72.1
-  '@remotion/bundler@4.0.534': '>=4.0.534'
-  '@remotion/canvas@4.0.534': '>=4.0.534'
-  '@remotion/captions@4.0.534': '>=4.0.534'
-  '@remotion/cli@4.0.534': '>=4.0.534'
-  '@remotion/compositor-darwin-arm64@4.0.534': '>=4.0.534'
-  '@remotion/compositor-darwin-x64@4.0.534': '>=4.0.534'
-  '@remotion/compositor-linux-arm64-gnu@4.0.534': '>=4.0.534'
-  '@remotion/compositor-linux-arm64-musl@4.0.534': '>=4.0.534'
-  '@remotion/compositor-linux-x64-gnu@4.0.534': '>=4.0.534'
-  '@remotion/compositor-linux-x64-musl@4.0.534': '>=4.0.534'
-  '@remotion/compositor-win32-x64-msvc@4.0.534': '>=4.0.534'
-  '@remotion/eslint-config-flat@4.0.534': '>=4.0.534'
-  '@remotion/licensing@4.0.534': '>=4.0.534'
-  '@remotion/media-parser@4.0.534': '>=4.0.534'
-  '@remotion/media-utils@4.0.534': '>=4.0.534'
-  '@remotion/media@4.0.534': '>=4.0.534'
-  '@remotion/noise@4.0.534': '>=4.0.534'
-  '@remotion/paths@4.0.534': '>=4.0.534'
-  '@remotion/player@4.0.534': '>=4.0.534'
-  '@remotion/renderer@4.0.534': '>=4.0.534'
-  '@remotion/shapes@4.0.534': '>=4.0.534'
-  '@remotion/streaming@4.0.534': '>=4.0.534'
-  '@remotion/studio-codemods@4.0.534': '>=4.0.534'
-  '@remotion/studio-protocol@4.0.534': '>=4.0.534'
-  '@remotion/studio-server@4.0.534': '>=4.0.534'
-  '@remotion/studio-shared@4.0.534': '>=4.0.534'
-  '@remotion/studio@4.0.534': '>=4.0.534'
-  '@remotion/tailwind-v4@4.0.534': '>=4.0.534'
-  '@remotion/three@4.0.534': '>=4.0.534'
-  '@remotion/timeline-utils@4.0.534': '>=4.0.534'
-  '@remotion/web-renderer@4.0.534': '>=4.0.534'
-  '@remotion/zod-types@4.0.534': '>=4.0.534'
-  remotion@4.0.534: '>=4.0.534'
-  '@remotion/effects@4.0.534': '>=4.0.534'
-  '@remotion/transitions@4.0.534': '>=4.0.534'
+  '@remotion/bundler@4.0.545': '>=4.0.545'
+  '@remotion/canvas@4.0.545': '>=4.0.545'
+  '@remotion/captions@4.0.545': '>=4.0.545'
+  '@remotion/cli@4.0.545': '>=4.0.545'
+  '@remotion/compositor-darwin-arm64@4.0.545': '>=4.0.545'
+  '@remotion/compositor-darwin-x64@4.0.545': '>=4.0.545'
+  '@remotion/compositor-linux-arm64-gnu@4.0.545': '>=4.0.545'
+  '@remotion/compositor-linux-arm64-musl@4.0.545': '>=4.0.545'
+  '@remotion/compositor-linux-x64-gnu@4.0.545': '>=4.0.545'
+  '@remotion/compositor-linux-x64-musl@4.0.545': '>=4.0.545'
+  '@remotion/compositor-win32-x64-msvc@4.0.545': '>=4.0.545'
+  '@remotion/eslint-config-flat@4.0.545': '>=4.0.545'
+  '@remotion/licensing@4.0.545': '>=4.0.545'
+  '@remotion/media-parser@4.0.545': '>=4.0.545'
+  '@remotion/media-utils@4.0.545': '>=4.0.545'
+  '@remotion/media@4.0.545': '>=4.0.545'
+  '@remotion/noise@4.0.545': '>=4.0.545'
+  '@remotion/paths@4.0.545': '>=4.0.545'
+  '@remotion/player@4.0.545': '>=4.0.545'
+  '@remotion/renderer@4.0.545': '>=4.0.545'
+  '@remotion/shapes@4.0.545': '>=4.0.545'
+  '@remotion/streaming@4.0.545': '>=4.0.545'
+  '@remotion/studio-codemods@4.0.545': '>=4.0.545'
+  '@remotion/studio-protocol@4.0.545': '>=4.0.545'
+  '@remotion/studio-server@4.0.545': '>=4.0.545'
+  '@remotion/studio-shared@4.0.545': '>=4.0.545'
+  '@remotion/studio@4.0.545': '>=4.0.545'
+  '@remotion/tailwind-v4@4.0.545': '>=4.0.545'
+  '@remotion/three@4.0.545': '>=4.0.545'
+  '@remotion/timeline-utils@4.0.545': '>=4.0.545'
+  '@remotion/web-renderer@4.0.545': '>=4.0.545'
+  '@remotion/zod-types@4.0.545': '>=4.0.545'
+  remotion@4.0.545: '>=4.0.545'
+  '@remotion/effects@4.0.545': '>=4.0.545'
+  '@remotion/transitions@4.0.545': '>=4.0.545'
   mediabunny@1.59.1 || 1.61.0 || 1.61.3: '>=1.61.3'
-  vite@8.3.5: '>=8.3.6'
+  vite@8.3.7: '>=8.3.8'
   '@playwright/test@1.64.0': '>=1.64.0'
   lucide-react@1.53.0: '>=1.53.0'
   playwright-core@1.64.0 || 1.65.0-alpha-2026-10-28: '>=1.64.0'
