@@ -28,7 +28,13 @@ export async function getUnityStatus(): Promise<UnityStatus> {
  * List all Unity Pipeline commands.
  */
 export async function listUnityCommands(): Promise<UnityCommandInfo[]> {
-  return getJson<UnityCommandInfo[]>(`${BASE}/commands`, { timeout: 15000 });
+  // The backend proxies the Unity Pipeline /api/commands response, which is an
+  // envelope ({ commands: [...], count, ... }) rather than a bare array.
+  const data = await getJson<UnityCommandInfo[] | { commands?: UnityCommandInfo[] }>(
+    `${BASE}/commands`,
+    { timeout: 15000 },
+  );
+  return Array.isArray(data) ? data : (data.commands ?? []);
 }
 
 /**

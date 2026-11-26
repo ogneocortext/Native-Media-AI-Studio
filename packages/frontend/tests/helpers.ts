@@ -803,6 +803,12 @@ export async function mockLogAnalytics(page: Page): Promise<void> {
       ],
     }),
     "/api/logs/": JSON.stringify({ log_directory: "logs", files: {} }),
+    // App-shell presence chips + Log Analytics live-traffic panel also live
+    // under /api/logs/ — answer them with their real shapes or the catch-all
+    // below returns a log-tail body and React crashes on .map of undefined.
+    "/api/logs/presence": JSON.stringify({ version: "test", people: [] }),
+    "/api/logs/presence/journal": JSON.stringify({ entries: [] }),
+    "/api/logs/traffic": JSON.stringify({ entries: [], latest_seq: 0 }),
   };
 
   registerRouteHandler(page, async (route) => {
@@ -877,6 +883,12 @@ export async function mockHealthPage(
     running: comfyuiRunning,
     port: 8188,
     url: "http://localhost:8188",
+    version: {
+      installed: comfyuiInstalled,
+      version: "v0.3.0",
+      behind_remote: 0,
+      up_to_date: true,
+    },
   });
 
   // Mock port config endpoint - needed by fetchSystemStatus

@@ -159,6 +159,7 @@ const VoiceLivePage = lazyNamed(
   async () => import("./features/voice-live/VoiceLivePage"),
   "VoiceLivePage",
 );
+const VSTPage = lazyNamed(async () => import("./features/vst/VSTPage"), "VSTPage");
 
 // Register all lazy routes for preloading on hover
 registerRouteLoader("/create/music-video", async () => import("./features/music-video/MusicVideoWizard"));
@@ -181,6 +182,7 @@ registerRouteLoader(
 );
 registerRouteLoader("/create/unity", async () => import("./features/unity-control/UnityControlPage"));
 registerRouteLoader("/create/hyperframes", async () => import("./features/hyperframes/HyperFramesPage"));
+registerRouteLoader("/create/vst", async () => import("./features/vst/VSTPage"));
 registerRouteLoader("/library", async () => import("./features/media-library/MediaLibrary"));
 registerRouteLoader("/nsfw", async () => import("./features/media-library/NsfwLibrary"));
 registerRouteLoader("/voice-live", async () => import("./features/voice-live/VoiceLivePage"));
@@ -244,6 +246,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/create/animation": "Animation Studio",
   "/create/unity": "Unity Control",
   "/create/hyperframes": "HyperFrames",
+  "/create/vst": "VST Host",
   "/library": "Media Library",
   "/library/video": "Video Library",
   "/library/audio": "Audio Library",
@@ -351,6 +354,7 @@ function App() {
               <Route path="/create/animation" element={withErrorBoundary(<AnimationStudio />)} />
               <Route path="/create/unity" element={withErrorBoundary(<UnityControlPage />)} />
               <Route path="/create/hyperframes" element={withErrorBoundary(<HyperFramesPage />)} />
+              <Route path="/create/vst" element={withErrorBoundary(<VSTPage />)} />
               <Route path="/voice-live" element={withErrorBoundary(<VoiceLivePage />)} />
 
               {/* Library */}

@@ -378,7 +378,11 @@ export function UnityControlPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    // pt-16 clears the absolutely-positioned layout topbar (status dot,
+    // presence chips, notification bell) that overlays the top-right corner —
+    // without it the header's Capture button sits under the overlay and
+    // intercepts pointer events fail.
+    <div className="p-6 pt-16 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Unity Control</h1>
         <div className="flex items-center gap-3">

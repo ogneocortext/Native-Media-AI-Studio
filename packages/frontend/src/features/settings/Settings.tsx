@@ -101,7 +101,9 @@ export function Settings() {
       show_nsfw: false,
     };
   });
-  const [connectionTests, setConnectionTests] = useState<Record<string, ConnectionTestResult>>({});
+  const [connectionTests, setConnectionTests] = useState<Partial<
+    Record<string, ConnectionTestResult>
+  >>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Load current settings from backend on mount
@@ -281,25 +283,25 @@ export function Settings() {
                   className="btn btn-secondary"
                   title="Test Connection"
                   onClick={() => void testConnection(settings.comfyui_url, "comfyui")}
-                  disabled={connectionTests[`comfyui-${settings.comfyui_url}`].status === "testing"}
+                  disabled={connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "testing"}
                 >
-                  {connectionTests[`comfyui-${settings.comfyui_url}`].status === "testing" ? (
+                  {connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "testing" ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
                     <Link2 size={16} />
                   )}
                 </button>
               </div>
-              {connectionTests[`comfyui-${settings.comfyui_url}`].status === "success" && (
+              {connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "success" && (
                 <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
                   <CheckCircle2 size={12} />{" "}
-                  {connectionTests[`comfyui-${settings.comfyui_url}`].message}
+                  {connectionTests[`comfyui-${settings.comfyui_url}`]?.message}
                 </p>
               )}
-              {connectionTests[`comfyui-${settings.comfyui_url}`].status === "error" && (
+              {connectionTests[`comfyui-${settings.comfyui_url}`]?.status === "error" && (
                 <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
                   <AlertCircle size={12} />{" "}
-                  {connectionTests[`comfyui-${settings.comfyui_url}`].message}
+                  {connectionTests[`comfyui-${settings.comfyui_url}`]?.message}
                 </p>
               )}
               <p className="text-xs text-muted mt-1">
@@ -375,25 +377,25 @@ export function Settings() {
                   className="btn btn-secondary"
                   title="Test Connection"
                   onClick={() => void testConnection(settings.ollama_url, "ollama")}
-                  disabled={connectionTests[`ollama-${settings.ollama_url}`].status === "testing"}
+                  disabled={connectionTests[`ollama-${settings.ollama_url}`]?.status === "testing"}
                 >
-                  {connectionTests[`ollama-${settings.ollama_url}`].status === "testing" ? (
+                  {connectionTests[`ollama-${settings.ollama_url}`]?.status === "testing" ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
                     <Link2 size={16} />
                   )}
                 </button>
               </div>
-              {connectionTests[`ollama-${settings.ollama_url}`].status === "success" && (
+              {connectionTests[`ollama-${settings.ollama_url}`]?.status === "success" && (
                 <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
                   <CheckCircle2 size={12} />{" "}
-                  {connectionTests[`ollama-${settings.ollama_url}`].message}
+                  {connectionTests[`ollama-${settings.ollama_url}`]?.message}
                 </p>
               )}
-              {connectionTests[`ollama-${settings.ollama_url}`].status === "error" && (
+              {connectionTests[`ollama-${settings.ollama_url}`]?.status === "error" && (
                 <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
                   <AlertCircle size={12} />{" "}
-                  {connectionTests[`ollama-${settings.ollama_url}`].message}
+                  {connectionTests[`ollama-${settings.ollama_url}`]?.message}
                 </p>
               )}
               <p className="text-xs text-muted mt-1">Base Ollama server for LLM text generation</p>
@@ -450,23 +452,23 @@ export function Settings() {
                     title="Test Connection"
                     disabled={
                       !settings.atomic_chat_enabled ||
-                      connectionTests["atomic-chat"].status === "testing"
+                      connectionTests["atomic-chat"]?.status === "testing"
                     }
                     onClick={() => void testAtomicChat()}
                   >
-                    {connectionTests["atomic-chat"].status === "testing" ? (
+                    {connectionTests["atomic-chat"]?.status === "testing" ? (
                       <Loader2 size={16} className="animate-spin" />
                     ) : (
                       <Link2 size={16} />
                     )}
                   </button>
                 </div>
-                {connectionTests["atomic-chat"].status === "success" && (
+                {connectionTests["atomic-chat"]?.status === "success" && (
                   <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
                     <CheckCircle2 size={12} /> {connectionTests["atomic-chat"].message}
                   </p>
                 )}
-                {connectionTests["atomic-chat"].status === "error" && (
+                {connectionTests["atomic-chat"]?.status === "error" && (
                   <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
                     <AlertCircle size={12} /> {connectionTests["atomic-chat"].message}
                   </p>

@@ -81,10 +81,10 @@ test.describe('VST Host - Scan, Build Chain, Process Audio', () => {
     await expect(page.locator('text=No chain selected')).toBeVisible();
 
     // Click to add plugins to chain (empty drop zone)
-    await page.locator('text=Click to add plugins to the chain').click();
+    await page.locator('button:has-text("Add Plugin to Chain")').click();
 
     // Verify plugin selector modal opens
-    await expect(page.locator('text=Add Plugin to Chain')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Add Plugin to Chain' })).toBeVisible();
     await expect(page.locator('text=TestCompressor')).toBeVisible();
     await expect(page.locator('text=TestEQ')).toBeVisible();
 
@@ -95,7 +95,7 @@ test.describe('VST Host - Scan, Build Chain, Process Audio', () => {
     await expect(page.locator('text=TestCompressor').first()).toBeVisible();
 
     // Add TestEQ to chain
-    await page.locator('text=Click to add plugins to the chain').click();
+    await page.locator('button:has-text("Add Plugin to Chain")').click();
     await page.locator('button:has-text("TestEQ")').first().click();
 
     // Verify both plugins in chain
@@ -166,7 +166,9 @@ test.describe('VST Host - Scan, Build Chain, Process Audio', () => {
     await expect(page.locator('text=processed_audio.wav')).toBeVisible();
     await expect(page.locator('text=2:00')).toBeVisible(); // 120.5 seconds ≈ 2:00
     await expect(page.locator('text=48000 Hz')).toBeVisible();
-    await expect(page.locator('text=2')).toBeVisible(); // channels
+    await expect(
+      page.getByText('Channels').locator('..').getByText('2', { exact: true }),
+    ).toBeVisible();
 
     // Verify audio player is present
     await expect(page.locator('audio')).toBeVisible();
@@ -223,11 +225,11 @@ test.describe('VST Host - Scan, Build Chain, Process Audio', () => {
     await page.locator('button:has-text("Chains")').click();
 
     // Add three plugins to chain
-    await page.locator('text=Click to add plugins to the chain').click();
+    await page.locator('button:has-text("Add Plugin to Chain")').click();
     await page.locator('button:has-text("PluginA")').first().click();
-    await page.locator('text=Click to add plugins to the chain').click();
+    await page.locator('button:has-text("Add Plugin to Chain")').click();
     await page.locator('button:has-text("PluginB")').first().click();
-    await page.locator('text=Click to add plugins to the chain').click();
+    await page.locator('button:has-text("Add Plugin to Chain")').click();
     await page.locator('button:has-text("PluginC")').first().click();
 
     // Verify initial order: A, B, C
@@ -272,7 +274,7 @@ test.describe('VST Host - Scan, Build Chain, Process Audio', () => {
     await page.locator('button:has-text("Chains")').click();
 
     // Add plugin to chain
-    await page.locator('text=Click to add plugins to the chain').click();
+    await page.locator('button:has-text("Add Plugin to Chain")').click();
     await page.locator('button:has-text("TestPlugin")').first().click();
 
     // Verify plugin in chain
@@ -291,7 +293,7 @@ test.describe('VST Host - Scan, Build Chain, Process Audio', () => {
     await expect(page.locator('text=TestPlugin')).toBeVisible();
 
     // Add another plugin
-    await page.locator('text=Click to add plugins to the chain').click();
+    await page.locator('button:has-text("Add Plugin to Chain")').click();
     await page.locator('button:has-text("TestPlugin")').first().click();
 
     // Verify two plugins
@@ -335,7 +337,7 @@ test.describe('VST Host - Scan, Build Chain, Process Audio', () => {
     await page.locator('button:has-text("Chains")').click();
 
     // Add plugin to chain
-    await page.locator('text=Click to add plugins to the chain').click();
+    await page.locator('button:has-text("Add Plugin to Chain")').click();
     await page.locator('button:has-text("TestCompressor")').first().click();
 
     // Mock parameters response
@@ -363,7 +365,7 @@ test.describe('VST Host - Scan, Build Chain, Process Audio', () => {
     // Verify parameter editor opens
     await expect(page.locator('text=Parameters for TestCompressor')).toBeVisible();
     await expect(page.locator('text=Threshold')).toBeVisible();
-    await expect(page.locator('text=Ratio')).toBeVisible();
+    await expect(page.getByText('Ratio', { exact: true })).toBeVisible();
     await expect(page.locator('text=Attack')).toBeVisible();
     await expect(page.locator('text=Release')).toBeVisible();
 
@@ -407,9 +409,9 @@ test.describe('VST Host - Scan, Build Chain, Process Audio', () => {
     await page.locator('button:has-text("Chains")').click();
 
     // Add two plugins
-    await page.locator('text=Click to add plugins to the chain').click();
+    await page.locator('button:has-text("Add Plugin to Chain")').click();
     await page.locator('button:has-text("PluginA")').first().click();
-    await page.locator('text=Click to add plugins to the chain').click();
+    await page.locator('button:has-text("Add Plugin to Chain")').click();
     await page.locator('button:has-text("PluginB")').first().click();
 
     // Verify two plugins

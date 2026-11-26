@@ -34,6 +34,7 @@ import {
   Monitor,
   Info,
   EyeOff,
+  Puzzle,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
@@ -131,6 +132,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Unity Control",
         icon: <Gamepad2 size={18} />,
         keywords: "unity editor control remote",
+      },
+      {
+        path: "/create/vst",
+        label: "VST Host",
+        icon: <Puzzle size={18} />,
+        keywords: "vst plugins audio host chain",
       },
       {
         path: "/create/hyperframes",

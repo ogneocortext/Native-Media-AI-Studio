@@ -35,7 +35,6 @@ export function VSTPage() {
   const [availableInputs, setAvailableInputs] = useState<string[]>([]);
   const [processingResult, setProcessingResult] = useState<ProcessResult | null>(null);
 
-  void chains;
   void processingChain;
 
   const { refresh: refreshAudioLibrary } = useAudioLibrary();
@@ -147,7 +146,11 @@ export function VSTPage() {
   ];
 
   return (
-    <div className={DS.page}>
+    // pt-16 clears the absolutely-positioned layout topbar (status dot,
+    // presence chips, notification bell) that overlays the top-right corner —
+    // without it the Scan button sits under the overlay and clicks are
+    // intercepted.
+    <div className={`${DS.page} pt-16`}>
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>
@@ -206,15 +209,41 @@ export function VSTPage() {
       )}
 
       {activeTab === "chains" && (
-        <VSTChainBuilder
-          chain={selectedChain}
-          plugins={plugins}
-          onSave={(c) => void handleSaveChain(c)}
-          onDelete={() => void handleDeleteChain()}
-          onProcess={(name, input) => void handleProcessChain(name, input)}
-          isProcessing={processing}
-          availableInputs={availableInputs}
-        />
+        <div className="space-y-4">
+          {chains.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {chains.map((c) => (
+                <button
+                  key={c.name}
+                  onClick={() => setSelectedChain(c)}
+                  className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                    selectedChain?.name === c.name
+                      ? "bg-indigo-500/20 border-indigo-500/50 text-indigo-300"
+                      : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+              <button
+                onClick={() => setSelectedChain(null)}
+                className="px-3 py-1.5 rounded-lg text-sm border border-dashed border-white/20 text-gray-400 hover:bg-white/5 transition-colors"
+              >
+                + New Chain
+              </button>
+            </div>
+          )}
+          <VSTChainBuilder
+            key={selectedChain?.name ?? "__new__"}
+            chain={selectedChain}
+            plugins={plugins}
+            onSave={(c) => void handleSaveChain(c)}
+            onDelete={() => void handleDeleteChain()}
+            onProcess={(name, input) => void handleProcessChain(name, input)}
+            isProcessing={processing}
+            availableInputs={availableInputs}
+          />
+        </div>
       )}
 
       {activeTab === "presets" && (

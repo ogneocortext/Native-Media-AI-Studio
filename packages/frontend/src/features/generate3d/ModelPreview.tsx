@@ -287,7 +287,8 @@ class ErrorCatcher extends Component<
   componentDidCatch() {
     this.props.onError();
   }
-  async render() {
+  // eslint-disable-next-line @typescript-eslint/promise-function-async -- class render() must stay synchronous; React 19 types include Promise in ReactNode
+  render() {
     if (this.state.failed) return null;
     return this.props.children;
   }

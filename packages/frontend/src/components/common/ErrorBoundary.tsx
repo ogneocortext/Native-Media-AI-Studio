@@ -30,7 +30,8 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ hasError: false, error: null });
   };
 
-  async render() {
+  // eslint-disable-next-line @typescript-eslint/promise-function-async -- class render() must stay synchronous; React 19 types include Promise in ReactNode
+  render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;

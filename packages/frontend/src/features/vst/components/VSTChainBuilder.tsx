@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
-  Music,
   Plus,
   Trash2,
   Save,
@@ -175,7 +174,7 @@ export const VSTChainBuilder = React.memo<VSTChainBuilderProps>(({
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         if (e.shiftKey) {
           redo();
         } else {
@@ -190,20 +189,13 @@ export const VSTChainBuilder = React.memo<VSTChainBuilderProps>(({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [undo, redo]);
 
-  if (!chain) {
-    return (
-      <div className={styles.emptyState}>
-        <Music size={48} className={styles.emptyIcon} />
-        <p className={styles.emptyText}>No chain selected</p>
-        <p className={styles.emptySubtext}>
-          Select a chain from the list or create a new one by adding plugins
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className={styles.container}>
+      {!chain && (
+        <p className={styles.emptySubtext}>
+          No chain selected — configure a new chain below
+        </p>
+      )}
       {/* Chain Header */}
       <div className={styles.header}>
         <div className={styles.headerLeft}>
@@ -333,7 +325,7 @@ export const VSTChainBuilder = React.memo<VSTChainBuilderProps>(({
             return (
               <div
                 key={`${chainPlugin.name}-${index}`}
-                className={`${styles.chainItem} ${isDragged ? styles.dragging : ""} ${isDragOver ? styles.dragOver : ""}`}
+                className={`${styles.chainItem} chainItem ${isDragged ? styles.dragging : ""} ${isDragOver ? styles.dragOver : ""}`}
                 draggable
                 onDragStart={(e) => handleDragStart(e, index)}
                 onDragOver={(e) => handleDragOver(e, index)}
