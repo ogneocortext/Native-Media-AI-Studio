@@ -33,6 +33,7 @@ catalog:
   '@remotion/transitions': ^4.0.547
   remotion: ^4.0.547
   zod: ^4.6.7
+  prettier: 3.10.1
   vite: 8.4.0
   comfyui-mcp: 0.52.206
   '@playwright/mcp': ^0.0.86
@@ -76,6 +77,8 @@ allowBuilds:
   cloudflared@0.7.3: true
   esbuild: true
 overrides:
+  # typescript-eslint held at 8.72.1: 8.73.0 adds an @typescript/native
+  # peer wanting typescript >=7.1.0-dev (tsgo preview) — we run 7.0.2.
   typescript-eslint: 8.72.1
   '@remotion/bundler@4.0.547': '>=4.0.547'
   '@remotion/canvas@4.0.547': '>=4.0.547'

@@ -19,6 +19,6 @@
   "type": "module",
   "dependencies": {
     "@modelcontextprotocol/server": "^2.4.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   }
 }
