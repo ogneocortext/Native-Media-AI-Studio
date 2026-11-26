@@ -52,7 +52,7 @@ const FALLBACK_SECTIONS: Section[] = [
     id: "S01",
     name: "INTRO",
     start: 0,
-    end: 30.5,
+    end: 16.44,
     energy: 0.2,
     palette: { primary: "#38bdf8", secondary: "#0ea5e9", glow: "#22d3ee" },
     typography: {
@@ -66,10 +66,10 @@ const FALLBACK_SECTIONS: Section[] = [
   {
     id: "S02",
     name: "VERSE_01",
-    start: 30.5,
-    end: 60.36,
+    start: 16.44,
+    end: 59.12,
     energy: 0.548,
-    palette: { secondary: "#5ab8d4", primary: "#45a0c4", glow: "#60a5fa" },
+    palette: { primary: "#45a0c4", secondary: "#5ab8d4", glow: "#60a5fa" },
     typography: {
       size: 34,
       weight: 600,
@@ -80,9 +80,39 @@ const FALLBACK_SECTIONS: Section[] = [
   },
   {
     id: "S03",
+    name: "VERSE_02",
+    start: 59.12,
+    end: 86.48,
+    energy: 0.548,
+    palette: { primary: "#45a0c4", secondary: "#5ab8d4", glow: "#60a5fa" },
+    typography: {
+      size: 34,
+      weight: 600,
+      family: "Space Grotesk, sans-serif",
+      spacing: "0.02em",
+    },
+    camera: { scale: 1.0, speed: 0.08 },
+  },
+  {
+    id: "S04",
+    name: "PRE_CHORUS_01",
+    start: 86.48,
+    end: 101.88,
+    energy: 0.7,
+    palette: { primary: "#818cf8", secondary: "#6366f1", glow: "#a78bfa" },
+    typography: {
+      size: 56,
+      weight: 700,
+      family: "Space Grotesk, sans-serif",
+      spacing: "-0.02em",
+    },
+    camera: { scale: 1.01, speed: 0.1 },
+  },
+  {
+    id: "S05",
     name: "CHORUS_01",
-    start: 60.36,
-    end: 90.79,
+    start: 101.88,
+    end: 126.04,
     energy: 0.923,
     palette: { primary: "#c084fc", secondary: "#a855f7", glow: "#d946ef" },
     typography: {
@@ -94,25 +124,10 @@ const FALLBACK_SECTIONS: Section[] = [
     camera: { scale: 1.02, speed: 0.12 },
   },
   {
-    id: "S04",
-    name: "CHORUS_02",
-    start: 90.79,
-    end: 121.24,
-    energy: 0.923,
-    palette: { primary: "#c084fc", secondary: "#a855f7", glow: "#d946ef" },
-    typography: {
-      size: 88,
-      weight: 800,
-      family: "Space Grotesk, sans-serif",
-      spacing: "-0.04em",
-    },
-    camera: { scale: 1.04, speed: 0.12 },
-  },
-  {
-    id: "S05",
+    id: "S06",
     name: "BREAKDOWN",
-    start: 121.24,
-    end: 151.45,
+    start: 126.04,
+    end: 140.76,
     energy: 0.282,
     palette: { primary: "#b08a5a", secondary: "#8a7048", glow: "#f59e0b" },
     typography: {
@@ -124,25 +139,10 @@ const FALLBACK_SECTIONS: Section[] = [
     camera: { scale: 1.0, speed: 0.0 },
   },
   {
-    id: "S06",
-    name: "CHORUS_03_PEAK",
-    start: 151.45,
-    end: 181.67,
-    energy: 1.0,
-    palette: { primary: "#fbbf24", secondary: "#f59e0b", glow: "#fcd34d" },
-    typography: {
-      size: 92,
-      weight: 800,
-      family: "Space Grotesk, sans-serif",
-      spacing: "-0.04em",
-    },
-    camera: { scale: 1.03, speed: 0.15 },
-  },
-  {
     id: "S07",
     name: "BUILD_UP",
-    start: 181.67,
-    end: 212.04,
+    start: 140.76,
+    end: 155.24,
     energy: 0.84,
     palette: { primary: "#fbbf24", secondary: "#f59e0b", glow: "#fcd34d" },
     typography: {
@@ -155,10 +155,70 @@ const FALLBACK_SECTIONS: Section[] = [
   },
   {
     id: "S08",
-    name: "OUTRO",
+    name: "CHORUS_02",
+    start: 155.24,
+    end: 182.64,
+    energy: 0.95,
+    palette: { primary: "#c084fc", secondary: "#a855f7", glow: "#d946ef" },
+    typography: {
+      size: 88,
+      weight: 800,
+      family: "Space Grotesk, sans-serif",
+      spacing: "-0.04em",
+    },
+    camera: { scale: 1.04, speed: 0.12 },
+  },
+  {
+    id: "S09",
+    name: "VERSE_03",
+    start: 182.64,
+    end: 196.88,
+    energy: 0.548,
+    palette: { primary: "#45a0c4", secondary: "#5ab8d4", glow: "#60a5fa" },
+    typography: {
+      size: 34,
+      weight: 600,
+      family: "Space Grotesk, sans-serif",
+      spacing: "0.02em",
+    },
+    camera: { scale: 1.0, speed: 0.08 },
+  },
+  {
+    id: "S10",
+    name: "PRE_CHORUS_02",
+    start: 196.88,
+    end: 212.04,
+    energy: 0.7,
+    palette: { primary: "#818cf8", secondary: "#6366f1", glow: "#a78bfa" },
+    typography: {
+      size: 56,
+      weight: 700,
+      family: "Space Grotesk, sans-serif",
+      spacing: "-0.02em",
+    },
+    camera: { scale: 1.01, speed: 0.1 },
+  },
+  {
+    id: "S11",
+    name: "CHORUS_03",
     start: 212.04,
+    end: 229.0,
+    energy: 1.0,
+    palette: { primary: "#fbbf24", secondary: "#f59e0b", glow: "#fcd34d" },
+    typography: {
+      size: 92,
+      weight: 800,
+      family: "Space Grotesk, sans-serif",
+      spacing: "-0.04em",
+    },
+    camera: { scale: 1.03, speed: 0.15 },
+  },
+  {
+    id: "S12",
+    name: "OUTRO",
+    start: 229.0,
     end: 242.32,
-    energy: 0.794,
+    energy: 0.5,
     palette: { primary: "#fbbf24", secondary: "#d4a853", glow: "#fcd34d" },
     typography: {
       size: 48,
@@ -173,187 +233,56 @@ const FALLBACK_SECTIONS: Section[] = [
 type LyricLine = { start: number; end: number; text: string; section: string };
 
 const FALLBACK_LYRICS: LyricLine[] = [
-  {
-    start: 0,
-    end: 7.6,
-    text: "I used to stand at the edge of everything I knew",
-    section: "INTRO",
-  },
-  {
-    start: 7.6,
-    end: 15.2,
-    text: "Watching the old world fade into a different kind of blue",
-    section: "INTRO",
-  },
-  {
-    start: 15.2,
-    end: 22.8,
-    text: "I drew my maps in silence, traced the lines with borrowed light",
-    section: "INTRO",
-  },
-  {
-    start: 22.8,
-    end: 30.5,
-    text: "And somewhere in the static I found something worth the fight",
-    section: "INTRO",
-  },
-  {
-    start: 30.5,
-    end: 37.7,
-    text: "The city changed around me and the code rewrote the sky",
-    section: "VERSE_01",
-  },
-  {
-    start: 37.7,
-    end: 45.3,
-    text: "But I was learning how to breathe inside the reason why",
-    section: "VERSE_01",
-  },
-  {
-    start: 45.3,
-    end: 52.9,
-    text: "Every door that closed behind me opened something new",
-    section: "VERSE_01",
-  },
-  {
-    start: 52.9,
-    end: 60.36,
-    text: "I built myself from frequencies I never thought I knew",
-    section: "VERSE_01",
-  },
-  {
-    start: 60.36,
-    end: 67.0,
-    text: "I am the signal breaking through the noise",
-    section: "CHORUS_01",
-  },
-  {
-    start: 67.0,
-    end: 73.6,
-    text: "I am the light that finds the dark and makes a choice",
-    section: "CHORUS_01",
-  },
-  {
-    start: 73.6,
-    end: 79.8,
-    text: "Static in my veins but I am not afraid",
-    section: "CHORUS_01",
-  },
-  { start: 79.8, end: 86.4, text: "I am the frequency", section: "CHORUS_01" },
-  { start: 86.4, end: 90.79, text: "I am the frequency", section: "CHORUS_01" },
-  {
-    start: 90.79,
-    end: 97.4,
-    text: "I am the signal breaking through the noise",
-    section: "CHORUS_02",
-  },
-  {
-    start: 97.4,
-    end: 104.0,
-    text: "I am the light that finds the dark and makes a choice",
-    section: "CHORUS_02",
-  },
-  {
-    start: 104.0,
-    end: 110.2,
-    text: "Static in my veins but I am not afraid",
-    section: "CHORUS_02",
-  },
-  {
-    start: 110.2,
-    end: 116.8,
-    text: "I am the frequency",
-    section: "CHORUS_02",
-  },
-  {
-    start: 116.8,
-    end: 121.24,
-    text: "I am the frequency",
-    section: "CHORUS_02",
-  },
-  { start: 121.24, end: 128.0, text: "Still here", section: "BREAKDOWN" },
-  { start: 128.0, end: 134.6, text: "Still moving", section: "BREAKDOWN" },
-  {
-    start: 134.6,
-    end: 141.2,
-    text: "Still drawing the map",
-    section: "BREAKDOWN",
-  },
-  { start: 141.2, end: 147.8, text: "Still here", section: "BREAKDOWN" },
-  {
-    start: 147.8,
-    end: 151.45,
-    text: "Through the light and back",
-    section: "BREAKDOWN",
-  },
-  {
-    start: 151.45,
-    end: 158.0,
-    text: "I am the signal breaking through the noise",
-    section: "CHORUS_03_PEAK",
-  },
-  {
-    start: 158.0,
-    end: 164.6,
-    text: "I am the light that finds the dark and makes a choice",
-    section: "CHORUS_03_PEAK",
-  },
-  {
-    start: 164.6,
-    end: 170.8,
-    text: "Static in my veins but I am not afraid",
-    section: "CHORUS_03_PEAK",
-  },
-  {
-    start: 170.8,
-    end: 177.4,
-    text: "I am the frequency",
-    section: "CHORUS_03_PEAK",
-  },
-  {
-    start: 177.4,
-    end: 181.67,
-    text: "I am the frequency",
-    section: "CHORUS_03_PEAK",
-  },
-  { start: 181.67, end: 188.0, text: "Rising", section: "BUILD_UP" },
-  { start: 188.0, end: 194.4, text: "Rising", section: "BUILD_UP" },
-  {
-    start: 194.4,
-    end: 201.0,
-    text: "Let it break through",
-    section: "BUILD_UP",
-  },
-  { start: 201.0, end: 207.6, text: "Rising", section: "BUILD_UP" },
-  { start: 207.6, end: 212.04, text: "Let it take you", section: "BUILD_UP" },
-  {
-    start: 212.04,
-    end: 219.0,
-    text: "The borrowed light became my own, the grief became a song",
-    section: "OUTRO",
-  },
-  {
-    start: 219.0,
-    end: 226.5,
-    text: "And everything I thought I lost was where I still belong",
-    section: "OUTRO",
-  },
-  {
-    start: 226.5,
-    end: 234.0,
-    text: "Not the version that was promised, not the life I thought I'd find",
-    section: "OUTRO",
-  },
-  {
-    start: 234.0,
-    end: 242.32,
-    text: "But something real and present and entirely mine",
-    section: "OUTRO",
-  },
+  { start: 16.52, end: 22.48, text: "I used to stand at the edge of everything I knew", section: "VERSE_01" },
+  { start: 22.48, end: 29.84, text: "Watching the old world fade into a different kind of blue", section: "VERSE_01" },
+  { start: 29.84, end: 36.52, text: "I drew my maps in silence, traced the lines with borrowed light", section: "VERSE_01" },
+  { start: 36.52, end: 59.2, text: "And somewhere in the static I found something worth the fight", section: "VERSE_01" },
+  { start: 59.2, end: 66.32, text: "The city changed around me and the code rewrote the sky", section: "VERSE_02" },
+  { start: 66.32, end: 72.32, text: "But I was learning how to breathe inside the reason why", section: "VERSE_02" },
+  { start: 72.32, end: 79.2, text: "Every door that closed behind me opened something new", section: "VERSE_02" },
+  { start: 79.2, end: 86.56, text: "I built myself from frequencies I never thought I knew", section: "VERSE_02" },
+  { start: 86.56, end: 88.76, text: "Now I feel it rising", section: "PRE_CHORUS_01" },
+  { start: 88.76, end: 93.68, text: "Like the current finding ground", section: "PRE_CHORUS_01" },
+  { start: 93.68, end: 95.88, text: "Every wall that held me", section: "PRE_CHORUS_01" },
+  { start: 95.88, end: 101.88, text: "Is the bridge I'm standing on now", section: "PRE_CHORUS_01" },
+  { start: 101.88, end: 105.4, text: "I am the signal breaking through the noise", section: "CHORUS_01" },
+  { start: 105.4, end: 108.8, text: "I am the light that finds the dark and makes a choice", section: "CHORUS_01" },
+  { start: 108.8, end: 112.76, text: "Static in my veins but I am not afraid", section: "CHORUS_01" },
+  { start: 112.76, end: 118.08, text: "I am the frequency", section: "CHORUS_01" },
+  { start: 118.08, end: 126.12, text: "I am the frequency", section: "CHORUS_01" },
+  { start: 126.12, end: 128.76, text: "Still here", section: "BREAKDOWN" },
+  { start: 128.76, end: 130.56, text: "Still moving", section: "BREAKDOWN" },
+  { start: 130.56, end: 133.2, text: "Still drawing the map", section: "BREAKDOWN" },
+  { start: 133.2, end: 135.88, text: "Still here", section: "BREAKDOWN" },
+  { start: 135.88, end: 137.2, text: "Still moving", section: "BREAKDOWN" },
+  { start: 137.2, end: 140.76, text: "Through the light and back", section: "BREAKDOWN" },
+  { start: 140.76, end: 142.52, text: "Rising", section: "BUILD_UP" },
+  { start: 142.52, end: 144.32, text: "Rising", section: "BUILD_UP" },
+  { start: 144.32, end: 147.84, text: "Let it break through", section: "BUILD_UP" },
+  { start: 147.84, end: 149.64, text: "Rising", section: "BUILD_UP" },
+  { start: 149.64, end: 151.4, text: "Rising", section: "BUILD_UP" },
+  { start: 151.4, end: 155.24, text: "Let it take you", section: "BUILD_UP" },
+  { start: 155.24, end: 158.76, text: "I am the signal breaking through the noise", section: "CHORUS_02" },
+  { start: 158.76, end: 162.08, text: "I am the light that finds the dark and makes a choice", section: "CHORUS_02" },
+  { start: 162.08, end: 166.08, text: "Static in my veins but I am not afraid", section: "CHORUS_02" },
+  { start: 166.08, end: 171.4, text: "I am the frequency", section: "CHORUS_02" },
+  { start: 171.4, end: 182.72, text: "I am the frequency", section: "CHORUS_02" },
+  { start: 182.72, end: 186.52, text: "The borrowed light became my own, the grief became a song", section: "VERSE_03" },
+  { start: 186.52, end: 190.08, text: "And everything I thought I lost was where I still belong", section: "VERSE_03" },
+  { start: 190.08, end: 193.64, text: "Not the version that was promised, not the life I thought I'd find", section: "VERSE_03" },
+  { start: 193.64, end: 196.96, text: "But something real and present and entirely mine", section: "VERSE_03" },
+  { start: 196.96, end: 198.96, text: "Now I feel it rising", section: "PRE_CHORUS_02" },
+  { start: 198.96, end: 203.84, text: "Like the current finding ground", section: "PRE_CHORUS_02" },
+  { start: 203.84, end: 206.04, text: "Every wall that held me", section: "PRE_CHORUS_02" },
+  { start: 206.04, end: 212.04, text: "Is the bridge I'm standing on now", section: "PRE_CHORUS_02" },
+  { start: 212.04, end: 215.6, text: "I am the signal breaking through the noise", section: "CHORUS_03" },
+  { start: 215.6, end: 218.96, text: "I am the light that finds the dark and makes a choice", section: "CHORUS_03" },
+  { start: 218.96, end: 222.92, text: "Static in my veins but I am not afraid", section: "CHORUS_03" },
+  { start: 222.92, end: 226.5, text: "I am the frequency", section: "CHORUS_03" },
 ];
 
 const FALLBACK_TRANSITIONS = [
-  30.5, 60.36, 90.79, 121.24, 151.45, 181.67, 212.04,
+  16.44, 59.12, 86.48, 101.88, 126.04, 140.76, 155.24, 182.64, 196.88, 212.04, 229.0,
 ];
 
 // ─── Composition ───
@@ -457,10 +386,16 @@ const MainVideo: React.FC<MainVideoProps> = ({ analysis }) => {
     ? (analysis?.timing_contract?.duration ?? DEFAULT_DURATION_SECONDS)
     : DEFAULT_DURATION_SECONDS;
   const progress = Math.min(1, t / duration);
+
+  // Long-gap clamp: where a lyric line's duration exceeds 8 seconds,
+  // its on-screen display ends at start + 6 so the frame rests during
+  // the instrumental interlude instead of holding a stale line.
+  const getEffectiveEnd = (line: LyricLine) => line.end - line.start > 8 ? line.start + 6 : line.end;
+
   const currentLyric =
-    lyrics.find((l) => t >= l.start && l.end > t) ?? lyrics[0];
+    lyrics.find((l) => t >= l.start && t < getEffectiveEnd(l)) ?? lyrics[0];
   const lyricProgress = currentLyric
-    ? (t - currentLyric.start) / (currentLyric.end - currentLyric.start)
+    ? (t - currentLyric.start) / (getEffectiveEnd(currentLyric) - currentLyric.start)
     : 0;
 
   // ─── Current Section ───
@@ -535,6 +470,32 @@ const MainVideo: React.FC<MainVideoProps> = ({ analysis }) => {
     <AbsoluteFill style={{ backgroundColor: "#050508", overflow: "hidden" }}>
       <Audio src={staticFile("signal.mp3")} />
 
+      {/* ─── Signal Mark Emblem — central anchor, audio-reactive ─── */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <svg
+          width={300}
+          height={300}
+          viewBox="0 0 24 24"
+          style={{
+            fill: "rgba(255,255,255,0.9)",
+            transform: `scale(${camScale * (isChorus ? 1.5 : isBreakdown ? 0.7 : 1)})`,
+            filter: `drop-shadow(0 0 20px ${section.palette.glow}80)`,
+          }}
+        >
+          <path
+            d="M12 2c1.1 0 2 .9 2 2h4v2H8v2h4c1.1 0 2 .9 2 2v4h2V6c0-1.1-.9-2-2-2zm-5.1 12.64l-.76 2.31-2.63 1.09.09-.72-2.37-2.05.67-.96.85-2.47 2.15.22.67 2.36 2.06-.76-2.31-2.64 1.09-.09.72 2.38 2.06-.67.96-2.48 2.16-.22-.67-2.37-2.06.76 2.32 2.64-1.09.09-.72-2.38-2.06.67.96 2.48-2.16.22.67-2.38-2.05-.67-.96 2.47-2.15-.22.67 2.37 2.06-.76-2.31 2.63-1.09-.09.72-2.37-2.05-.67.96 2.48 2.15.22.67 2.36 2.06.76-2.32-2.64-1.09.09.72 2.37 2.05.67-.96-2.48-2.15-.22.67-2.36-2.06-.76 2.32-2.64 1.09-.09.72 2.38 2.06.67-.96-2.47 2.15-.22.67-2.37-2.06z"
+          />
+        </svg>
+      </div>
+
       {/* ─── Background ─── */}
       <BackgroundSection
         section={section}
@@ -547,18 +508,19 @@ const MainVideo: React.FC<MainVideoProps> = ({ analysis }) => {
       />
 
       {/* ─── 3D Scene ─── */}
-      <Scene3DLayer
-        section={section}
-        t={t}
-        bass={analyzed.bass}
-        mid={analyzed.mid}
-        treble={analyzed.treble}
-        beatSpring={beatSpring}
-        width={width}
-        height={height}
-        isBeat={isBeat}
-        pulse={pulse}
-      />
+      {isChorus || section.name === "BUILD_UP" && (
+        <Scene3DLayer
+          section={section}
+          t={t}
+          bass={analyzed.bass}
+          mid={analyzed.mid}
+          treble={analyzed.treble}
+          beatSpring={beatSpring}
+          width={width}
+          height={height}
+          isBeat={isBeat}
+          pulse={pulse}
+        />)
 
       {/* ─── Beat-synced pulse rings ─── */}
       <BeatRings
@@ -570,13 +532,15 @@ const MainVideo: React.FC<MainVideoProps> = ({ analysis }) => {
       />
 
       {/* ─── Waveform ─── */}
-      <WaveformSection
-        waveform={analyzed.waveform}
-        section={section}
-        width={width}
-        height={height}
-        bass={analyzed.bass}
-      />
+      {(section.name === "INTRO" || section.name === "BREAKDOWN") && (
+        <WaveformSection
+          waveform={analyzed.waveform}
+          section={section}
+          width={width}
+          height={height}
+          bass={analyzed.bass}
+        />
+      )
 
       {/* ─── Floating Particles ─── */}
       <ParticlesLayer
@@ -1002,9 +966,10 @@ const LyricSection: React.FC<{
   return (
     <AbsoluteFill
       style={{
-        justifyContent: "center",
-        alignItems: "center",
         pointerEvents: "none",
+        bottom: 40,
+        left: 50,
+        transform: "translateX(-50)",
         padding: "0 100px",
       }}
     >
