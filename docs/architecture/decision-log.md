@@ -12,7 +12,7 @@
 > **Recommendation** where one exists. **Quick index** is the navigation
 > layer for readers who should not load the whole log.
 >
-> Current scope: D1–D84 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
+> Current scope: D1–D86 (Decided), Q1–Q6 (Open/In evaluation/Resolved).
 > Start at **Quick index** below: one line per entry, then open only the
 > entries you need.
 > (D69 was originally numbered D55 — a duplicate; renumbered 2026-11-05.)
@@ -111,6 +111,7 @@ line here is an incomplete decision.
 - `D83` **Stated facts in AGENTS.md are checked, not trusted** (2026-11-21) — new gate `tools/check-doc-facts.py` fails when a number or model in AGENTS.md no longer matches the repo.
 - `D84` **AGENTS.md stays a router, not a library** (2026-11-21) — reference material moved to `docs/agents/`; ~3.0k tokens/request saved, zero lines lost.
 - `D85` **Ollama 0.40.18: engine-level bumps only, no surface change** (2026-11-24) — Adopt by upgrade; llama.cpp b12651 + MLX/Inkling work are off this Windows build's path, verified live with probe + 10/10 live tests.
+- `D86` **TypeScript 7 side-by-side: typescript6 API alias + @typescript/native tsc** (2026-11-26) — `typescript` catalog aliases `@typescript/typescript6` (TS6 JS API for typescript-eslint <6.1.0); `@typescript/native` is typescript@7 and owns the `tsc` binary. Same-commit dep refresh: remotion 4.0.547, vite 8.4.0, playwright 1.65.1, eslint 10.15.0.
 
 **Open / in evaluation / resolved questions**
 
@@ -2595,3 +2596,40 @@ line here is an incomplete decision.
 - **Consequences:** None for callers — the integration surface is
   identical to 0.40.17. Re-run `tools/probe-ollama.py` after the next
   upgrade; it remains the record of what the server actually serves.
+
+### D86 — TypeScript 7 side-by-side: typescript6 API alias + @typescript/native tsc (2026-11-26)
+
+- **Status:** Decided
+- **Context:** TypeScript 7.0 (the Go native port) ships **no
+  programmatic API**, and typescript-eslint 8.x peer-caps `typescript`
+  at `>=4.8.4 <6.1.0` and crashes at import time on TS7
+  (`ts.Extension` is undefined). Microsoft's documented bridge is a
+  side-by-side install: keep the `typescript` name on the TS6 API and
+  take the TS7 `tsc` binary from an alias.
+- **Decision:** In `pnpm-workspace.yaml` catalog, `typescript` is
+  `npm:@typescript/typescript6@^6.0.2` (re-exports the TS6 API that
+  typescript-eslint, ts-api-utils and @svgr peer-depend on; provides
+  the `tsc6` bin) and `@typescript/native` is `npm:typescript@^7.0.2`
+  (provides the `tsc` bin). Packages that run `tsc` (`packages/frontend`,
+  `packages/video-editor`) declare `@typescript/native: catalog:` so
+  `tsc -b` / `tsc -p` / bare `tsc` resolve to TS7 (~10x faster). TS 7.1+
+  may unify this again when a stable API lands.
+- **Same-change dep refresh:** remotion family 4.0.541 -> 4.0.547,
+  frontend literal remotion pins moved to `catalog:`, vite 8.4.0,
+  playwright/@playwright/test 1.65.1, @playwright/mcp 0.0.86,
+  eslint 10.15.0, @tanstack/react-query ^5.108.4, node 26.13.1,
+  pnpm 12.22.0. Versions inside the 7-day `minimumReleaseAge` gate were
+  adopted deliberately with version-scoped excludes.
+- **Breaking-change fix:** TS6 `lib.dom.d.ts` now types
+  `Navigator.gpu` as required `GPU`; the WebGPU capability probe's
+  `!nav.gpu` check tripped `no-unnecessary-condition`. Fixed with
+  `Omit<Navigator, "gpu">` so the honest optional typing survives.
+- **Files:** pnpm-workspace.yaml, package.json,
+  packages/frontend/package.json, packages/video-editor/package.json,
+  packages/frontend/src/features/visualizer/webgpu/WebGPURendererDetector.ts,
+  tools/check-deps.py (npm:-alias-aware catalog checks + --fix guard).
+- **Consequences:** `tsc`/`tsc -b` are now the native compiler; editors
+  and API consumers still see TS6. `tools/check-deps.py` resolves
+  `npm:` alias specs before comparing versions. Revisit when
+  typescript-eslint ships TS7 support (experimental tsgo backend needs
+  TS >=7.1 nightly today).

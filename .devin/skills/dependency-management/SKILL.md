@@ -84,9 +84,10 @@ The catalog in `pnpm-workspace.yaml` is the **single source of truth** for versi
 
 ```yaml
 catalog:
-  react: ^19.3.0
-  vite: 8.3.6
-  typescript: ^5.9.3
+  react: ^19.3.1
+  vite: 8.4.0
+  typescript: npm:@typescript/typescript6@^6.0.2  # TS6 API alias — see D86
+  '@typescript/native': npm:typescript@^7.0.2      # TS7 tsc binary
 ```
 
 Package.json in workspace packages:
@@ -148,8 +149,10 @@ vite: 8.3.6  # in pnpm-workspace.yaml
 
 ### TypeScript/ESLint version mismatch
 ```bash
-# Ensure typescript and typescript-eslint are compatible:
-# typescript: ^5.9.3
+# TS runs side-by-side (D86): `typescript` = @typescript/typescript6
+# (JS API, satisfies typescript-eslint peer <6.1.0); `@typescript/native`
+# = typescript@7 providing the `tsc` binary. Never point `typescript`
+# at 7.x — TS7 ships no programmatic API and eslint crashes at import.
 # typescript-eslint: 8.72.1  # in overrides
 ```
 
@@ -322,7 +325,7 @@ Total: 23 | Outdated: 1 | Catalog: 22 | Breaking: 1 | Deprecated: 0 | Security: 
 settings:
 
 - `engineStrict: true` — packages must satisfy `engines`.
-- `devEngines.runtime` pins Node (currently 26.13.0, `onFail:download`)
+- `devEngines.runtime` pins Node (currently 26.13.1, `onFail:download`)
   so `pnpm run`/`pnpm exec` never pick up the ambient fnm Node. The old
   `useNodeVersion` setting was removed in pnpm 12 — do not re-add it.
 - `minimumReleaseAge: 10080` (7 days) with `minimumReleaseAgeExclude`
@@ -335,9 +338,12 @@ settings:
 - `peerDependencyRules.allowedVersions` is the allowlist for tolerated
   peer mismatches — each entry needs a comment justifying it. Prefer
   fixing the dep over allowlisting; `tabler-react` was removed entirely
-  rather than allowlisted. TypeScript stays on 5.x because
-  typescript-eslint peer-caps `<6.1.0` — bumping TS breaks `pnpm lint`
-  at import time, not just at peer-check.
+  rather than allowlisted. TypeScript runs side-by-side (D86):
+  `typescript` aliases `@typescript/typescript6` because
+  typescript-eslint peer-caps `<6.1.0` and TS7.0 ships no JS API;
+  `@typescript/native` (typescript@7) owns the `tsc` binary. Do not
+  collapse this back to a single `typescript` dep until typescript-eslint
+  ships TS7 support.
 
 Verify after touching any of this: `pnpm install` must pass supply-chain
 policy on the whole lockfile, `pnpm exec node --version` must print the

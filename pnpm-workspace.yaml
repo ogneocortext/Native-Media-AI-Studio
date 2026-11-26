@@ -19,24 +19,24 @@ catalog:
   eslint: ^10.15.0
   '@playwright/test': ^1.65.1
   playwright: ^1.65.1
-  '@remotion/captions': ^4.0.545
-  '@remotion/cli': ^4.0.545
-  '@remotion/effects': ^4.0.545
-  '@remotion/eslint-config-flat': ^4.0.545
-  '@remotion/media': ^4.0.545
-  '@remotion/media-utils': ^4.0.545
-  '@remotion/noise': ^4.0.545
-  '@remotion/renderer': ^4.0.545
-  '@remotion/shapes': ^4.0.545
-  '@remotion/tailwind-v4': ^4.0.545
-  '@remotion/three': ^4.0.545
-  '@remotion/transitions': ^4.0.545
-  remotion: ^4.0.545
+  '@remotion/captions': ^4.0.547
+  '@remotion/cli': ^4.0.547
+  '@remotion/effects': ^4.0.547
+  '@remotion/eslint-config-flat': ^4.0.547
+  '@remotion/media': ^4.0.547
+  '@remotion/media-utils': ^4.0.547
+  '@remotion/noise': ^4.0.547
+  '@remotion/renderer': ^4.0.547
+  '@remotion/shapes': ^4.0.547
+  '@remotion/tailwind-v4': ^4.0.547
+  '@remotion/three': ^4.0.547
+  '@remotion/transitions': ^4.0.547
+  remotion: ^4.0.547
   zod: ^4.6.7
-  vite: 8.3.8
+  vite: 8.4.0
   comfyui-mcp: 0.52.206
   '@playwright/mcp': ^0.0.86
-  '@tanstack/react-query': ^5.108.0
+  '@tanstack/react-query': ^5.108.4
 # ---------------------------------------------------------------------------
 # TypeScript runs side-by-side: `typescript` (catalog) is
 # @typescript/typescript6 — the JS API that typescript-eslint (<6.1.0
@@ -77,52 +77,93 @@ allowBuilds:
   esbuild: true
 overrides:
   typescript-eslint: 8.72.1
-  '@remotion/bundler@4.0.545': '>=4.0.545'
-  '@remotion/canvas@4.0.545': '>=4.0.545'
-  '@remotion/captions@4.0.545': '>=4.0.545'
-  '@remotion/cli@4.0.545': '>=4.0.545'
-  '@remotion/compositor-darwin-arm64@4.0.545': '>=4.0.545'
-  '@remotion/compositor-darwin-x64@4.0.545': '>=4.0.545'
-  '@remotion/compositor-linux-arm64-gnu@4.0.545': '>=4.0.545'
-  '@remotion/compositor-linux-arm64-musl@4.0.545': '>=4.0.545'
-  '@remotion/compositor-linux-x64-gnu@4.0.545': '>=4.0.545'
-  '@remotion/compositor-linux-x64-musl@4.0.545': '>=4.0.545'
-  '@remotion/compositor-win32-x64-msvc@4.0.545': '>=4.0.545'
-  '@remotion/eslint-config-flat@4.0.545': '>=4.0.545'
-  '@remotion/licensing@4.0.545': '>=4.0.545'
-  '@remotion/media-parser@4.0.545': '>=4.0.545'
-  '@remotion/media-utils@4.0.545': '>=4.0.545'
-  '@remotion/media@4.0.545': '>=4.0.545'
-  '@remotion/noise@4.0.545': '>=4.0.545'
-  '@remotion/paths@4.0.545': '>=4.0.545'
-  '@remotion/player@4.0.545': '>=4.0.545'
-  '@remotion/renderer@4.0.545': '>=4.0.545'
-  '@remotion/shapes@4.0.545': '>=4.0.545'
-  '@remotion/streaming@4.0.545': '>=4.0.545'
-  '@remotion/studio-codemods@4.0.545': '>=4.0.545'
-  '@remotion/studio-protocol@4.0.545': '>=4.0.545'
-  '@remotion/studio-server@4.0.545': '>=4.0.545'
-  '@remotion/studio-shared@4.0.545': '>=4.0.545'
-  '@remotion/studio@4.0.545': '>=4.0.545'
-  '@remotion/tailwind-v4@4.0.545': '>=4.0.545'
-  '@remotion/three@4.0.545': '>=4.0.545'
-  '@remotion/timeline-utils@4.0.545': '>=4.0.545'
-  '@remotion/web-renderer@4.0.545': '>=4.0.545'
-  '@remotion/zod-types@4.0.545': '>=4.0.545'
-  remotion@4.0.545: '>=4.0.545'
-  '@remotion/effects@4.0.545': '>=4.0.545'
-  '@remotion/transitions@4.0.545': '>=4.0.545'
+  '@remotion/bundler@4.0.547': '>=4.0.547'
+  '@remotion/canvas@4.0.547': '>=4.0.547'
+  '@remotion/captions@4.0.547': '>=4.0.547'
+  '@remotion/cli@4.0.547': '>=4.0.547'
+  '@remotion/compositor-darwin-arm64@4.0.547': '>=4.0.547'
+  '@remotion/compositor-darwin-x64@4.0.547': '>=4.0.547'
+  '@remotion/compositor-linux-arm64-gnu@4.0.547': '>=4.0.547'
+  '@remotion/compositor-linux-arm64-musl@4.0.547': '>=4.0.547'
+  '@remotion/compositor-linux-x64-gnu@4.0.547': '>=4.0.547'
+  '@remotion/compositor-linux-x64-musl@4.0.547': '>=4.0.547'
+  '@remotion/compositor-win32-x64-msvc@4.0.547': '>=4.0.547'
+  '@remotion/eslint-config-flat@4.0.547': '>=4.0.547'
+  '@remotion/licensing@4.0.547': '>=4.0.547'
+  '@remotion/media-parser@4.0.547': '>=4.0.547'
+  '@remotion/media-utils@4.0.547': '>=4.0.547'
+  '@remotion/media@4.0.547': '>=4.0.547'
+  '@remotion/noise@4.0.547': '>=4.0.547'
+  '@remotion/paths@4.0.547': '>=4.0.547'
+  '@remotion/player@4.0.547': '>=4.0.547'
+  '@remotion/renderer@4.0.547': '>=4.0.547'
+  '@remotion/shapes@4.0.547': '>=4.0.547'
+  '@remotion/streaming@4.0.547': '>=4.0.547'
+  '@remotion/studio-codemods@4.0.547': '>=4.0.547'
+  '@remotion/studio-protocol@4.0.547': '>=4.0.547'
+  '@remotion/studio-server@4.0.547': '>=4.0.547'
+  '@remotion/studio-shared@4.0.547': '>=4.0.547'
+  '@remotion/studio@4.0.547': '>=4.0.547'
+  '@remotion/tailwind-v4@4.0.547': '>=4.0.547'
+  '@remotion/three@4.0.547': '>=4.0.547'
+  '@remotion/timeline-utils@4.0.547': '>=4.0.547'
+  '@remotion/web-renderer@4.0.547': '>=4.0.547'
+  '@remotion/zod-types@4.0.547': '>=4.0.547'
+  remotion@4.0.547: '>=4.0.547'
+  '@remotion/effects@4.0.547': '>=4.0.547'
+  '@remotion/transitions@4.0.547': '>=4.0.547'
   mediabunny@1.59.1 || 1.61.0 || 1.61.3: '>=1.61.3'
-  vite@8.3.7: '>=8.3.8'
+  vite: '>=8.4.0'
   '@playwright/test@1.64.0': '>=1.64.0'
   lucide-react@1.53.0: '>=1.53.0'
   playwright-core@1.64.0 || 1.65.0-alpha-2026-10-28: '>=1.64.0'
   playwright@1.64.0 || 1.65.0-alpha-2026-10-28: '>=1.64.0'
 # minimumReleaseAgeExclude: version-scoped exemptions for lockfile
 # versions younger than the 7-day gate. All prior entries (published
-# 2026-11-02..06) have aged past the window and were pruned 2026-11-26.
-# Add new entries as pkg@x.y.z only when adopting a version inside the
-# gate; they go inert automatically once it ages out.
+# 2026-11-02..06) aged past the window and were pruned 2026-11-26.
+# The 4.0.547 / 5.108.4 / 8.4.0 block below was adopted deliberately
+# inside the gate on 2026-11-26 — prune as they age past the window.
+minimumReleaseAgeExclude:
+- '@remotion/bundler@4.0.547'
+- '@remotion/captions@4.0.547'
+- '@remotion/cli@4.0.547'
+- '@remotion/codemods@4.0.547'
+- '@remotion/compositor-darwin-arm64@4.0.547'
+- '@remotion/compositor-darwin-x64@4.0.547'
+- '@remotion/compositor-linux-arm64-gnu@4.0.547'
+- '@remotion/compositor-linux-arm64-musl@4.0.547'
+- '@remotion/compositor-linux-x64-gnu@4.0.547'
+- '@remotion/compositor-linux-x64-musl@4.0.547'
+- '@remotion/compositor-win32-x64-msvc@4.0.547'
+- '@remotion/effects@4.0.547'
+- '@remotion/elevenlabs@4.0.547'
+- '@remotion/eslint-config-flat@4.0.547'
+- '@remotion/licensing@4.0.547'
+- '@remotion/media@4.0.547'
+- '@remotion/media-utils@4.0.547'
+- '@remotion/motion-blur@4.0.547'
+- '@remotion/noise@4.0.547'
+- '@remotion/openai-whisper@4.0.547'
+- '@remotion/paths@4.0.547'
+- '@remotion/player@4.0.547'
+- '@remotion/renderer@4.0.547'
+- '@remotion/sdk@4.0.547'
+- '@remotion/shapes@4.0.547'
+- '@remotion/streaming@4.0.547'
+- '@remotion/studio@4.0.547'
+- '@remotion/studio-protocol@4.0.547'
+- '@remotion/studio-server@4.0.547'
+- '@remotion/studio-shared@4.0.547'
+- '@remotion/tailwind-v4@4.0.547'
+- '@remotion/three@4.0.547'
+- '@remotion/timeline-utils@4.0.547'
+- '@remotion/transitions@4.0.547'
+- '@remotion/web-renderer@4.0.547'
+- '@remotion/zod-types@4.0.547'
+- '@tanstack/query-core@5.108.4'
+- '@tanstack/react-query@5.108.4'
+- remotion@4.0.547
+- vite@8.4.0
 # Known-tolerated peer mismatches (verified 2026-11-06). Each entry is
 # scoped to the dependent package so unrelated deps keep honest warnings.
 peerDependencyRules:
