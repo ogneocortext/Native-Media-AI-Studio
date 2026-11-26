@@ -29,6 +29,19 @@ STATUS_VOCAB = {"todo", "doing", "blocked", "done"}
 violations = []
 
 
+def _read(path: Path) -> str | None:
+    """Read a tracked text file, reporting undecodable bytes as a violation.
+
+    check-text-encoding owns the encoding verdict, but crashing here with a
+    traceback would hide every other consistency finding in the same run.
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        violations.append(f"unreadable file {path.name}: {exc}")
+        return None
+
+
 def check_tasks():
     sep = Counter()
     ids = Counter()
@@ -38,7 +51,9 @@ def check_tasks():
     for path in sorted(TASKS.glob("*.md")):
         if path.name in ("README.md", "template.md"):
             continue
-        text = path.read_text(encoding="utf-8")
+        text = _read(path)
+        if text is None:
+            continue
         for block in re.split(r"(?=^### T-)", text, flags=re.MULTILINE):
             h = re.match(r"^### (T-[A-Z]+-(\d+|XX))\s*(.)", block)
             if not h:
@@ -69,8 +84,14 @@ def check_tasks():
 
 
 def check_library():
-    idx = (LIB / "index.md").read_text(encoding="utf-8")
-    region = idx.split("## 🗂️ Library Structure", 1)[1].split("## 🏷️", 1)[0]
+    idx_text = _read(LIB / "index.md")
+    if idx_text is None:
+        return
+    parts = idx_text.split("## 🗂️ Library Structure", 1)
+    if len(parts) < 2:
+        violations.append("library index: '## Library Structure' heading not found")
+        return
+    region = parts[1].split("## 🏷️", 1)[0]
     listed = Counter()
     for line in region.splitlines():
         m = re.search(r"\[\[([a-z0-9\-]+)", line)
@@ -86,8 +107,8 @@ def check_library():
         if name not in META and stem not in listed:
             orphans.append(name)
             violations.append(f"R4 content doc in no category: {name}")
-        text = (LIB / name).read_text(encoding="utf-8")
-        if name not in META and not text.startswith("---\n"):
+        text = _read(LIB / name)
+        if text is not None and name not in META and not text.startswith("---\n"):
             nofm.append(name)
             violations.append(f"frontmatter missing: {name}")
     meta_present = sorted(files & META)
