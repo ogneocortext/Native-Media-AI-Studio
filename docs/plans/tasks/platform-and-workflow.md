@@ -2252,3 +2252,13 @@ Rules: `docs/plans/tasks/README.md`
 - **Verification:** ruff clean; live duplicate test — `uvicorn app.main:app --port 8004` while the dev backend ran logged "Another backend instance already holds the single-instance lock" and exited without binding; legitimate watchfiles reload passed the guard after the grace window; `pytest tests/test_voice_inbox.py tests/test_office.py` 19/19 (TestClient path unaffected).
 - **Acceptance:** satisfied — a second `uvicorn app.main:app` on :8004 can no longer serve alongside the real backend.
 - **Last session:** Devin, 2026-11-25 — landed in this commit.
+
+### T-PLT-60 — Kilo Code exec-command guard: plugin adapter for check-exec-command.py
+
+- **Status:** done
+- **Goal:** Extend the pwsh/destructive-git exec guard to Kilo Code sessions. Kilo has no shell-command PreToolUse hook system (Claude-Code-compatible hooks are only a proposal — Kilo-Org/kilocode#15160, open as of 2026-11-25); its extension point is plugins (`.kilo/plugin/*.ts` auto-registers at startup).
+- **What changed:** `.kilo/plugin/exec-command-guard.ts` — a `tool.execute.before` hook that intercepts the `bash` tool, pipes `output.args.command` as `{"tool_input":{"command": …}}` into `tools/hooks/check-exec-command.py` (cwd = repo root resolved from `import.meta.url`), and throws `[exec-command-guard] <reason>` on a `{"decision":"block"}` stdout. Fail-open on missing script/python/parse errors; 15 s timeout; warnings via `client.app.log`. `.gitignore` gained `!.kilo/plugin/` + `!.kilo/plugin/**` so the plugin is committed (previously all of `.kilo/` except skills was ignored).
+- **Files:** .kilo/plugin/exec-command-guard.ts (new), .gitignore, docs/knowledge-library/kilo-code-plugin-hooks-2026.md (new), docs/plans/tasks/platform-and-workflow.md (this entry)
+- **Verification:** Kilo CLI 7.8.32; `bun` import smoke test loads `{id:"exec-command-guard", server:fn}`; `docs/scratch/test-kilo-plugin.ts` invokes the hook directly — force-push and heredoc payloads BLOCK with the guard's reason text, `git status` and non-shell tools ALLOW, zero guard warnings; guard stdin contract verified via `docs/scratch/kilo-guard-{block,allow}.json`.
+- **Acceptance:** satisfied — Kilo `bash` tool calls now pass through the same rules Claude/Devin enforce, with the Python script remaining the single source of truth.
+- **Last session:** Devin, 2026-11-25 — landed in this commit.

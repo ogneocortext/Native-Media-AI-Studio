@@ -32,6 +32,8 @@ bin/
 .kilo/*
 !.kilo/skills/
 !.kilo/skills/**
+!.kilo/plugin/
+!.kilo/plugin/**
 .playwright-mcp/
 .obsidian/
 .devin/*

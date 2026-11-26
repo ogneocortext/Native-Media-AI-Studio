@@ -235,4 +235,6 @@ for AI agents.
 - Added `docs/knowledge-library/stylized-character-modeling-blender-mcp-workflow-best-practices-nov-2026.md` → `#technical`
 ## 2026-11-24 — Knowledge library additions
 - Added `docs/knowledge-library/comfyui-update-hardening-2026.md` → `#technical`
+## 2026-11-25 — Knowledge library additions
+- Added `docs/knowledge-library/kilo-code-plugin-hooks-2026.md` → `#technical`
 

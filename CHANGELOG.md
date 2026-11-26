@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added - Kilo Code exec-command guard: pwsh/destructive-git rules now cover Kilo `bash` calls
+- **Kilo had no equivalent of the Claude/Devin PreToolUse exec guard** — Kilo Code has no shell-command hook system (Claude-Code-compatible hooks are only proposed in Kilo-Org/kilocode#15160, open as of 2026-11-25); its extension point is plugins. `.kilo/plugin/exec-command-guard.ts` auto-registers at startup, intercepts `tool.execute.before` for the `bash` tool, and pipes the command through the existing `tools/hooks/check-exec-command.py` — the Python script remains the single source of truth for the banned patterns (heredocs, non-pwsh shells, unix utilities, `powershell` 5.1, multi-line `git commit -m`/`python -c`, expandable here-strings, destructive git ops).
+- A `{"decision":"block"}` from the guard becomes a thrown error that aborts the tool call with the guard's reason; missing script, python failure, or unparseable output fail open so a broken guard can never wedge a session.
+- `.gitignore` now un-ignores `.kilo/plugin/` so the adapter is committed; findings documented in `docs/knowledge-library/kilo-code-plugin-hooks-2026.md`.
+- Verified on Kilo CLI 7.8.32: plugin loads under Bun, and direct hook invocation blocks force-push/heredoc payloads while allowing clean commands and non-shell tools.
+
 ### Added - Backend single-instance guard: duplicate processes can no longer share :8004
 - **`_enforce_single_instance()` runs first in `lifespan()`** — uvicorn binds sockets only after lifespan startup, so a positive probe there can only mean another instance owns the port. `main()`'s sticky-port guard never ran for `python -m uvicorn app.main:app` (what the watchfiles launchers use), and Windows `SO_REUSEADDR` let two backends bind :8004 simultaneously — requests split across instances with divergent adapter state (observed 2026-11-25: duplicate stacks → music-gen 503s).
 - **Two layers:** a per-port named mutex (`Global\NMA-Backend-<port>`, `CreateMutexW`) — atomic, catches simultaneous launches, auto-released on exit/crash; plus the existing `is_service_running` health probe with a 10 s grace window covering watchfiles restart races. Legacy instances predating the mutex are still caught by the probe.
