@@ -1149,6 +1149,7 @@ from .api import (  # noqa: E402
     vision,
     visualizer,
     voice,
+    voice_call,
     voice_live,
     voice_pocket,
 )
@@ -1198,6 +1199,7 @@ app.include_router(data.router)
 app.include_router(database_admin.router)
 app.include_router(video.router)
 app.include_router(voice.router)
+app.include_router(voice_call.router)
 app.include_router(voice_pocket.router)
 app.include_router(voice_live.router)
 app.include_router(vision.router)

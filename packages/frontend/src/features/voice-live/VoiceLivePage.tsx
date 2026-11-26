@@ -45,6 +45,7 @@ import {
   usePresenceRoster,
   presenceStatusFor,
 } from "../presence/usePresenceRoster";
+import { CallPanel } from "../voice-call/CallPanel";
 
 const POLL_MS = 2500;
 const INBOX_POLL_MS = 2000;
@@ -1357,6 +1358,11 @@ export function VoiceLivePage() {
           </Card>
         </aside>
       </div>
+
+      <Card className="p-4">
+        <div className="text-sm font-semibold mb-2">Studio call — Maya ↔ Nate</div>
+        <CallPanel />
+      </Card>
     </div>
   );
 }
