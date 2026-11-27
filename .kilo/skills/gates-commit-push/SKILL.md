@@ -108,24 +108,27 @@ body.
 > before re-doing "lost" work, run `git log --oneline -10` and `git status` —
 > it may already have landed under someone else's commit.
 
-### 4. Push — automatic by default
+### 4. Push: default after gates
 
-```bash
-git push
-```
+Push is part of the same unit as the commit when the commits are yours,
+scoped to the task, the scoped gates pass, and the push is a fast-forward
+to `origin/main`. Do not wait for a separate push word.
 
-**Push is the default; do not wait for permission.** AGENTS.md "Push policy:
-auto-push with scoped gates" lets an agent push its own commits to
-origin/main once the scoped gates pass — treat commit → gates → push as one
-unit and report the pushed hashes as evidence. The only exceptions are tasks
-that explicitly say commit-only ("one commit, no push") and the AGENTS.md
-list that still needs approval (force pushes, branch deletion, pushing
-another agent's commits, CI/security config, AGENTS.md/gate-script edits).
+Hold only when the task explicitly says commit-only or no push, when an
+AGENTS.md approval exception applies (force push, branch deletion,
+another agent's commits, CI or security config, AGENTS.md or gate
+scripts), or when scoped gates fail.
 
-This machine also has a `post-commit` hook that runs `git push origin main`
-after every non-amend commit on main, so a forgotten push self-heals on the
-next commit. The hook is local-only (`.git/hooks` is untracked) — if it is
-rebuilt, re-add the block noted in the file.
+The pre-push hook runs docs, ruff, type, lint, unit, and tools-pytest,
+and deliberately skips pytest and Playwright. Run
+`python tools/run-gates.py --e2e` yourself before pushing if the change
+touches the browser. Report the pushed range and gate results.
+
+This machine also has a `post-commit` hook that runs
+`git push origin main` after every non-amend commit on main, so a
+forgotten push self-heals on the next commit. The hook is local-only
+(`.git/hooks` is untracked) — if it is rebuilt, re-add the block noted in
+the file.
 
 ## Rules
 
