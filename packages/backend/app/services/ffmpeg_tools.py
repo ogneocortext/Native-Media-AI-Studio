@@ -124,7 +124,7 @@ async def compute_loudness(file_path: str | Path) -> dict[str, Any]:
                 "-i",
                 str(path),
                 "-af",
-                "ebur128=framelog=verbose",
+                "ebur128=framelog=verbose:peak=true",
                 "-f",
                 "null",
                 "-",
@@ -145,7 +145,7 @@ async def compute_loudness(file_path: str | Path) -> dict[str, Any]:
 _EBU_RE = {
     "integrated_lufs": r"Integrated loudness:\s*\n\s*I:\s*([+-]?\d+(?:\.\d+)?)\s*LUFS",
     "loudness_range": r"Loudness range:\s*\n\s*LRA:\s*([+-]?\d+(?:\.\d+)?)\s*LU",
-    "true_peak": r"True peak:\s*([+-]?\d+(?:\.\d+)?)\s*dBFS",
+    "true_peak": r"True peak:\s*\n\s*Peak:\s*([+-]?\d+(?:\.\d+)?)\s*dBFS",
 }
 
 
