@@ -108,18 +108,24 @@ body.
 > before re-doing "lost" work, run `git log --oneline -10` and `git status` —
 > it may already have landed under someone else's commit.
 
-### 4. Push — only when asked
+### 4. Push — automatic by default
 
 ```bash
 git push
 ```
 
-**Push only when the task or the user asks for it.** Many tasks are
-explicitly commit-only ("one commit, no push"); pushing anyway violates the
-constraint. When pushing is wanted, the pre-push hook runs `docs ruff type
-lint unit tools-pytest` (~15s) and deliberately skips pytest (~40s) and
-Playwright (~30s). Run `python tools/run-gates.py --e2e` yourself before
-pushing if the change touches the browser.
+**Push is the default; do not wait for permission.** AGENTS.md "Push policy:
+auto-push with scoped gates" lets an agent push its own commits to
+origin/main once the scoped gates pass — treat commit → gates → push as one
+unit and report the pushed hashes as evidence. The only exceptions are tasks
+that explicitly say commit-only ("one commit, no push") and the AGENTS.md
+list that still needs approval (force pushes, branch deletion, pushing
+another agent's commits, CI/security config, AGENTS.md/gate-script edits).
+
+This machine also has a `post-commit` hook that runs `git push origin main`
+after every non-amend commit on main, so a forgotten push self-heals on the
+next commit. The hook is local-only (`.git/hooks` is untracked) — if it is
+rebuilt, re-add the block noted in the file.
 
 ## Rules
 
