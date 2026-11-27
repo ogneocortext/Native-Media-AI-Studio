@@ -4,6 +4,7 @@ export type {
   HealthStatus,
   AdapterHealth,
   AggregateHealth,
+  FFmpegBinaryStatus,
   AdapterDetail,
   ServiceStatus,
   SystemHealth,

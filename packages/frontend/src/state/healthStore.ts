@@ -7,7 +7,7 @@
 
 import { create } from "zustand";
 import { fetchPortConfig } from "../services/portConfig";
-import type { AggregateHealth, AdapterHealth, SystemHealth, ServiceStatus } from "../services/api";
+import type { AggregateHealth, AdapterHealth, SystemHealth, ServiceStatus, FFmpegBinaryStatus } from "../services/api";
 import {
   healthCheck,
   getSystemHealth,
@@ -56,6 +56,8 @@ interface HealthState {
   granular: GranularHealthData;
   comfyuiLoading: boolean;
   comfyuiAction: string | null;
+  ffmpegBinary: FFmpegBinaryStatus | null;
+  ffprobeBinary: FFmpegBinaryStatus | null;
 
   // Actions
   setHealth: (health: AggregateHealth) => void;
@@ -139,6 +141,8 @@ export const useHealthStore = create<HealthState>((set, get) => ({
   granular: EMPTY_GRANULAR,
   comfyuiLoading: false,
   comfyuiAction: null,
+  ffmpegBinary: null,
+  ffprobeBinary: null,
 
   setHealth: (health: AggregateHealth) => {
     set({
@@ -147,6 +151,8 @@ export const useHealthStore = create<HealthState>((set, get) => ({
       adapters: health.adapters,
       lastUpdated: new Date(),
       error: null,
+      ffmpegBinary: health.ffmpeg,
+      ffprobeBinary: health.ffprobe,
     });
   },
 
@@ -237,6 +243,16 @@ export const useHealthStore = create<HealthState>((set, get) => ({
             ) ?? "unhealthy",
           adapters: (healthData.adapters as Record<string, AdapterHealth> | undefined) ?? {},
           timestamp: (healthData.timestamp as string | undefined) ?? new Date().toISOString(),
+          ffmpeg: (healthData.ffmpeg as FFmpegBinaryStatus | undefined) ?? {
+            found: false,
+            path: null,
+            version: null,
+          },
+          ffprobe: (healthData.ffprobe as FFmpegBinaryStatus | undefined) ?? {
+            found: false,
+            path: null,
+            version: null,
+          },
         };
 
         get().setHealth(health);

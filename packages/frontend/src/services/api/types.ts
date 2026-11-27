@@ -26,6 +26,14 @@ export interface AggregateHealth {
   overall: "healthy" | "degraded" | "unhealthy";
   adapters: Record<string, AdapterHealth>;
   timestamp: string;
+  ffmpeg: FFmpegBinaryStatus;
+  ffprobe: FFmpegBinaryStatus;
+}
+
+export interface FFmpegBinaryStatus {
+  found: boolean;
+  path: string | null;
+  version: string | null;
 }
 
 export interface AdapterDetail {

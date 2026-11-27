@@ -20,6 +20,7 @@ export {
 export {
   type AdapterHealth,
   type AggregateHealth,
+  type FFmpegBinaryStatus,
   type HealthStatus,
   type AdapterDetail,
   type ServiceStatus,
