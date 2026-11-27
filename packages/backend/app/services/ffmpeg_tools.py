@@ -43,7 +43,7 @@ async def probe_media(file_path: str | Path) -> dict[str, Any]:
     """
     ffprobe = _find_binary("ffprobe")
     if not ffprobe:
-        return {}
+        return {"error": "ffprobe not found on PATH"}
     path = Path(file_path)
     if not path.exists() or not path.is_file():
         return {}
@@ -274,6 +274,7 @@ async def extract_thumbnail_at_time(
     """
     ffmpeg = _find_binary("ffmpeg")
     if not ffmpeg:
+        logger.debug("extract_thumbnail_at_time: ffmpeg not found on PATH")
         return None
     path = Path(file_path)
     if not path.exists() or not path.is_file():
