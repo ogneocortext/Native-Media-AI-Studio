@@ -278,6 +278,21 @@ class EventBus:
         targets.extend(self._subscribers.get(f"category:{event.category.value}", []))
         targets.extend(self._wildcard_subscribers)
 
+        # Forward to delivery managers — runs on every publish, even with
+        # zero in-process subscribers, or health/resource events never
+        # reach SSE/WebSocket clients.
+        if self._sse_manager:
+            try:
+                await self._sse_manager.send_message(event.to_dict())
+            except Exception as e:
+                logger.warning(f"SSE delivery failed: {e}")
+
+        if self._ws_manager:
+            try:
+                await self._ws_manager.broadcast(event.type, event.data)
+            except Exception as e:
+                logger.warning(f"WS delivery failed: {e}")
+
         if not targets:
             return 0
 
@@ -292,19 +307,6 @@ class EventBus:
                 delivered += 1
             except Exception as e:
                 logger.warning(f"Event delivery failed to {callback.__name__}: {e}")
-
-        # Forward to delivery managers
-        if self._sse_manager:
-            try:
-                await self._sse_manager.send_message(event.to_dict())
-            except Exception as e:
-                logger.warning(f"SSE delivery failed: {e}")
-
-        if self._ws_manager:
-            try:
-                await self._ws_manager.broadcast(event.type, event.data)
-            except Exception as e:
-                logger.warning(f"WS delivery failed: {e}")
 
         structured_logger.debug(
             "event.published",
