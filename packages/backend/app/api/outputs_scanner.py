@@ -36,11 +36,11 @@ _SIDECAR_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp")
 # stems, packages-output, ...). Quarantine holding pens are excluded by
 # prefix.
 _SCAN_EXCLUDE_DIRS = frozenset({
-    "agent-state", "audio_analysis", "beat_data", "benchmarks", "cache",
-    "fingerprints", "interaction-audit", "kb-context-cache",
-    "kb-embed-cache", "logs", "metadata", "qa", "runtime", "scratch",
-    "screenshots", "setup-env", "structure", "tests", "thumbnails",
-    "uploads", "workflows",
+    "agent-state", "anime-tests", "audio_analysis", "beat_data",
+    "benchmarks", "cache", "fingerprints", "image-tests",
+    "interaction-audit", "kb-context-cache", "kb-embed-cache", "logs",
+    "metadata", "qa", "runtime", "scratch", "screenshots", "setup-env",
+    "structure", "tests", "thumbnails", "uploads", "workflows",
 })
 
 # Frame-sequence dumps (frame_0001.png, f000123.png) are pipeline
@@ -532,6 +532,12 @@ def _scan_comfyui_dir() -> list[OutputFile]:
         return outputs
     for glb_file in comfyui_output.rglob("*.glb"):
         try:
+            rel_parts = glb_file.relative_to(comfyui_output).parts[:-1]
+            if any(
+                part in _SCAN_EXCLUDE_DIRS or part.startswith("quarantine")
+                for part in rel_parts
+            ):
+                continue
             stat = glb_file.stat()
             rel_path = f"comfyui/{glb_file.relative_to(comfyui_output).as_posix()}"
             outputs.append(
