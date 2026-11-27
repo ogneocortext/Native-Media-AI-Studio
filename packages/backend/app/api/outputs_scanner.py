@@ -131,13 +131,6 @@ def _iter_scannable_dirs(output_base: Path):
         yield entry, entry.name
 
 
-# Additional directories that should always be scanned if they exist
-# (these are common producer output directories)
-_ADDITIONAL_SCAN_DIRS = frozenset({
-    "packages-output", "previews", "renders", "enhanced", "images",
-})
-
-
 def _get_dir_mtime() -> float:
     """Get the latest mtime across all scannable output dirs (recursive)."""
     now = time.time()
@@ -163,20 +156,6 @@ def _compute_dir_mtime() -> float:
                     continue
         except OSError:
             pass
-    # Also check additional scan directories for mtime changes
-    for additional_name in _ADDITIONAL_SCAN_DIRS:
-        additional_path = output_base / additional_name
-        if additional_path.is_dir() and additional_name not in _SCAN_EXCLUDE_DIRS:
-            try:
-                latest = max(latest, additional_path.stat().st_mtime)
-                for f in additional_path.rglob("*"):
-                    try:
-                        if f.is_file():
-                            latest = max(latest, f.stat().st_mtime)
-                    except OSError:
-                        continue
-            except OSError:
-                pass
     # Root-level files count too.
     try:
         for f in output_base.iterdir():
@@ -447,9 +426,6 @@ def _scan_with_cache() -> list[OutputFile]:
     # Scan standard directories
     all_outputs.extend(_scan_standard_dirs(output_base))
 
-    # Scan additional known producer directories
-    all_outputs.extend(_scan_additional_dirs(output_base))
-
     # Scan root-level files
     all_outputs.extend(_scan_root_files(output_base))
 
@@ -493,20 +469,6 @@ def _scan_standard_dirs(output_base: Path) -> list[OutputFile]:
             out = _scan_file(file_path, top_name, media_stems, output_base)
             if out is not None:
                 outputs.append(out)
-    return outputs
-
-
-def _scan_additional_dirs(output_base: Path) -> list[OutputFile]:
-    """Scan additional known producer directories."""
-    outputs: list[OutputFile] = []
-    for additional_name in _ADDITIONAL_SCAN_DIRS:
-        additional_path = output_base / additional_name
-        if additional_path.is_dir() and additional_name not in _SCAN_EXCLUDE_DIRS:
-            media_stems = _build_media_stem_set(additional_path)
-            for file_path in _iter_media_files(additional_path):
-                out = _scan_file(file_path, additional_name, media_stems, output_base)
-                if out is not None:
-                    outputs.append(out)
     return outputs
 
 
