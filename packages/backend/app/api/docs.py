@@ -108,7 +108,57 @@ class DocContent(BaseModel):
     html_hint: str | None = None
 
 
+#: Cached entry list keyed by a stat-only fingerprint of the corpus. The scan
+#: reads every markdown file's text, which sat the vault on "Loading vault" for
+#: ~6 s per request; the fingerprint only stats files, so repeats are cheap.
+_docs_cache: tuple[tuple, list[DocEntry]] | None = None
+
+
+def _docs_fingerprint() -> tuple:
+    """Count + newest mtime + total bytes over every file _scan_docs reads."""
+    newest = 0.0
+    total = 0
+    count = 0
+
+    def _acc(p: Path) -> None:
+        nonlocal newest, total, count
+        try:
+            st = p.stat()
+        except OSError:
+            return
+        newest = max(newest, st.st_mtime)
+        total += st.st_size
+        count += 1
+
+    if DOCS_ROOT.exists():
+        try:
+            for p in DOCS_ROOT.rglob("*.md"):
+                if ".obsidian" in p.parts or "node_modules" in p.parts:
+                    continue
+                _acc(p)
+        except OSError:
+            pass
+    if VAULT_ROOT.exists():
+        for pattern in ("*.json", "*.canvas"):
+            try:
+                for p in VAULT_ROOT.glob(pattern):
+                    _acc(p)
+            except OSError:
+                pass
+    return (count, newest, total)
+
+
 def _scan_docs() -> list[DocEntry]:
+    global _docs_cache
+    fp = _docs_fingerprint()
+    if _docs_cache is not None and _docs_cache[0] == fp:
+        return _docs_cache[1]
+    entries = _scan_docs_uncached()
+    _docs_cache = (fp, entries)
+    return entries
+
+
+def _scan_docs_uncached() -> list[DocEntry]:
     entries: list[DocEntry] = []
     if not DOCS_ROOT.exists():
         return entries

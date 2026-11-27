@@ -114,8 +114,13 @@ async def process_existing_image(
     without requiring upload.
     """
     try:
+        src = Path(file_path)
+        if not src.is_file():
+            raise FileNotFoundError(f"Image file not found: {file_path}")
+        with Image.open(src) as opened:
+            input_image = opened.copy()
         result = ImageProcessor.process_audio_reactive_frame(
-            image_path=file_path,
+            image=input_image,
             audio_level=audio_level,
             beat_detected=beat_detected,
         )
@@ -157,15 +162,13 @@ async def process_directory(
     Designed for processing ComfyUI output directories.
     """
     try:
-        result = ImageProcessor.auto_process_directory(
+        return _process_image_directory(
             directory=directory,
             pattern=pattern,
-            style=style,
             audio_level=audio_level,
             beat_detected=beat_detected,
             max_files=max_files,
         )
-        return result
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
@@ -189,14 +192,58 @@ async def auto_process_comfyui(
     Scans the ComfyUI output directory for new images and processes them
     using Pillow 13.0 audio-reactive processing.
     """
-    return ImageProcessor.auto_process_comfyui(
-        comfyui_output_dir=comfyui_output_dir,
+    return _process_image_directory(
+        directory=comfyui_output_dir,
         pattern=pattern,
-        style=style,
         audio_level=audio_level,
         beat_detected=beat_detected,
         max_files=max_files,
     )
+
+
+def _process_image_directory(
+    *,
+    directory: str,
+    pattern: str,
+    audio_level: float,
+    beat_detected: bool,
+    max_files: int,
+) -> dict:
+    """Process images in a directory with the real ImageProcessor methods."""
+    src_dir = Path(directory)
+    if not src_dir.is_dir():
+        raise FileNotFoundError(f"Directory not found: {directory}")
+
+    files = sorted(src_dir.glob(pattern))[:max_files]
+    processed: list[dict] = []
+    failed: list[dict] = []
+    for src in files:
+        try:
+            with Image.open(src) as opened:
+                input_image = opened.copy()
+            result = ImageProcessor.process_audio_reactive_frame(
+                image=input_image,
+                audio_level=audio_level,
+                beat_detected=beat_detected,
+            )
+            out_name = f"{src.stem}_processed_{uuid.uuid4().hex[:8]}.png"
+            out_path = OUTPUT_DIR / out_name
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            ImageProcessor.save_optimized(result, str(out_path), format="PNG")
+            processed.append({"input": str(src), "output_path": str(out_path)})
+        except Exception as exc:
+            logger.warning(f"Failed to process {src}: {exc}")
+            failed.append({"input": str(src), "error": str(exc)})
+
+    return {
+        "status": "success",
+        "directory": str(src_dir),
+        "pattern": pattern,
+        "processed": len(processed),
+        "failed": len(failed),
+        "results": processed,
+        "errors": failed,
+    }
 
 
 @router.get("/capabilities")

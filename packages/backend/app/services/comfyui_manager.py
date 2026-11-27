@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 async def _run_subprocess(args: list[str], **kwargs) -> subprocess.CompletedProcess:
     """Run subprocess in a thread to avoid Windows asyncio subprocess limitations."""
+    kwargs.setdefault("timeout", 300)
     return await asyncio.to_thread(subprocess.run, args, **kwargs)
 
 
@@ -269,6 +270,7 @@ class ComfyUIManager:
                 capture_output=True,
                 text=True,
                 cwd=str(COMFYUI_DIR),
+                timeout=15,
             )
             if commit.returncode == 0:
                 result["commit"] = commit.stdout.strip()
@@ -281,6 +283,7 @@ class ComfyUIManager:
                 capture_output=True,
                 text=True,
                 cwd=str(COMFYUI_DIR),
+                timeout=15,
             )
             if describe.returncode == 0:
                 result["version"] = describe.stdout.strip()
@@ -293,12 +296,18 @@ class ComfyUIManager:
                 capture_output=True,
                 text=True,
                 cwd=str(COMFYUI_DIR),
+                timeout=15,
             )
             if branch.returncode == 0:
                 result["branch"] = branch.stdout.strip()
 
             # Check if behind remote
-            subprocess.run([git_exe, "fetch", "--quiet"], capture_output=True, cwd=str(COMFYUI_DIR))
+            subprocess.run(
+                [git_exe, "fetch", "--quiet"],
+                capture_output=True,
+                cwd=str(COMFYUI_DIR),
+                timeout=60,
+            )
             ahead_behind = subprocess.run(
                 [git_exe, "rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
                 encoding="utf-8",
@@ -306,6 +315,7 @@ class ComfyUIManager:
                 capture_output=True,
                 text=True,
                 cwd=str(COMFYUI_DIR),
+                timeout=15,
             )
             if ahead_behind.returncode != 0:
                 # Fall back for repos without an upstream branch configured
@@ -316,6 +326,7 @@ class ComfyUIManager:
                     capture_output=True,
                     text=True,
                     cwd=str(COMFYUI_DIR),
+                    timeout=15,
                 )
             if ahead_behind.returncode == 0:
                 parts = ahead_behind.stdout.strip().split("\t")
@@ -639,6 +650,7 @@ class ComfyUIManager:
                     "--upgrade",
                 ],
                 capture_output=True,
+                timeout=900,
             )
 
             result["success"] = proc.returncode == 0
@@ -680,18 +692,22 @@ class ComfyUIManager:
                 len(node_mismatches),
             )
 
-        pip = await _run_subprocess(
-            [
-                str(venv_python),
-                "-m",
-                "pip",
-                "install",
-                "-r",
-                str(requirements_file),
-                "--upgrade",
-            ],
-            capture_output=True,
-        )
+        try:
+            pip = await _run_subprocess(
+                [
+                    str(venv_python),
+                    "-m",
+                    "pip",
+                    "install",
+                    "-r",
+                    str(requirements_file),
+                    "--upgrade",
+                ],
+                capture_output=True,
+                timeout=900,
+            )
+        except subprocess.TimeoutExpired:
+            return "failed", f"{node_name}: pip install timed out after 900s"
         pip_stdout = (
             pip.stdout.decode("utf-8", errors="replace").strip()
             if isinstance(pip.stdout, bytes)

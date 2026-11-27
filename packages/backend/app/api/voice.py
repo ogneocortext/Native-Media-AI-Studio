@@ -101,20 +101,30 @@ async def _enqueue_synthesis(request: SynthesizeRequest) -> SynthesizeResponse:
                 + " -- see config/voice.json"
             )
 
+        # output_path is an arbitrary-write surface: absolute paths are allowed
+        # (remote callers pass rig-local paths) but must resolve inside the
+        # project root. Relative paths anchor there too.
+        from ..core.config import PROJECT_ROOT as _PR
+        from ..core.paths import resolve_within
+
+        confined_output = (
+            str(resolve_within(_PR, request.output_path)) if request.output_path else None
+        )
+
         params = {
             "text": request.text,
             "voice_id": request.voice_id,
             "ref_audio_path": request.ref_audio_path,
             "ref_text": request.ref_text,
-            "output_path": request.output_path,
+            "output_path": confined_output,
         }
         jcr = JobCreateRequest(job_type=JobType.VOICE_SYNTHESIS, params=params, max_retries=1)
         job = await queue_manager.enqueue(jcr)
 
         # Mirror the handler's output-path resolution
         # (services/voice_handler.py) so this field names a real file.
-        if request.output_path:
-            resolved_output = request.output_path
+        if confined_output:
+            resolved_output = confined_output
         else:
             from ..core.config import PROJECT_ROOT as _PR
 

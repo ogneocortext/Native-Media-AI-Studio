@@ -40,6 +40,19 @@ def _check_dimension(v: int) -> int:
     return v
 
 
+def _confine_output_path(output_path: str | None, default: str) -> str:
+    """Resolve a caller-supplied output path inside the project root.
+
+    Absolute paths stay allowed (remote callers pass rig-local paths, per
+    docs/guides/VOICE_API.md and LIPSYNC_API.md) but must resolve inside
+    PROJECT_ROOT; relative paths anchor there. Raises ValueError on escape.
+    """
+    from ..core.config import PROJECT_ROOT
+    from ..core.paths import resolve_within
+
+    return str(resolve_within(PROJECT_ROOT, output_path or default))
+
+
 class VideoGenerateRequest(BaseModel):
     """Request model for video section generation -- real queue, no mock"""
 
@@ -297,12 +310,13 @@ async def render_video(request: RenderRequest) -> dict:
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    output_path = (
-        request.output_path or f"output/video/render_{request.kind}_{renderer.engine_id}.mp4"
-    )
-    if not Path(output_path).is_absolute():
-        # Anchor on project root (the API process runs with CWD=packages/backend)
-        output_path = str(Path(PROJECT_ROOT) / output_path)
+    try:
+        output_path = _confine_output_path(
+            request.output_path,
+            f"output/video/render_{request.kind}_{renderer.engine_id}.mp4",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     spec = RenderSpec(
         kind=request.kind,
         width=request.width,
@@ -583,9 +597,12 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
         if not src.is_file():
             raise ValueError(f"Source video not found: {request.source_path}")
 
-        # Determine output path
+        # Determine output path (confined to the project root)
         if request.output_path:
-            out = Path(request.output_path)
+            try:
+                out = Path(_confine_output_path(request.output_path, ""))
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
         else:
             out_dir = PROJECT_ROOT / "output" / "video"
             out_dir.mkdir(parents=True, exist_ok=True)
@@ -785,10 +802,13 @@ async def assemble_beat_quantized(request: AssembleRequest) -> AssembleResponse:
     try:
         from ..services.beat_assembler import assemble_beat_quantized as _assemble
 
+        confined_output = (
+            _confine_output_path(request.output_path, "") if request.output_path else None
+        )
         result = await _assemble(
             shot_manifest=request.shot_manifest,
             audio_path=request.audio_path,
-            output_path=request.output_path,
+            output_path=confined_output,
             engine=request.engine,
             transition=request.transition,
             transition_duration=request.transition_duration,
@@ -941,13 +961,14 @@ async def _enqueue_lipsync(
             )
 
         resolved_audio = _resolve_lipsync_audio(audio_path, audio_filename)
+        confined_output = _confine_output_path(output_path, "") if output_path else None
 
         params = {
             "video_path": video_path,
             "image_path": image_path,
             "audio_path": resolved_audio,
             "section": section,
-            "output_path": output_path,
+            "output_path": confined_output,
         }
         jcr = JobCreateRequest(job_type=JobType.LIPSYNC, params=params, max_retries=1)
         job = await queue_manager.enqueue(jcr)
@@ -955,8 +976,8 @@ async def _enqueue_lipsync(
         # Mirror the handler's output-path resolution (services/lipsync_handler.py)
         # so this field names a real file: request.output_path wins, otherwise
         # the handler defaults to output/video/<source-stem>_lipsync_<job8>.mp4.
-        if output_path:
-            resolved_output = output_path
+        if confined_output:
+            resolved_output = confined_output
         else:
             from ..core.config import PROJECT_ROOT as _PR
 
@@ -1319,8 +1340,10 @@ async def lipsync_batch(request: LipSyncBatchRequest) -> LipSyncBatchResponse:
             ffmpeg=ffmpeg,
         )
 
-        final_output = request.output_path or str(
-            _PR / "output" / "video" / f"lipsync_batch_{batch_id}.mp4"
+        final_output = (
+            _confine_output_path(request.output_path, "")
+            if request.output_path
+            else str(_PR / "output" / "video" / f"lipsync_batch_{batch_id}.mp4")
         )
         manifest = lipbatch.build_manifest(
             batch_id=batch_id,

@@ -236,17 +236,26 @@ def get_audio_path(filename: str) -> Path | None:
     """Resolve audio file path from filename.
 
     Searches the known audio locations first, then falls back to treating
-    the filename as an absolute/relative path (used when the frontend passes
-    a stored_path from the Media Library).
+    the filename as a project-relative or absolute path (used when the
+    frontend passes a stored_path from the Media Library). Absolute paths
+    and ``..`` components are confined to PROJECT_ROOT — whisper must not
+    read arbitrary files off disk.
     """
+    from ..core.paths import is_within
+
+    name = Path(filename)
+    if name.is_absolute() or ".." in name.parts:
+        if name.is_absolute() and is_within(PROJECT_ROOT, name) and name.is_file():
+            return name
+        return None
     search_paths = [
-        PROJECT_ROOT / "output" / "audio" / filename,
-        PROJECT_ROOT / "uploads" / "audio" / filename,
-        PROJECT_ROOT / "audio" / filename,
-        Path(filename),
+        PROJECT_ROOT / "output" / "audio" / name,
+        PROJECT_ROOT / "uploads" / "audio" / name,
+        PROJECT_ROOT / "audio" / name,
+        PROJECT_ROOT / name,
     ]
     for p in search_paths:
-        if p.exists() and p.is_file():
+        if p.is_file():
             return p
     return None
 

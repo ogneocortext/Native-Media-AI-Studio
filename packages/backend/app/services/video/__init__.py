@@ -154,11 +154,13 @@ def get_renderer(engine: str = "auto") -> VideoRenderer:
 
 def validate_output_path(output_path: str | Path, project_root: Path) -> Path:
     """Ensure the render output lands inside the project (default output/video)."""
+    from ...core.paths import is_within
+
     p = Path(output_path)
     if not p.is_absolute():
         p = project_root / p
     resolved = p.resolve()
-    if not str(resolved).startswith(str(project_root.resolve())):
+    if not is_within(project_root, resolved):
         raise ValueError("output_path escapes project root")
     resolved.parent.mkdir(parents=True, exist_ok=True)
     return resolved

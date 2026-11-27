@@ -13,6 +13,7 @@ import logging
 import re
 import shutil
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -99,6 +100,13 @@ _output_cache: dict[str, Any] = {
 _output_cache_lock = threading.Lock()
 CACHE_TTL_SECONDS = 30  # Refresh cache every 30 seconds max
 
+# _get_dir_mtime does a full recursive stat walk of every scannable dir plus
+# the ComfyUI output tree — expensive enough to matter on every /api/outputs
+# poll. Cache the result briefly; worst case a new file is noticed MTIME_CACHE_TTL
+# seconds later, well inside the 30 s listing TTL.
+_mtime_cache: dict[str, float] = {"value": 0.0, "time": 0.0}
+MTIME_CACHE_TTL_SECONDS = 5.0
+
 
 def _iter_scannable_dirs(output_base: Path):
     """Top-level dirs under output/ that the library scans.
@@ -132,6 +140,16 @@ _ADDITIONAL_SCAN_DIRS = frozenset({
 
 def _get_dir_mtime() -> float:
     """Get the latest mtime across all scannable output dirs (recursive)."""
+    now = time.time()
+    if now - _mtime_cache["time"] < MTIME_CACHE_TTL_SECONDS:
+        return _mtime_cache["value"]
+    value = _compute_dir_mtime()
+    _mtime_cache["value"] = value
+    _mtime_cache["time"] = now
+    return value
+
+
+def _compute_dir_mtime() -> float:
     output_base = Path(config.output_dir)
     latest = 0.0
     for dir_path, _name in _iter_scannable_dirs(output_base):
