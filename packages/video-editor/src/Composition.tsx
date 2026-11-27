@@ -520,7 +520,8 @@ const MainVideo: React.FC<MainVideoProps> = ({ analysis }) => {
           height={height}
           isBeat={isBeat}
           pulse={pulse}
-        />)
+        />
+      )}
 
       {/* ─── Beat-synced pulse rings ─── */}
       <BeatRings
@@ -540,7 +541,7 @@ const MainVideo: React.FC<MainVideoProps> = ({ analysis }) => {
           height={height}
           bass={analyzed.bass}
         />
-      )
+      )}
 
       {/* ─── Floating Particles ─── */}
       <ParticlesLayer
