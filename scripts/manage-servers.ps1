@@ -22,7 +22,7 @@ param(
     [ValidateSet('start', 'stop', 'restart', 'status', 'health', 'update-comfyui')]
     [string]$Action,
 
-    [ValidateSet('all', 'backend', 'frontend', 'comfyui', 'video', 'go-studio', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports', 'atomic-chat')]
+    [ValidateSet('all', 'backend', 'frontend', 'comfyui', 'video', 'go-studio', 'go-dashboard', 'go-media', 'go-worker', 'go-gateway', 'go-ports', 'atomic-chat', 'pocket')]
     [string[]]$Services = @('all'),
 
     [switch]$NoOrphanScan,
