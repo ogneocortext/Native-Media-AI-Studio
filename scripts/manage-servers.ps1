@@ -271,6 +271,37 @@ function Test-PocketUp {
         -ErrorAction SilentlyContinue)
 }
 
+function Get-BackendReloadState {
+    # Report whether the process holding the backend port sits under a live
+    # watchfiles supervisor, derived from the actual process tree — not from
+    # how the service was supposed to be started. Returns 'active',
+    # 'inactive' (bare uvicorn: .py edits will not auto-reload), or
+    # 'not_running'.
+    param([int]$Port)
+    $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+    if (-not $listeners) { return 'not_running' }
+    $procs = @{}
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        ForEach-Object { $procs[[int]$_.ProcessId] = $_ }
+    $sawBackend = $false
+    foreach ($l in $listeners) {
+        # A listener may be a proxy (e.g. tailscaled for tailscale serve), not
+        # the backend itself — only a watchfiles ancestor anywhere in a
+        # listener's chain counts as active.
+        $current = [int]$l.OwningProcess
+        $depth = 0
+        while ($procs.ContainsKey($current) -and $depth -lt 8) {
+            $proc = $procs[$current]
+            if ($proc.CommandLine -match 'watchfiles') { return 'active' }
+            if ($proc.CommandLine -match 'uvicorn|app\.main') { $sawBackend = $true }
+            $current = [int]$proc.ParentProcessId
+            $depth++
+        }
+    }
+    # Port bound only by a proxy (tailscale serve) means no backend process.
+    return $(if ($sawBackend) { 'inactive' } else { 'not_running' })
+}
+
 function Get-OrphanReloaders {
     # A `uvicorn --reload` (watchfiles) supervisor whose server child has died
     # keeps running: watchfiles waits for the next file change and respawns, so
@@ -579,18 +610,25 @@ if ($PSBoundParameters.ContainsKey('Action')) {
     switch ($Action) {
     'status' {
         if ($Json) {
-            # Machine-readable JSON output for agents
-            $services = @()
+            # Machine-readable JSON output for agents.
+            # NB: named $serviceEntries, not $services — PowerShell variables are
+            # case-insensitive, so $services collides with the validated
+            # [string[]]$Services param and every += fails ValidateSet.
+            $serviceEntries = @()
             foreach ($svc in $serviceList) {
                 $config = $ServiceConfig[$svc]
                 $status = Get-ServiceStatus $svc
-                $services += @{
+                $entry = @{
                     name = $config.Name
                     id = $svc
                     port = $config.Port
                     running = $status.Running
                     note = $status.Note
                 }
+                if ($svc -eq 'backend') {
+                    $entry['reload'] = Get-BackendReloadState -Port $config.Port
+                }
+                $serviceEntries += $entry
             }
             $tracked = Get-TrackedProcesses
             $trackedProcesses = if ($tracked) {
@@ -618,7 +656,7 @@ if ($PSBoundParameters.ContainsKey('Action')) {
 
             $result = @{
                 timestamp = (Get-Date).ToUniversalTime().ToString("o")
-                services = $services
+                services = $serviceEntries
                 tracked_processes = $trackedProcesses
                 orphan_reloaders = $orphanProcesses
             }
@@ -635,6 +673,20 @@ if ($PSBoundParameters.ContainsKey('Action')) {
                 Write-Host "  $($config.Name): " -NoNewline
                 Write-Host $state -ForegroundColor $color -NoNewline
                 Write-Host " (port $($config.Port))"
+                if ($svc -eq 'backend') {
+                    $reload = Get-BackendReloadState -Port $config.Port
+                    $reloadText = switch ($reload) {
+                        'active'   { 'reload: ACTIVE (watchfiles supervisor)' }
+                        'inactive' { 'reload: INACTIVE (no watchfiles parent - .py edits will NOT auto-reload)' }
+                        default    { 'reload: n/a (backend not running)' }
+                    }
+                    $reloadColor = switch ($reload) {
+                        'active'   { 'Green' }
+                        'inactive' { 'Yellow' }
+                        default    { 'DarkGray' }
+                    }
+                    Write-Host "    $reloadText" -ForegroundColor $reloadColor
+                }
             }
             Write-Host ""
             # Show any tracked processes (from start-studio.ps1 sessions).
