@@ -59,7 +59,10 @@ export function RemixPage() {
         )}
       </div>
       <div className="page-body">
-        <RemixPanel currentTrack={pendingTrack} />
+        {/* The panel defaults collapsed for the Visualizer's inspector
+            stack; on this page it IS the content, so it gets its own
+            collapse key and starts open. */}
+        <RemixPanel currentTrack={pendingTrack} panelId="remix-page" defaultOpen />
       </div>
     </div>
   );

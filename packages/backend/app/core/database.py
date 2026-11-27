@@ -264,14 +264,20 @@ from .presets import (
     save_visualization_preset,
 )
 
-# Re-export prompt CRUD
+# Re-export prompt CRUD + prompt-history repository
 from .prompts import (
+    _history_row_to_dict,
     _row_to_prompt,
+    _safe_json_loads,
     delete_prompt,
+    delete_prompt_history,
     get_prompt,
+    get_prompt_chain,
+    get_prompt_history,
     get_prompts,
     increment_prompt_use,
     save_prompt,
+    save_prompt_version,
     toggle_prompt_favorite,
 )
 
@@ -422,12 +428,18 @@ __all__ = [
     "set_audio_duplicate_of",
     "update_audio_analysis",
     # prompts
+    "_history_row_to_dict",
     "_row_to_prompt",
+    "_safe_json_loads",
     "delete_prompt",
+    "delete_prompt_history",
     "get_prompt",
+    "get_prompt_chain",
+    "get_prompt_history",
     "get_prompts",
     "increment_prompt_use",
     "save_prompt",
+    "save_prompt_version",
     "toggle_prompt_favorite",
     # sessions
     "_row_to_session",

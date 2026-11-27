@@ -58,14 +58,17 @@ interface TabState {
 export function DataManagementPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabKey>("prompts");
+  // loading starts false: the mount effect below fires loadTab for every
+  // tab where !loaded && !loading — starting at true deadlocked every tab
+  // in "loading" forever and the page rendered all zeros.
   const [tabStates, setTabStates] = useState<Record<TabKey, TabState>>({
-    prompts: { data: null, error: null, loading: true, loaded: false },
-    visuals: { data: null, error: null, loading: true, loaded: false },
-    sessions: { data: null, error: null, loading: true, loaded: false },
-    tracks: { data: null, error: null, loading: true, loaded: false },
-    scenes: { data: null, error: null, loading: true, loaded: false },
-    history: { data: null, error: null, loading: true, loaded: false },
-    preferences: { data: null, error: null, loading: true, loaded: false },
+    prompts: { data: null, error: null, loading: false, loaded: false },
+    visuals: { data: null, error: null, loading: false, loaded: false },
+    sessions: { data: null, error: null, loading: false, loaded: false },
+    tracks: { data: null, error: null, loading: false, loaded: false },
+    scenes: { data: null, error: null, loading: false, loaded: false },
+    history: { data: null, error: null, loading: false, loaded: false },
+    preferences: { data: null, error: null, loading: false, loaded: false },
   });
   const [deleteConfirm, setDeleteConfirm] = useState<{
     tab: TabKey;

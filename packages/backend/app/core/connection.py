@@ -59,7 +59,7 @@ def _resolve_db_path() -> Path:
 DB_PATH = _resolve_db_path()
 
 # Database schema version for migrations
-SCHEMA_VERSION = 25
+SCHEMA_VERSION = 26
 # Connection-level PRAGMAs
 # ---------------------------------------------------------------------------
 

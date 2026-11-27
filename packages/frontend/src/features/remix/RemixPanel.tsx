@@ -56,6 +56,15 @@ import { NUM_INPUT_CLASS, REMIX_LABEL_CLASS } from "./remixStyles";
 export interface RemixPanelProps {
   /** Track the visualizer is already showing; preselected as source A. */
   currentTrack?: string | null;
+  /**
+   * Collapse persistence key. The Visualizer mounts this panel inside its
+   * inspector stack where collapsed-by-default is correct; the standalone
+   * /create/remix page passes its own id so a collapsed inspector panel
+   * cannot leave the page looking empty.
+   */
+  panelId?: string;
+  /** Initial open state for `panelId` when nothing is stored yet. */
+  defaultOpen?: boolean;
 }
 
 // matchSource (library path <-> stem key, with the fixture guard) lives in
@@ -82,8 +91,8 @@ function newLayer(track: string, stem: StemName): EditableLayer {
   return newEditableLayer(track, stem);
 }
 
-export function RemixPanel({ currentTrack }: RemixPanelProps) {
-  const { open, toggle, setOpen } = usePanelCollapsed("stem-remix");
+export function RemixPanel({ currentTrack, panelId = "stem-remix", defaultOpen = false }: RemixPanelProps) {
+  const { open, toggle, setOpen } = usePanelCollapsed(panelId, defaultOpen);
   const [sources, setSources] = useState<RemixSource[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [name, setName] = useState("mashup");

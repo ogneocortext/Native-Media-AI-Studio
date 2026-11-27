@@ -864,6 +864,38 @@ def _migrate_v25(conn: sqlite3.Connection):
     """)
 
 
+def _migrate_v26(conn: sqlite3.Connection):
+    """Restore prompt_history — per-track prompt version history + repair log.
+
+    The database.py split (5cdbfcc3) stubbed _migrate_v14 and dropped the
+    repository functions, so databases created after the split never got the
+    table and /api/data/prompt-history* 500'd. Databases that ran the real
+    v14 already have the table; CREATE IF NOT EXISTS keeps this idempotent.
+    """
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS prompt_history (
+            id TEXT PRIMARY KEY,
+            track_filename TEXT DEFAULT '',
+            section TEXT DEFAULT 'full',
+            section_index INTEGER DEFAULT -1,
+            prompt TEXT NOT NULL,
+            negative_prompt TEXT DEFAULT '',
+            parent_id TEXT,
+            version INTEGER NOT NULL DEFAULT 1,
+            action TEXT NOT NULL DEFAULT 'create',
+            repair_reason TEXT DEFAULT '',
+            failure_notes TEXT DEFAULT '',
+            generation_params TEXT DEFAULT '{}',
+            outcome TEXT DEFAULT 'draft',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_prompt_history_track
+            ON prompt_history(track_filename, section, created_at);
+        CREATE INDEX IF NOT EXISTS idx_prompt_history_parent
+            ON prompt_history(parent_id);
+    """)
+
+
 def get_schema_version(conn: sqlite3.Connection) -> int:
     """Read the current schema version from the database."""
     row = conn.execute("PRAGMA user_version").fetchone()
@@ -987,6 +1019,8 @@ def init_db(db_path: Path | None = None):
                         _migrate_v24(conn)
                     if current_version < 25:
                         _migrate_v25(conn)
+                    if current_version < 26:
+                        _migrate_v26(conn)
 
                     set_schema_version(conn, SCHEMA_VERSION)
                     logger.info("Database initialized at version %d", SCHEMA_VERSION)
