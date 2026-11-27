@@ -64,7 +64,7 @@ def get_available_ollama_models(min_vram_free: int = 0) -> list[dict]:
                 "vram_required": row["vram_required"],
                 "last_checked": row["last_checked"],
                 "is_available": row["is_available"],
-                "capabilities": json.loads(row["capabilities"]) if row["capabilities"] else [],
+                "capabilities": _safe_json_loads(row["capabilities"], []),
             }
             for row in rows
         ]
@@ -232,3 +232,13 @@ def _row_to_ollama_analysis_typed(row: sqlite3.Row) -> OllamaAnalysisRow:
         status=row["status"],
         created_at=row["created_at"],
     )
+
+
+def _safe_json_loads(val: str | None, default: Any = None) -> Any:
+    """Safely parse JSON string, returning default on error."""
+    if not val:
+        return default if default is not None else {}
+    try:
+        return json.loads(val)
+    except (json.JSONDecodeError, TypeError):
+        return default if default is not None else {}

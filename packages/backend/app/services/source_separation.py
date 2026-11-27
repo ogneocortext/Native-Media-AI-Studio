@@ -924,7 +924,15 @@ class SourceSeparator:
         except NotImplementedError:
 
             def _run() -> tuple[int, bytes, bytes]:
-                completed = subprocess.run(cmd, capture_output=True)
+                try:
+                    completed = subprocess.run(cmd, capture_output=True, timeout=timeout_s)
+                except subprocess.TimeoutExpired as exc:
+                    # Match asyncio.wait_for's TimeoutError so callers'
+                    # "timed out" branches fire on this path too -- without
+                    # the timeout a hung demucs ran forever on Windows.
+                    raise TimeoutError(
+                        f"subprocess timed out after {timeout_s}s"
+                    ) from exc
                 return completed.returncode, completed.stdout, completed.stderr
 
             return await asyncio.to_thread(_run)

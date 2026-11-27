@@ -45,7 +45,12 @@ except ImportError:
     SONARA_AVAILABLE = False
 
 
-OUTPUT_DIR = Path(__file__).parent.parent.parent / "output" / "audio_analysis"
+# packages/backend/app/services/ -> parents[4] is the repo root. The old
+# parent.parent.parent stopped at packages/backend, so analyses landed in
+# packages/backend/output/audio_analysis -- a different directory than the
+# canonical ANALYSIS_DIR (repo-root output/audio_analysis) that
+# app/api/audio.py scans and audio_analysis_handler declares.
+OUTPUT_DIR = Path(__file__).resolve().parents[4] / "output" / "audio_analysis"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
@@ -967,6 +972,10 @@ class AudioAnalyzer:
                 "downbeat_times": result.beats.downbeat_times or [],
             },
             "metadata": result.metadata,
+            # Key detection + Tier 2 chroma frames -- computed on every
+            # backend but previously dropped here, so job-produced analyses
+            # lost the data the API contract expects.
+            "key_analysis": result.key_analysis,
         }
 
     def _save_to_json(self, result: AudioAnalysisResult) -> str:

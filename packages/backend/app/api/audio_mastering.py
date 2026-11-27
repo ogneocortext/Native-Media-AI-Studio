@@ -126,7 +126,7 @@ async def master_audio(body: MasterRequest) -> MasterResponse:
     root = Path(AUDIO_DIR).resolve()
     candidate = Path(body.filename)
     src = candidate if candidate.is_absolute() else (root / body.filename)
-    if not str(src.resolve()).startswith(str(root)):
+    if not src.resolve().is_relative_to(root):
         raise HTTPException(status_code=400, detail="Invalid filename")
     if not src.exists() or not src.is_file():
         raise HTTPException(status_code=404, detail=f"Source file not found: {body.filename}")
@@ -164,7 +164,7 @@ async def measure_master(filename: str) -> dict:
     root = Path(AUDIO_DIR).resolve()
     candidate = Path(filename)
     src = candidate if candidate.is_absolute() else (root / filename)
-    if not str(src.resolve()).startswith(str(root)):
+    if not src.resolve().is_relative_to(root):
         raise HTTPException(status_code=400, detail="Invalid filename")
     if not src.exists() or not src.is_file():
         raise HTTPException(status_code=404, detail=f"Source file not found: {filename}")

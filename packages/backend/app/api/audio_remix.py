@@ -537,10 +537,10 @@ async def preview_remix_recipe(body: RemixRecipeRequest) -> dict[str, Any]:
     Returns the exact timeline, per-source levels and stretch ratios so the
     caller can sanity-check before paying for a build. No audio is written.
     """
-    recipe = _recipe_from_request(body.model_dump())
     try:
+        recipe = _recipe_from_request(body.model_dump())
         recipe.validate()
-    except ValueError as exc:
+    except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=f"Invalid recipe: {exc}") from exc
     _check_stems_available(recipe)
 
@@ -650,8 +650,11 @@ async def build_remix(body: _BuildRequest) -> dict[str, Any]:
     The recipe is validated synchronously (bad recipe or missing stem throws
     here), then a REMIX_BUILD job is enqueued and polled via GET /jobs/{id}.
     """
-    recipe = _recipe_from_request(body.model_dump())
-    recipe.validate()
+    try:
+        recipe = _recipe_from_request(body.model_dump())
+        recipe.validate()
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid recipe: {exc}") from exc
     _check_stems_available(recipe)
 
     job_request = JobCreateRequest(

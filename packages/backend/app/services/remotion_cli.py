@@ -184,7 +184,10 @@ class RemotionCLI:
         use_shell = sys.platform == "win32" and not remotion_bin
 
         if use_shell:
-            cmd_str = " ".join(f'"{c}"' if " " in c else c for c in cmd)
+            # list2cmdline applies the MSVCRT quoting rules cmd.exe expects;
+            # a naive '" ".join' breaks on --props JSON, whose quotes and
+            # spaces would be re-parsed as shell syntax.
+            cmd_str = subprocess.list2cmdline(cmd)
             proc = await asyncio.create_subprocess_shell(
                 cmd_str,
                 cwd=str(self.video_editor_dir),
@@ -237,10 +240,18 @@ class RemotionCLI:
                         except Exception:
                             logger.debug("remotion progress_cb raised", exc_info=True)
 
+        async def _drain_stdout() -> None:
+            # stdout is piped but its content is never used; drain it
+            # concurrently or a chatty child fills the pipe buffer and
+            # blocks on write, deadlocking proc.wait().
+            assert proc.stdout is not None
+            while await proc.stdout.read(65536):
+                pass
+
         # The subprocess is already off the event loop; await it here so
         # progress streaming runs concurrently.
         try:
-            await asyncio.gather(_read_stderr(), proc.wait())
+            await asyncio.gather(_read_stderr(), _drain_stdout(), proc.wait())
         except Exception as exc:
             try:
                 proc.kill()

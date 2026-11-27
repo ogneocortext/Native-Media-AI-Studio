@@ -20,6 +20,7 @@ from fastapi import (
 from pydantic import BaseModel
 
 from ..core.config import OUTPUT_DIR, PROJECT_ROOT
+from ..core.paths import is_within
 from ..services.vst_host import (
     VSTChain,
     get_vst_host,
@@ -344,9 +345,13 @@ async def process_audio(request: ProcessRequest) -> ProcessResponse:
     if request.chain_name not in host.chains:
         raise HTTPException(status_code=404, detail=f"Chain not found: {request.chain_name}") from None
 
-    # Resolve input path
+    # Resolve input path -- must stay inside OUTPUT_DIR (user-supplied path).
     if request.input_path:
         input_path = (OUTPUT_DIR / request.input_path).resolve()
+        if not is_within(OUTPUT_DIR, input_path):
+            raise HTTPException(
+                status_code=400, detail="input_path must stay inside the output directory"
+            ) from None
     else:
         # Use first available audio file
         audio_files = list(OUTPUT_DIR.glob("*.wav"))

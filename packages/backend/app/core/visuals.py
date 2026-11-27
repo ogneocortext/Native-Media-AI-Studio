@@ -141,7 +141,17 @@ def _row_to_visual(row: sqlite3.Row) -> dict[str, Any]:
         "is_selected": bool(row["is_selected"]),
         "is_favorite": bool(row["is_favorite"]),
         "rating": row["rating"],
-        "tags": json.loads(row["tags"]) if row["tags"] else [],
+        "tags": _safe_json_loads(row["tags"], []),
         "generation_time_seconds": row["generation_time_seconds"],
         "created_at": row["created_at"],
     }
+
+
+def _safe_json_loads(val: str | None, default: Any = None) -> Any:
+    """Safely parse JSON string, returning default on error."""
+    if not val:
+        return default if default is not None else {}
+    try:
+        return json.loads(val)
+    except (json.JSONDecodeError, TypeError):
+        return default if default is not None else {}

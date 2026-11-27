@@ -385,9 +385,16 @@ async def get_3d_thumbnail(filename: str):
     output_base = Path(config.output_dir)
     glb_path = None
 
-    # Search in generated_3d directory
-    candidate = output_base / "generated_3d" / filename
-    if candidate.exists() and candidate.suffix.lower() == ".glb":
+    # Search in generated_3d directory. ``filename`` is a {path} param, so a
+    # crafted value ("../../x.glb") could otherwise escape the directory and
+    # hand an arbitrary .glb on disk to Blender -- keep it contained.
+    gen3d_dir = output_base / "generated_3d"
+    candidate = gen3d_dir / filename
+    if (
+        candidate.exists()
+        and candidate.suffix.lower() == ".glb"
+        and is_within(gen3d_dir, candidate)
+    ):
         glb_path = candidate
 
     # Search in ComfyUI output directory

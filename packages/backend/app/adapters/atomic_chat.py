@@ -287,6 +287,7 @@ Generate 3-8 scenes based on the input theme or concept."""
                     "messages": [{"role": "user", "content": "ping"}],
                     "max_tokens": 2,
                 },
+                headers=self._auth_headers(),
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status == 200:

@@ -57,6 +57,26 @@ PLANNER_SESSION_STORE: dict[str, dict] = {}
 PLANNER_SAFE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
+def _planner_base_url(request: dict) -> str:
+    """Resolve the planner base URL, validating any port override.
+
+    ``port`` arrives as raw JSON and is interpolated into the request URL;
+    an unvalidated value like ``"1@evil.example"`` would turn
+    ``http://127.0.0.1:<port>`` into a request to an arbitrary host
+    (userinfo trick). Restrict it to a real TCP port number.
+    """
+    port = request.get("port")
+    if port is None:
+        return PLANNER_BASE_URL
+    try:
+        port = int(port)
+    except (TypeError, ValueError):
+        raise HTTPException(400, detail="Invalid planner port") from None
+    if not 1 <= port <= 65535:
+        raise HTTPException(400, detail="Invalid planner port")
+    return f"http://127.0.0.1:{port}"
+
+
 def _validate_planner_name(name: str) -> str:
     """Validate a planner/session name against a safe charset."""
     if not PLANNER_SAFE_RE.match(name):
@@ -565,9 +585,7 @@ async def plan_style(request: dict[str, Any]) -> dict[str, Any]:
         cot_prompt = _build_cot_prompt(step, "style", user_description)
 
         # Call LM planner service using shared async client
-        planner_url = PLANNER_BASE_URL
-        if request.get("port"):
-            planner_url = f"http://127.0.0.1:{request['port']}"
+        planner_url = _planner_base_url(request)
 
         http_client = await get_async_client()
         try:
@@ -714,9 +732,7 @@ async def plan_lyrics(request: dict[str, Any]) -> dict[str, Any]:
     cot_prompt = _build_cot_prompt(step, "lyrics", context)
 
     # Call LM planner service
-    planner_url = PLANNER_BASE_URL
-    if request.get("port"):
-        planner_url = f"http://127.0.0.1:{request['port']}"
+    planner_url = _planner_base_url(request)
 
     payload = {
         "step": step,
@@ -856,6 +872,8 @@ async def get_vram() -> dict[str, Any]:
 @router.post("/unload")
 async def unload_engine(engine: str = "ace") -> dict[str, Any]:
     """Unload engine to free VRAM (for manual coordination)."""
+    if engine != "ace":
+        raise HTTPException(400, detail=f"Unknown engine: {engine!r}. Supported: 'ace'")
     adapter = get_music_gen_adapter(engine)
     if adapter.is_running:
         try:
@@ -876,6 +894,8 @@ async def unload_engine(engine: str = "ace") -> dict[str, Any]:
 @router.post("/reload")
 async def reload_engine(engine: str = "ace") -> dict[str, Any]:
     """Reload engine after VRAM freed."""
+    if engine != "ace":
+        raise HTTPException(400, detail=f"Unknown engine: {engine!r}. Supported: 'ace'")
     adapter = get_music_gen_adapter(engine)
     if adapter.is_running:
         try:

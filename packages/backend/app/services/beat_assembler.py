@@ -186,6 +186,9 @@ async def assemble_beat_quantized(
             "+faststart",
         ]
 
+    proc = None
+    returncode = -1
+    stderr = b""
     try:
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -211,13 +214,21 @@ async def assemble_beat_quantized(
             )
             proc = None
     except TimeoutError:
+        # wait_for cancels communicate() but leaves FFmpeg running -- kill it
+        # or the orphan keeps burning CPU and may still be writing `out`.
+        if proc is not None:
+            try:
+                proc.kill()
+                await proc.wait()
+            except Exception:
+                pass
         logger.error("Beat assembly FFmpeg timed out for %s", out)
         return {
             "success": False,
             "output_path": str(out),
             "shots_used": len(clips),
             "render_s": round(time.perf_counter() - t0, 2),
-            "error": "FFmpeg timed out after 600s",
+            "error": "FFmpeg timed out after 120s",
             "engine": resolved_engine,
         }
     finally:

@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -169,7 +170,7 @@ class NMAApiClient:
         """Run audio analysis on a file. Returns tempo, beats, sections, energy."""
         return await self._request(
             "POST",
-            f"/api/audio/analysis?filename={filename}",
+            f"/api/audio/analysis?filename={quote(filename, safe='')}",
             idempotency_key=make_idempotency_key(
                 tenant="agent",
                 operation="audio_analyze",

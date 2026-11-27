@@ -4,6 +4,7 @@ Integrations API - Miscellaneous routes (CUDA, Track Analysis, System Resources)
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import aiohttp
@@ -349,7 +350,11 @@ async def cuda_analyze_audio(body: CudaAnalyzeAudioRequest) -> dict:
 
         import cupy as cp
 
-        audio_data = urllib.request.urlopen(audio_url).read()
+        # urlopen is blocking with no default timeout -- run it off the event
+        # loop and bound it so a hung/slow URL cannot stall every request.
+        audio_data = await asyncio.to_thread(
+            lambda: urllib.request.urlopen(audio_url, timeout=30).read()
+        )
 
         # Convert to numpy array (simplified - real implementation would decode audio)
         samples = np.frombuffer(audio_data, dtype=np.float32)

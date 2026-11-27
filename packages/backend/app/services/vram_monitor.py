@@ -40,13 +40,8 @@ _resident_cache_ts: float = 0.0
 _RESIDENT_CACHE_TTL_S = 2.0
 
 
-async def _fetch_resident_models() -> list[str]:
-    """Return model names Ollama actually has resident on the GPU right now.
-
-    Never raises: network/parse errors return an empty list and leave the
-    cache untouched.  Results are cached for _RESIDENT_CACHE_TTL_S to avoid
-    hammering /api/ps on every call.
-    """
+def _fetch_resident_models_sync() -> list[str]:
+    """Sync body of :func:`_fetch_resident_models` (runs in a worker thread)."""
     import time
 
     global _resident_cache, _resident_cache_ts
@@ -63,6 +58,19 @@ async def _fetch_resident_models() -> list[str]:
         return models
     except Exception:
         return []
+
+
+async def _fetch_resident_models() -> list[str]:
+    """Return model names Ollama actually has resident on the GPU right now.
+
+    Never raises: network/parse errors return an empty list and leave the
+    cache untouched.  Results are cached for _RESIDENT_CACHE_TTL_S to avoid
+    hammering /api/ps on every call.
+
+    The urlopen lives in a thread: this runs inside `self._lock` in every
+    begin_* handler, so a 5s stall here used to freeze the whole event loop.
+    """
+    return await asyncio.to_thread(_fetch_resident_models_sync)
 
 
 def _base_name(name: str) -> str:
@@ -228,6 +236,7 @@ __all__ = [
     "_resident_cache",
     "_resident_cache_ts",
     "_RESIDENT_CACHE_TTL_S",
+    "_fetch_resident_models_sync",
     "_fetch_resident_models",
     "_base_name",
     "classify_resident_models",

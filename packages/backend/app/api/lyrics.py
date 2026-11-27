@@ -168,8 +168,8 @@ async def save_lyrics(track_id: str, lyrics: LyricsInput):
             # Store animation and transition in the data column
             data = json.dumps(
                 {
-                    "animation": line.animation,
-                    "transition": line.transition,
+                    "animation": line.animation.model_dump() if line.animation else None,
+                    "transition": line.transition.model_dump() if line.transition else None,
                 }
             )
             conn.execute(

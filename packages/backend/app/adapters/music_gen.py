@@ -309,20 +309,25 @@ class MusicGenAdapter(BaseAdapter):
         if self._process is not None:
             pid = self._process.pid
             if self._process.poll() is None:
-                try:
-                    self._process.terminate()
-                    self._process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    logger.warning(
-                        "Process %d did not exit after terminate, killing process tree", pid
-                    )
-                    self._kill_process_tree(pid)
+                # Popen.wait() and taskkill block; run the whole
+                # terminate -> kill sequence off the event loop.
+                def _stop_blocking():
                     try:
+                        self._process.terminate()
                         self._process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
-                        logger.error("Process %d did not exit even after kill", pid)
-                except Exception as e:
-                    logger.warning("Failed to stop music-gen process: %s", e)
+                        logger.warning(
+                            "Process %d did not exit after terminate, killing process tree", pid
+                        )
+                        self._kill_process_tree(pid)
+                        try:
+                            self._process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            logger.error("Process %d did not exit even after kill", pid)
+                    except Exception as e:
+                        logger.warning("Failed to stop music-gen process: %s", e)
+
+                await asyncio.to_thread(_stop_blocking)
 
         # If we connected to an externally-running service (no _process), the
         # HTTP /unload above should have stopped it. Mark as disconnected

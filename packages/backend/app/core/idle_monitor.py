@@ -25,7 +25,7 @@ import logging
 
 from ..adapters.base import BaseAdapter
 from ..adapters.registry import adapter_registry
-from ..core.event_bus import AdapterEventData, event_bus
+from ..core.event_bus import AdapterEventData, NotificationEventData, event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -119,11 +119,11 @@ class IdleMonitor:
 
             if unload_reranker_if_idle(IDLE_TIMEOUT_SECONDS):
                 logger.info("Idle timeout: retrieval reranker unloaded")
-                await event_bus.emit_notification({
-                    "title": "Model Unloaded",
-                    "message": "Retrieval reranker unloaded due to inactivity",
-                    "level": "info",
-                })
+                await event_bus.emit_notification(NotificationEventData(
+                    title="Model Unloaded",
+                    message="Retrieval reranker unloaded due to inactivity",
+                    level="info",
+                ))
         except Exception as e:
             logger.error("Reranker idle check failed: %s", e)
 

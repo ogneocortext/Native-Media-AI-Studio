@@ -322,7 +322,6 @@ async def generate_image(service_name: str, request: ImageGenerationRequest) -> 
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.get("/{service_name}/result/{prompt_id}")
 async def _save_comfyui_asset(
     item: dict,
     output_subdir: str,
@@ -392,6 +391,7 @@ async def _collect_comfyui_outputs(
     return None
 
 
+@router.get("/{service_name}/result/{prompt_id}")
 async def get_result(service_name: str, prompt_id: str) -> dict:
     """Get the final result of a generation."""
     if service_name != "comfyui":

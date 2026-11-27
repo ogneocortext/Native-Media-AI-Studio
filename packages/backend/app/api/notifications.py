@@ -27,7 +27,8 @@ async def list_notifications(
     """
     raw = list(sse_manager._replay_buffer)  # type: ignore[attr-defined]
     items: list[dict[str, Any]] = []
-    for eid, msg in reversed(raw[-limit:]):
+    # _replay_buffer entries are (event_id, message, monotonic_ts) triples.
+    for eid, msg, _ts in reversed(raw[-limit:]):
         data = msg.get("data") if isinstance(msg, dict) else None
         if isinstance(data, str):
             try:

@@ -95,6 +95,11 @@ class AdapterRegistry:
         """
         self._ensure_init()
         adapter = self._adapters.get(name)
+        # "atomic_chat" is an alias for the canonical "atomic-chat" key used
+        # at creation below; without this check every alias lookup misses the
+        # cache and creates a second adapter (leaking its httpx session).
+        if adapter is None and name == "atomic_chat":
+            adapter = self._adapters.get("atomic-chat")
         if adapter is None:
             if name == "ollama":
                 from .ollama import OllamaAdapter

@@ -27,7 +27,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]  # app/services/ -> repo root
+# app/services/ -> parents[4] is the repo root (services->app->backend->
+# packages->root). parents[3] stopped at packages/, so the inventory dirs
+# never existed and audio_list()/media_list() always returned empty.
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 AUDIO_DIR = PROJECT_ROOT / "output" / "audio"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 

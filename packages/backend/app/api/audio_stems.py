@@ -260,7 +260,7 @@ async def separate_library_file(body: SeparateFileRequest) -> StemSeparationResp
         )
     path = (AUDIO_DIR / body.filename).resolve()
     if (
-        not str(path).startswith(str(AUDIO_DIR.resolve()))
+        not path.is_relative_to(AUDIO_DIR.resolve())
         or not path.exists()
         or not path.is_file()
     ):
@@ -372,11 +372,11 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
         if not model_dir.is_dir():
             continue
         candidate = (model_dir / safe_track / f"{stem_name}.{format}").resolve()
-        if candidate.exists() and str(candidate).startswith(str(base_dir)):
+        if candidate.exists() and candidate.is_relative_to(base_dir):
             stem_path = candidate
             break
         wav_candidate = (model_dir / safe_track / f"{stem_name}.wav").resolve()
-        if wav_candidate.exists() and str(wav_candidate).startswith(str(base_dir)):
+        if wav_candidate.exists() and wav_candidate.is_relative_to(base_dir):
             wav_path = wav_candidate
             stem_path = wav_path
             break
@@ -396,7 +396,7 @@ async def serve_stem_file(track_name: str, stem_name: str, format: str = "wav"):
                 if not model_dir.is_dir():
                     continue
                 wav_candidate = (model_dir / safe_track / f"{stem_name}.wav").resolve()
-                if wav_candidate.exists() and str(wav_candidate).startswith(str(base_dir)):
+                if wav_candidate.exists() and wav_candidate.is_relative_to(base_dir):
                     wav_path = wav_candidate
                     break
         if wav_path is not None:
@@ -445,7 +445,7 @@ async def check_stem_phase_mono(track_name: str, stem_name: str):
         if not model_dir.is_dir():
             continue
         candidate = (model_dir / safe_track / f"{stem_name}.wav").resolve()
-        if candidate.exists() and str(candidate).startswith(str(base_dir)):
+        if candidate.exists() and candidate.is_relative_to(base_dir):
             stem_path = candidate
             break
 
@@ -458,7 +458,10 @@ async def check_stem_phase_mono(track_name: str, stem_name: str):
             ),
         )
 
-    result = source_separator.analyze_stem_phase_mono(str(stem_path))
+    # librosa.load + the correlation math are CPU-bound; run off the event loop.
+    result = await asyncio.to_thread(
+        source_separator.analyze_stem_phase_mono, str(stem_path)
+    )
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
@@ -563,7 +566,7 @@ async def enhance_stems(body: EnhanceStemsRequest) -> EnhanceStemsResponse:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
     src = (AUDIO_DIR / filename).resolve()
-    if not str(src).startswith(str(AUDIO_DIR.resolve())) or not src.exists() or not src.is_file():
+    if not src.is_relative_to(AUDIO_DIR.resolve()) or not src.exists() or not src.is_file():
         raise HTTPException(status_code=404, detail=f"Audio file not found: {filename}")
     if src.suffix.lower() not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported audio type: {src.suffix}")
@@ -579,8 +582,12 @@ async def enhance_stems(body: EnhanceStemsRequest) -> EnhanceStemsResponse:
 
     stem_info = await get_stems(filename)
     stems_dir: Path | None = None
-    if stem_info.get("found") and len(stem_info.get("stems", {})) >= 4:
-        first = next(iter(stem_info["stems"].values()))
+    if stem_info.get("found") and len(stem_info.get("stems", {})) >= len(
+        source_separation.STEM_NAMES
+    ):
+        # "stems" carries playback URLs (/api/audio/stem-file/...), not
+        # filesystem paths -- "stems_paths" is the absolute-path map.
+        first = next(iter(stem_info.get("stems_paths", {}).values()))
         stems_dir = Path(first).parent
     else:
         sep = await separate_library_file(SeparateFileRequest(filename=filename, model=model))

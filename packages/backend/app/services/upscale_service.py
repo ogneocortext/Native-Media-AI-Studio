@@ -83,15 +83,23 @@ def _resolve_image(image: str) -> Path:
     escape the project/output trees.
     """
     p = Path(image)
+    comfy_out: Path | None = None
     if not p.is_absolute():
         if image.startswith("comfyui/"):
-            comfy_out = comfyui_output_dir()
-            p = Path(comfy_out) / image[len("comfyui/"):]
+            comfy_out = comfyui_output_dir().resolve()
+            p = comfy_out / image[len("comfyui/"):]
         else:
             p = PROJECT_ROOT / image
     p = p.resolve()
 
-    if p.exists() and _is_within(p, PROJECT_ROOT, OUTPUT_BASE):
+    # A comfyui/-prefixed ref is contained by the ComfyUI output dir, which is
+    # a sibling checkout outside PROJECT_ROOT/OUTPUT_BASE -- checking it
+    # against the project roots rejected every legitimate reference.
+    if comfy_out is not None:
+        allowed = _is_within(p, comfy_out)
+    else:
+        allowed = _is_within(p, PROJECT_ROOT, OUTPUT_BASE)
+    if p.exists() and allowed:
         if p.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
             raise ValueError(f"Not a supported image: {p.name}")
         return p

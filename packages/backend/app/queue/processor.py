@@ -517,7 +517,9 @@ class JobProcessor:
             )
             if inspect.iscoroutinefunction(handler):
                 handler_task = asyncio.create_task(handler(job))
-                watcher_task = asyncio.create_task(self._cancellation_watcher(job))
+                watcher_task = asyncio.create_task(
+                    self._cancellation_watcher(job, handler_task)
+                )
                 try:
                     result = await asyncio.wait_for(
                         handler_task,
@@ -532,6 +534,23 @@ class JobProcessor:
                     raise HandlerTimeoutError(
                         f"Job {job.id} exceeded handler timeout of {handler_timeout}s"
                     ) from None
+                except asyncio.CancelledError:
+                    # Two sources reach here: processor shutdown (the loop
+                    # task was cancelled - re-raise so _process_loop exits)
+                    # and the cancellation watcher, which cancels
+                    # handler_task after marking the job CANCELLED (or the
+                    # job was deleted). The latter must not escape as
+                    # CancelledError: _process_loop treats it as shutdown
+                    # and would kill the whole serial processor.
+                    current = await queue_manager.get_job(job.id)
+                    job_gone = (
+                        current is None or current.status == JobStatus.CANCELLED
+                    )
+                    if self._running and job_gone:
+                        raise JobCancelledError(
+                            f"Job {job.id} cancelled during processing"
+                        ) from None
+                    raise
                 finally:
                     watcher_task.cancel()
                     try:
@@ -664,14 +683,17 @@ class JobProcessor:
         finally:
             self._current_job = None
 
-    async def _cancellation_watcher(self, job: Job):
+    async def _cancellation_watcher(self, job: Job, handler_task: asyncio.Task):
         """Background watcher that polls for cancellation while the handler runs."""
         while True:
             await asyncio.sleep(CANCELLATION_HEARTBEAT_INTERVAL)
             if await self._check_cancelled(job):
-                # Cancellation is already persisted by _check_cancelled; raise to
-                # interrupt the active handler path.
-                raise asyncio.CancelledError
+                # Cancellation is already persisted by _check_cancelled.
+                # Cancel the handler itself: raising CancelledError here only
+                # killed this watcher task and never reached the handler, so
+                # cancelled jobs kept running until their handler returned.
+                handler_task.cancel()
+                return
 
     async def get_current_job(self) -> Job | None:
         """Get the currently running job"""

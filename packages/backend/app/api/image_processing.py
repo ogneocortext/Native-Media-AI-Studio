@@ -126,7 +126,9 @@ async def process_existing_image(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     output_name = output_name or f"processed_{Path(file_path).stem}_{uuid.uuid4().hex[:8]}.png"
-    output_path = OUTPUT_DIR / output_name
+    # output_name is client-supplied: strip any directory components so a
+    # value like "../../x.png" cannot write outside OUTPUT_DIR.
+    output_path = OUTPUT_DIR / Path(output_name).name
     output_path.parent.mkdir(parents=True, exist_ok=True)
     ImageProcessor.save_optimized(result, str(output_path), format="PNG")
 

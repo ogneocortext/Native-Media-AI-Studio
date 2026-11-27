@@ -620,7 +620,9 @@ def save_generated_scene(body: SaveGeneratedSceneRequest):
 def cleanup_incomplete_scenes(body: CleanupIncompleteScenesRequest):
     """Remove incomplete scene files for a track, keeping only the largest (most complete) ones."""
     track = body.track
-    keep = body.keep
+    # Clamp: a negative keep makes matching[keep:] slice from the end, which
+    # can delete every scene file instead of keeping the largest ones.
+    keep = max(0, body.keep)
     output_dir = PROJECT_ROOT / "output" / "generated-scenes"
     if not output_dir.exists():
         return {"removed": 0}

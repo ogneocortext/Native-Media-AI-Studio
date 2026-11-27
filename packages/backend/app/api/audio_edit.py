@@ -122,7 +122,7 @@ async def extract_audio_from_video(body: ExtractAudioRequest) -> dict:
     root = PROJECT_ROOT.resolve()
     candidate = Path(raw)
     src = (candidate if candidate.is_absolute() else (root / "output" / raw)).resolve()
-    if not str(src).startswith(str(root)) or ".." in Path(raw).parts:
+    if not src.is_relative_to(root) or ".." in Path(raw).parts:
         raise HTTPException(status_code=400, detail="Invalid source_path")
     if not src.exists() or not src.is_file():
         raise HTTPException(status_code=404, detail=f"Source file not found: {body.source_path}")
@@ -279,9 +279,9 @@ async def rename_audio(body: RenameAudioRequest) -> dict:
     # Security: resolve both paths and ensure they stay within AUDIO_DIR
     old_path = (AUDIO_DIR / old_filename).resolve()
     new_path = (AUDIO_DIR / new_filename).resolve()
-    if not str(old_path).startswith(str(AUDIO_DIR.resolve())) or not old_path.is_file():
+    if not old_path.is_relative_to(AUDIO_DIR.resolve()) or not old_path.is_file():
         raise HTTPException(status_code=404, detail=f"Audio file not found: {old_filename}")
-    if not str(new_path).startswith(str(AUDIO_DIR.resolve())):
+    if not new_path.is_relative_to(AUDIO_DIR.resolve()):
         raise HTTPException(status_code=400, detail="New path escapes audio directory")
 
     if new_path.exists():
@@ -357,7 +357,7 @@ async def trim_audio(body: TrimAudioRequest) -> dict:
     if not body.filename or ".." in body.filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
     src = (AUDIO_DIR / body.filename).resolve()
-    if not str(src).startswith(str(AUDIO_DIR.resolve())) or not src.exists() or not src.is_file():
+    if not src.is_relative_to(AUDIO_DIR.resolve()) or not src.exists() or not src.is_file():
         raise HTTPException(status_code=404, detail=f"Audio file not found: {body.filename}")
     if src.suffix.lower() not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported audio type: {src.suffix}")
@@ -554,7 +554,7 @@ async def serve_audio_file(request: Request, filename: str):
     # Security: prevent directory traversal via resolve check
     candidate = (AUDIO_DIR / filename).resolve()
     audio_dir = AUDIO_DIR.resolve()
-    if not str(candidate).startswith(str(audio_dir)) or ".." in Path(filename).parts:
+    if not candidate.is_relative_to(audio_dir) or ".." in Path(filename).parts:
         raise HTTPException(status_code=400, detail="Invalid filename")
     file_path = candidate
     if not file_path.exists() or not file_path.is_file():

@@ -177,6 +177,10 @@ def ingest_log_file(path: str, source: str = "app", limit: int = 20000) -> int:
     if not rows:
         return 0
     with get_db() as conn:
+        # total_changes is cumulative for the pooled connection's lifetime,
+        # so take a delta around executemany or the count includes every
+        # write this connection has ever served.
+        before = conn.total_changes
         conn.executemany(
             """
             INSERT OR IGNORE INTO log_events (ts_iso, ts_ms, level, logger, message, source)
@@ -184,7 +188,7 @@ def ingest_log_file(path: str, source: str = "app", limit: int = 20000) -> int:
             """,
             [(r.ts_iso, r.ts_ms, r.level, r.logger, r.message, r.source) for r in rows],
         )
-        return conn.total_changes
+        return conn.total_changes - before
 
 
 def get_log_trends(since_ms: int | None = None, limit: int = 5000) -> list[dict]:
@@ -305,20 +309,17 @@ def get_log_analytics_last_cleanup() -> str | None:
 
 def set_log_analytics_last_cleanup(ts_iso: str, conn: sqlite3.Connection | None = None) -> None:
     """Persist last cleanup timestamp. Reuses `conn` when provided."""
-    close_after = False
-    if conn is None:
-        conn = get_db()
-        close_after = True
-    try:
-        conn.execute(
-            "INSERT OR REPLACE INTO user_preferences (key, value, category, updated_at) VALUES (?, ?, 'logs', ?)",
-            (LOG_ANALYTICS_LAST_CLEANUP_KEY, json.dumps(ts_iso), ts_iso),
-        )
-        if close_after:
-            conn.commit()
-    finally:
-        if close_after:
-            conn.close()
+    sql = (
+        "INSERT OR REPLACE INTO user_preferences (key, value, category, updated_at) "
+        "VALUES (?, ?, 'logs', ?)"
+    )
+    params = (LOG_ANALYTICS_LAST_CLEANUP_KEY, json.dumps(ts_iso), ts_iso)
+    if conn is not None:
+        # Caller owns the transaction; do not commit or close.
+        conn.execute(sql, params)
+        return
+    with get_db() as owned_conn:
+        owned_conn.execute(sql, params)
 
 
 def get_log_analytics_sources(limit: int = 20) -> list[dict[str, Any]]:

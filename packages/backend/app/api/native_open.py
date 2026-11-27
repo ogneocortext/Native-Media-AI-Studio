@@ -81,7 +81,12 @@ async def open_in_blender(payload: dict):
             sock.connect(("127.0.0.1", 9876))
             # Minimal protocol: send execute code to import GLB
             # The addon expects JSON with type "execute_code" or similar -- try both
-            code = f"import bpy; bpy.ops.import_scene.gltf(filepath=r'{src.as_posix()}')"
+            # json.dumps yields a valid Python string literal, so a path
+            # containing a quote cannot break out of the snippet.
+            code = (
+                "import bpy; bpy.ops.import_scene.gltf("
+                f"filepath={json.dumps(src.as_posix())})"
+            )
             msg = json.dumps({"type": "execute_code", "code": code}) + "\n"
             sock.sendall(msg.encode())
             # read response (non-blocking)
@@ -123,9 +128,13 @@ async def open_in_blender(payload: dict):
     # Launch Blender with a small Python snippet that imports the GLB
     # We write a temp .py that imports the file so Blender opens with it loaded
     try:
+        import json
         import tempfile
         import textwrap
 
+        # json.dumps produces a safe Python literal for the path -- a filename
+        # containing a quote must not be able to inject code into the script.
+        src_literal = json.dumps(src.as_posix())
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".py", delete=False, encoding="utf-8"
         ) as tf:
@@ -133,7 +142,7 @@ async def open_in_blender(payload: dict):
                 textwrap.dedent(f"""
 import bpy
 import pathlib
-path = pathlib.Path(r"{src.as_posix()}")
+path = pathlib.Path({src_literal})
 # clear default cube if present
 try:
     bpy.ops.object.select_all(action='SELECT')

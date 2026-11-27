@@ -281,6 +281,25 @@ class JobDatabaseManager:
         return JobDatabaseManager._retry_on_locked(_run)
 
     @staticmethod
+    def delete_jobs_batch(job_ids: list[str]) -> int:
+        """Delete multiple jobs by ID in a single transaction."""
+
+        def _run():
+            if not job_ids:
+                return 0
+            placeholders = ",".join("?" for _ in job_ids)
+            with get_db() as conn:
+                cursor = JobDatabaseManager._timed_execute(
+                    conn,
+                    f"DELETE FROM jobs WHERE id IN ({placeholders})",
+                    tuple(job_ids),
+                    label="delete_jobs_batch",
+                )
+                return cursor.rowcount
+
+        return JobDatabaseManager._retry_on_locked(_run)
+
+    @staticmethod
     def clear_completed() -> int:
         """Delete completed and cancelled jobs."""
 

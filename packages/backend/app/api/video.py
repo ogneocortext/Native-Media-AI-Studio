@@ -689,6 +689,7 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
         ]
 
         t0 = time.perf_counter()
+        proc_rc: int | None = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -699,15 +700,17 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
             def _run() -> tuple[int, bytes, bytes]:
                 p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
-                    return p.communicate(timeout=120)
+                    out, err = p.communicate(timeout=120)
+                    return p.returncode, out, err
                 except subprocess.TimeoutExpired:
                     p.kill()
                     p.wait(timeout=10)
                     return -1, b"", b"FFmpeg timed out"
 
-            returncode, stdout, stderr = await asyncio.wait_for(
+            returncode, _stdout, stderr = await asyncio.wait_for(
                 asyncio.to_thread(_run), timeout=130
             )
+            proc_rc = returncode
             proc = None  # type: ignore[assignment]
         except TimeoutError:
             logger.error("Canvas loop FFmpeg timed out for %s", src)
@@ -718,7 +721,8 @@ async def create_canvas_loop(request: CanvasLoopRequest) -> CanvasLoopResponse:
             )
 
         render_s = round(time.perf_counter() - t0, 2)
-        if proc is not None and proc.returncode != 0:
+        rc = proc.returncode if proc is not None else proc_rc
+        if rc not in (0, None):
             err_msg = stderr.decode("utf-8", errors="replace")[-500:] if stderr else "FFmpeg failed"
             logger.error("Canvas loop failed: %s", err_msg)
             return CanvasLoopResponse(
@@ -1181,9 +1185,16 @@ def _lipsync_batch_state(project_root: Path, batch_id: str) -> tuple[Path, Path]
     ``output/video/.lipsync_batches`` location so batches created before the
     move remain readable.
     """
+    from ..core.paths import is_within
     from ..services.lipsync import batch as lipbatch
 
+    # batch_id arrives from the URL: reject anything that could escape the
+    # batch root ("..", separators, absolute paths) before it reaches a
+    # filesystem join -- the delete endpoint rmtrees whatever this resolves to.
+    base = project_root / "output" / "runtime" / "lipsync_batches"
     bdir = _lipsync_batch_dir(project_root, batch_id)
+    if not is_within(base, bdir):
+        raise FileNotFoundError(f"Batch not found: {batch_id}")
     mpath = bdir / "manifest.json"
     if not mpath.is_file():
         legacy = lipbatch.batch_dir(project_root, batch_id)

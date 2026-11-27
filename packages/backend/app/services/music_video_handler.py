@@ -417,8 +417,10 @@ class MusicVideoHandler:
             "16M",
         ]
         acodec_args = ["-c:a", "aac", "-b:a", "192k"]
-        # Use -t to limit to requested duration (avoid 4:24 full render for 5s preview)
-        duration_args = ["-t", str(duration)] if duration and duration < 60 else []
+        # Use -t to limit to requested duration (avoid 4:24 full render for 5s preview).
+        # Applies at every length: without it a 90s request renders the whole song,
+        # since "full" already resolves to the analysis duration upstream.
+        duration_args = ["-t", str(duration)] if duration else []
 
         style = viz_config.get("style", "abstract")
 
@@ -655,10 +657,18 @@ class MusicVideoHandler:
                                 except Exception:
                                     pass
 
+            async def _drain_stdout():
+                # stdout is piped but unused; drain it concurrently or a
+                # chatty child fills the pipe buffer and blocks on write,
+                # deadlocking process.wait() inside the timeout gather.
+                while await process.stdout.read(65536):
+                    pass
+
             # Wait for process with timeout, concurrently reading stderr
             try:
                 await asyncio.wait_for(
-                    asyncio.gather(_read_stderr(), process.wait()), timeout=max(duration * 3, 90)
+                    asyncio.gather(_read_stderr(), _drain_stdout(), process.wait()),
+                    timeout=max(duration * 3, 90),
                 )
             except TimeoutError:
                 try:

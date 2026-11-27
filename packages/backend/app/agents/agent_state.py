@@ -15,14 +15,22 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 STATE_DIR = Path("output/agent-state")
 STATE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class AgentStateData(BaseModel):
-    """Structured state for an agent session."""
+    """Structured state for an agent session.
+
+    ``extra="allow"`` so AgentState.update() can stash arbitrary handoff
+    keys (the old code assigned to the read-only ``model_extra`` property,
+    which raises AttributeError, and unknown keys were silently dropped on
+    load/save round-trips).
+    """
+
+    model_config = ConfigDict(extra="allow")
 
     session_id: str
     created_at: str
@@ -75,11 +83,10 @@ class AgentState:
     def update(self, **kwargs: Any) -> AgentState:
         """Update state fields and persist."""
         for key, value in kwargs.items():
-            if hasattr(self.data, key):
-                setattr(self.data, key, value)
-            else:
-                self.data.model_extra = self.data.model_extra or {}
-                self.data.model_extra[key] = value
+            # With extra="allow", setattr stores unknown keys in
+            # __pydantic_extra__; assigning to the read-only model_extra
+            # property raises AttributeError.
+            setattr(self.data, key, value)
         self.save()
         return self
 

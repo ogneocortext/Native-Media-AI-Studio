@@ -315,11 +315,17 @@ class ImageProcessor:
         """Apply sepia tone effect."""
         if image.mode != "RGB":
             image = image.convert("RGB")
-        r, g, b = image.split()
-        sepia_r = Image.eval(r, lambda v: min(255, int(v * 0.393 + g * 0.769 + b * 0.189)))
-        sepia_g = Image.eval(g, lambda v: min(255, int(r * 0.349 + g * 0.686 + b * 0.168)))
-        sepia_b = Image.eval(b, lambda v: min(255, int(r * 0.272 + g * 0.534 + b * 0.131)))
-        return Image.merge("RGB", (sepia_r, sepia_g, sepia_b))
+        # The sepia matrix mixes all three bands per pixel, so it cannot be
+        # expressed as Image.eval() calls on single bands (the old code passed
+        # the band Images themselves into the lambda and always raised).
+        import numpy as np
+
+        arr = np.asarray(image, dtype=np.float32)
+        out = np.empty_like(arr)
+        out[..., 0] = arr[..., 0] * 0.393 + arr[..., 1] * 0.769 + arr[..., 2] * 0.189
+        out[..., 1] = arr[..., 0] * 0.349 + arr[..., 1] * 0.686 + arr[..., 2] * 0.168
+        out[..., 2] = arr[..., 0] * 0.272 + arr[..., 1] * 0.534 + arr[..., 2] * 0.131
+        return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "RGB")
 
     @staticmethod
     def invert(
@@ -647,6 +653,10 @@ class ImageProcessor:
         except Exception:
             font = ImageFont.load_default()
 
+        # Draw on a copy: ImageDraw.Draw(image) mutates the caller's image in
+        # place, which violates this class's "originals are never mutated"
+        # contract and corrupts frames reused across processing passes.
+        image = image.copy()
         draw = ImageDraw.Draw(image)
 
         if shadow:
@@ -752,8 +762,10 @@ class ImageProcessor:
                 filter_type="blur" if audio_level > 0.7 else "smooth",
             )
 
-        # Beat flash vignette
+        # Beat flash vignette. Image.blend requires both operands to share a
+        # mode, so an RGB/L/P frame would crash against the RGBA flash layer.
         if beat_detected and audio_level > 0.6:
+            result = result.convert("RGBA")
             flash = Image.new("RGBA", image.size, (255, 255, 255, int(audio_level * 60)))
             result = Image.blend(result, flash, audio_level * 0.3)
 

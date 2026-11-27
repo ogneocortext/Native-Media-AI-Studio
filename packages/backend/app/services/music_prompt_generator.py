@@ -53,6 +53,8 @@ def _load_recognized_suno_tags() -> set[str]:
         return set()
 
 
+_RECOGNIZED_SUNO_TAGS = _load_recognized_suno_tags()
+
 SUPPORTED_PLATFORMS = ("suno_v6", "minimax_30", "happyshrimp_10", "lyria_35")
 
 

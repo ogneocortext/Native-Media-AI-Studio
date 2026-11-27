@@ -224,11 +224,12 @@ async def skills_get(uri: str) -> SkillContent:
     if not match:
         raise HTTPException(status_code=400, detail=f"Invalid skill URI: {uri}")
     skill_name, rel_path = match.group(1), match.group(2)
-    skill_dir = _SKILLS_DIR / skill_name
-    if not skill_dir.is_dir():
+    skills_root = _SKILLS_DIR.resolve()
+    skill_dir = (_SKILLS_DIR / skill_name).resolve()
+    if not skill_dir.is_relative_to(skills_root) or not skill_dir.is_dir():
         raise HTTPException(status_code=404, detail=f"Skill not found: {skill_name}")
-    file_path = skill_dir / rel_path
-    if not file_path.is_file():
+    file_path = (skill_dir / rel_path).resolve()
+    if not file_path.is_relative_to(skill_dir) or not file_path.is_file():
         raise HTTPException(status_code=404, detail=f"File not found: {rel_path}")
     try:
         content = file_path.read_text(encoding="utf-8")
@@ -258,11 +259,12 @@ async def skills_get(uri: str) -> SkillContent:
 @router.get("/api/mcp/skills/{skill_name}/{path:path}")
 async def skills_file(skill_name: str, path: str) -> PlainTextResponse:
     """Serve a skill file (SKILL.md, references/GUIDE.md, etc.) as plain text."""
-    skill_dir = _SKILLS_DIR / skill_name
-    if not skill_dir.is_dir():
+    skills_root = _SKILLS_DIR.resolve()
+    skill_dir = (_SKILLS_DIR / skill_name).resolve()
+    if not skill_dir.is_relative_to(skills_root) or not skill_dir.is_dir():
         raise HTTPException(status_code=404, detail=f"Skill not found: {skill_name}")
-    file_path = skill_dir / path
-    if not file_path.is_file():
+    file_path = (skill_dir / path).resolve()
+    if not file_path.is_relative_to(skill_dir) or not file_path.is_file():
         raise HTTPException(status_code=404, detail=f"File not found: {path}")
     try:
         content = file_path.read_text(encoding="utf-8")

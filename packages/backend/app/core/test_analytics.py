@@ -193,7 +193,11 @@ def get_test_runs(
     params.extend([limit, offset])
 
     with get_db() as conn:
-        conn.row_factory = None
+        # NOTE: do not set conn.row_factory = None here — the connection is
+        # pooled and shared with every other repository module on this
+        # thread; clearing the row factory would break row["col"] access
+        # for subsequent callers until the connection is recycled.
+        # sqlite3.Row already supports positional indexing (r[0]).
         rows = conn.execute(query, params).fetchall()
 
     return [
@@ -423,7 +427,7 @@ def complete_version_checkpoint(
             """
             UPDATE version_checkpoints
             SET completed_at = ?, duration_days = ?, is_active = 0,
-                metadata = COALESCE(metadata, '{}') || ?
+                metadata = json_patch(COALESCE(metadata, '{}'), ?)
             WHERE version = ? AND is_active = 1
             """,
             (

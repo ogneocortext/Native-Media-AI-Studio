@@ -134,7 +134,7 @@ def _row_to_prompt(row: sqlite3.Row) -> dict[str, Any]:
         "name": row["name"],
         "prompt_type": row["prompt_type"],
         "text": row["text"],
-        "tags": json.loads(row["tags"]) if row["tags"] else [],
+        "tags": _safe_json_loads(row["tags"], []),
         "category": row["category"],
         "description": row["description"],
         "is_favorite": bool(row["is_favorite"]),
@@ -151,6 +151,16 @@ def _row_to_prompt(row: sqlite3.Row) -> dict[str, Any]:
 # Restored after the database.py split dropped these along with the v14
 # migration; /api/data/prompt-history* 500'd on the missing attributes.
 # =============================================================================
+
+
+def _section_index(entry: dict) -> int:
+    """Normalize ``section_index``; only a missing/None value means -1.
+
+    ``entry.get(...) or -1`` would also rewrite a legitimate 0 (the first
+    song section is index 0 -- see MusicVideoWizard) to the -1 sentinel.
+    """
+    v = entry.get("section_index")
+    return -1 if v is None else int(v)
 
 
 def _safe_json_loads(val: str | None, default: Any = None) -> Any:
@@ -196,7 +206,7 @@ def save_prompt_version(entry: dict) -> dict:
                 pid,
                 track,
                 section,
-                int(entry.get("section_index", -1) or -1),
+                _section_index(entry),
                 entry.get("prompt", ""),
                 entry.get("negative_prompt", ""),
                 entry.get("parent_id"),
@@ -211,7 +221,7 @@ def save_prompt_version(entry: dict) -> dict:
         )
     return {
         "id": pid, "track_filename": track, "section": section,
-        "section_index": int(entry.get("section_index", -1) or -1),
+        "section_index": _section_index(entry),
         "prompt": entry.get("prompt", ""),
         "negative_prompt": entry.get("negative_prompt", ""),
         "parent_id": entry.get("parent_id"),

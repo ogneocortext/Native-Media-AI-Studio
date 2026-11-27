@@ -795,14 +795,32 @@ def _migrate_v24(conn: sqlite3.Connection):
     multiple checkpoints per version (e.g., planning, development, testing, release phases).
     This migration recreates the table without the UNIQUE constraint.
     """
-    # Check if the UNIQUE constraint exists
-    cursor = conn.execute("PRAGMA table_info(version_checkpoints)")
-    columns = cursor.fetchall()
-    version_col = next((c for c in columns if c[1] == 'version'), None)
+    # Check if the UNIQUE constraint exists. PRAGMA table_info does NOT
+    # report UNIQUE constraints (its columns are cid/name/type/notnull/
+    # dflt_value/pk), so inspect the auto-indexes instead: a UNIQUE
+    # constraint creates an index with origin 'u' (the TEXT PRIMARY KEY
+    # creates origin 'pk' and must be ignored).
+    has_unique_version = False
+    try:
+        for idx in conn.execute("PRAGMA index_list(version_checkpoints)").fetchall():
+            if idx[2] == 1 and idx[3] == "u":
+                cols = [
+                    r[2]
+                    for r in conn.execute(f'PRAGMA index_info("{idx[1]}")').fetchall()
+                ]
+                if "version" in cols:
+                    has_unique_version = True
+                    break
+    except sqlite3.Error:
+        has_unique_version = False
 
-    if version_col and 'UNIQUE' in str(version_col[3]):
+    if has_unique_version:
         # UNIQUE constraint exists, need to recreate table
         conn.executescript("""
+            -- Drop a leftover rebuild table from an interrupted run so this
+            -- migration stays re-runnable.
+            DROP TABLE IF EXISTS version_checkpoints_new;
+
             -- Create new table without UNIQUE constraint
             CREATE TABLE version_checkpoints_new (
                 id TEXT PRIMARY KEY,

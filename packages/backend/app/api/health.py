@@ -84,7 +84,10 @@ async def _check_go_sidecar(name: str, url_attr: str, path: str) -> dict[str, An
 @router.get("/ping", response_model=dict)
 async def ping() -> dict:
     """Simple ping endpoint"""
-    return {"status": "ok", "timestamp": ""}
+    return {
+        "status": "ok",
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
 
 
 # ---------------------------------------------------------------------------

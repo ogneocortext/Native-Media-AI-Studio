@@ -181,24 +181,28 @@ class PortManager:
             )
 
             for line in result.stdout.split("\n"):
-                if f":{port}" in line and "LISTENING" in line:
-                    parts = line.split()
-                    if len(parts) >= 5:
-                        try:
-                            pid = int(parts[-1])
-                            if pid == own_pid:
-                                continue  # never kill ourselves
-                            # Check if it's a Python process
-                            if self._is_python_process(pid):
-                                logger.warning(
-                                    "Killing orphaned Python process (PID: %d) on port %d",
-                                    pid,
-                                    port,
-                                )
-                                self._kill_process(pid)
-                                killed = True
-                        except (ValueError, IndexError):
-                            pass
+                parts = line.split()
+                if len(parts) < 5 or "LISTENING" not in line:
+                    continue
+                # Match the local-address column exactly: a bare substring
+                # check would let port 800 match a listener on :8000.
+                if not parts[1].endswith(f":{port}"):
+                    continue
+                try:
+                    pid = int(parts[-1])
+                    if pid == own_pid:
+                        continue  # never kill ourselves
+                    # Check if it's a Python process
+                    if self._is_python_process(pid):
+                        logger.warning(
+                            "Killing orphaned Python process (PID: %d) on port %d",
+                            pid,
+                            port,
+                        )
+                        self._kill_process(pid)
+                        killed = True
+                except (ValueError, IndexError):
+                    pass
 
         except subprocess.TimeoutExpired:
             logger.warning(f"Timeout while checking port {port}")

@@ -622,6 +622,15 @@ async def search_audio_library(body: AudioSearchRequest):
     return {"count": len(results), "results": results}
 
 
+def _sha256_file(path: Path) -> str:
+    """Streamed sha256 of a file; run via asyncio.to_thread (can be GBs)."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _resolve_stored_audio_path(stored_path: str, filename: str) -> Path | None:
     """Resolve a row's stored_path to an existing file.
 
@@ -653,8 +662,6 @@ async def dedup_scan(body: DedupScanRequest):
     Only exact byte duplicates are grouped — same-song different-mix files
     have different hashes and are intentionally left for human review.
     """
-    import hashlib
-
     from ..core import database
 
     rows = await asyncio.to_thread(database.get_audio_files_for_dedup)
@@ -668,15 +675,11 @@ async def dedup_scan(body: DedupScanRequest):
         if path is None:
             missing_files.append(row["filename"])
             continue
-        digest = hashlib.sha256()
         try:
-            with open(path, "rb") as fh:
-                for chunk in iter(lambda: fh.read(1024 * 1024), b""):
-                    digest.update(chunk)
+            hexdigest = await asyncio.to_thread(_sha256_file, path)
         except OSError:
             missing_files.append(row["filename"])
             continue
-        hexdigest = digest.hexdigest()
         await asyncio.to_thread(database.set_audio_content_hash, row["filename"], hexdigest)
         row["content_hash"] = hexdigest
         hashed += 1
@@ -910,7 +913,11 @@ async def analyze_audio(
         from ..services.audio_analyzer import AudioAnalyzer
 
         analyzer = AudioAnalyzer()
-        result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
+        # analyze_file decodes + runs the full DSP chain (tens of seconds on
+        # CPU); keep it off the event loop like the spectral-timeline route.
+        result = await asyncio.to_thread(
+            analyzer.analyze_file, str(file_path), job_id=unique_id, backend=backend
+        )
         analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
 
         # Save full analysis. `index.json` is deliberately not updated: it had
@@ -986,7 +993,12 @@ async def get_beat_map(
 
     analyzer = AudioAnalyzer()
     unique_id = hash_prefix(normalized) or str(uuid.uuid4())[:8]
-    result = analyzer.analyze_file(str(AUDIO_DIR / normalized), job_id=unique_id, backend=backend)
+    result = await asyncio.to_thread(
+        analyzer.analyze_file,
+        str(AUDIO_DIR / normalized),
+        job_id=unique_id,
+        backend=backend,
+    )
     analysis_result = _build_analysis_result(result, unique_id, AUDIO_DIR / normalized, analyzer)
 
     return _build_beat_map_response(analysis_result)
@@ -1071,9 +1083,11 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             if y is not None:
                 # CUDA spectral pass on the already-decoded audio; skip its beat
                 # tracking since analyze_from_audio does that below.
-                cuda_result = analyze_with_cuda(str(file_path), y=y, sr=sr, include_beats=False)
+                cuda_result = await asyncio.to_thread(
+                    analyze_with_cuda, str(file_path), y=y, sr=sr, include_beats=False
+                )
             else:
-                cuda_result = analyze_with_cuda(str(file_path))
+                cuda_result = await asyncio.to_thread(analyze_with_cuda, str(file_path))
         except Exception as e:
             cuda_error = e
             cuda_result = None
@@ -1102,7 +1116,8 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
             # silently ran the slow tracker while reporting a GPU analysis.
             # sonara is a Rust extension and does the same job in well under a
             # second on the buffer already decoded here.
-            result = analyzer.analyze_from_audio(
+            result = await asyncio.to_thread(
+                analyzer.analyze_from_audio,
                 y,
                 sr,
                 job_id=unique_id,
@@ -1113,7 +1128,12 @@ async def analyze_audio_cuda(file: UploadFile = File(...)) -> AudioAnalysisResul
                 beat_backend="sonara" if SONARA_AVAILABLE else None,
             )
         else:
-            result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend="sonara")
+            result = await asyncio.to_thread(
+                analyzer.analyze_file,
+                str(file_path),
+                job_id=unique_id,
+                backend="sonara",
+            )
 
         analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
 
@@ -1541,7 +1561,9 @@ async def ensure_analysis(body: EnsureAnalysisRequest):
         from ..services.audio_analyzer import AudioAnalyzer
 
         analyzer = AudioAnalyzer()
-        result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
+        result = await asyncio.to_thread(
+            analyzer.analyze_file, str(file_path), job_id=unique_id, backend=backend
+        )
         analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
 
         # Best-effort LLM section refinement
@@ -1659,7 +1681,12 @@ async def analyze_all_pending(backend: str = "sonara"):
 
             try:
                 unique_id = str(uuid.uuid4())[:8]
-                result = analyzer.analyze_file(str(file_path), job_id=unique_id, backend=backend)
+                result = await asyncio.to_thread(
+                    analyzer.analyze_file,
+                    str(file_path),
+                    job_id=unique_id,
+                    backend=backend,
+                )
                 analysis_result = _build_analysis_result(result, unique_id, file_path, analyzer)
 
                 # Best-effort LLM section refinement

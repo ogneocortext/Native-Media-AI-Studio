@@ -109,7 +109,12 @@ class SSEManager:
         so the caller should return a 200 ``text/event-stream`` with a
         ``retry:`` directive and let the browser back off and reconnect.
         """
-        queue = asyncio.Queue()
+        # Bounded so the 5s put timeout in send_message can actually fire: an
+        # unbounded queue never blocks on put(), so a client that stopped
+        # reading would accumulate events (and memory) forever. 1000 matches
+        # the replay buffer — a client further behind than that cannot be
+        # replayed anyway.
+        queue = asyncio.Queue(maxsize=1000)
         async with self._lock:
             if len(self._active_connections) >= self._max_connections:
                 structured_logger.warning(

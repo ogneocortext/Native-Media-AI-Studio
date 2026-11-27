@@ -79,9 +79,24 @@ def _activity_for_path(path: str, labels: dict[str, Any]) -> str:
 # --------------------------------------------------------------------------- #
 
 
+# Cache for _read_traffic_tail keyed by (mtime_ns, size): compute_presence
+# calls it once per traffic-source person, and traffic.log is append-only,
+# so re-reading the whole file for every person on every poll is wasted I/O.
+_tail_cache: dict[str, Any] = {"key": None, "data": []}
+_tail_lock = threading.Lock()
+
+
 def _read_traffic_tail(limit: int = _TRAFFIC_TAIL_LINES) -> list[dict[str, Any]]:
     """Return up to ``limit`` parsed JSON records from the tail of traffic.log."""
     path = LOG_DIR / str(logging_settings.traffic().get("log_file", "traffic.log"))
+    try:
+        st = path.stat()
+        cache_key = (st.st_mtime_ns, st.st_size, limit)
+    except OSError:
+        return []
+    with _tail_lock:
+        if _tail_cache["key"] == cache_key:
+            return _tail_cache["data"]
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
             lines = fh.readlines()
@@ -98,6 +113,9 @@ def _read_traffic_tail(limit: int = _TRAFFIC_TAIL_LINES) -> list[dict[str, Any]]
             continue
         if isinstance(rec, dict):
             out.append(rec)
+    with _tail_lock:
+        _tail_cache["key"] = cache_key
+        _tail_cache["data"] = out
     return out
 
 
@@ -235,6 +253,11 @@ def _journaled_starts() -> set[str]:
                     rec = json.loads(line)
                 except Exception:  # noqa: BLE001
                     continue
+                # Valid JSON that is not an object (e.g. a bare number or
+                # list written by hand/corruption) has no .get() -- skip it
+                # or compute_presence 500s on a malformed journal line.
+                if not isinstance(rec, dict):
+                    continue
                 s = rec.get("started_ts")
                 if s:
                     starts.add(str(s))
@@ -292,9 +315,11 @@ def read_journal(limit: int = 5) -> list[dict[str, Any]]:
         if not line:
             continue
         try:
-            out.append(json.loads(line))
+            rec = json.loads(line)
         except Exception:  # noqa: BLE001
             continue
+        if isinstance(rec, dict):
+            out.append(rec)
         if len(out) >= limit:
             break
     return out

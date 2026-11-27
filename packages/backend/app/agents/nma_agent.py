@@ -648,7 +648,9 @@ class NMAAgent:
         "remix_preview": lambda self, recipe: self.api.remix_preview(recipe),
         "remix_build": lambda self, recipe: self.api.remix_build(recipe),
         "remix_enhance": lambda self, name: self.api.remix_enhance(name),
-        "media_list": lambda self: self.api.media_list(),
+        # NMAApiClient has no media_list(); /api/outputs already returns all
+        # media types, which is what audio_list() fetches.
+        "media_list": lambda self: self.api.audio_list(),
     }
 
     async def run_llm_loop(

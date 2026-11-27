@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from .connection import get_db
@@ -117,12 +117,18 @@ def get_benchmark_result(run_id: str) -> dict[str, Any] | None:
 
 def delete_benchmark_results(older_than_days: int = 30) -> int:
     """Prune benchmark history older than the requested age."""
-    cutoff = (datetime.now().timestamp() - int(older_than_days) * 86400) * 1000
+    # Compare canonical ISO strings in the same naive-local frame on both
+    # sides. strftime('%s', ...) parses the stored naive timestamp as UTC
+    # while datetime.now() is local, so an epoch comparison would shift the
+    # cutoff by the UTC offset.
+    cutoff = (datetime.now() - timedelta(days=int(older_than_days))).strftime(
+        "%Y-%m-%dT%H:%M:%f"
+    )
     with get_db() as conn:
         cursor = conn.execute(
             "DELETE FROM hardware_benchmarks WHERE "
-            "CAST(strftime('%s', started_at) AS INTEGER) * 1000 < ?",
-            (int(cutoff),),
+            "strftime('%Y-%m-%dT%H:%M:%f', started_at) < ?",
+            (cutoff,),
         )
         return int(cursor.rowcount or 0)
 

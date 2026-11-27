@@ -41,7 +41,7 @@ def _ebur128_stats(y: np.ndarray, sr: int) -> dict[str, float | None]:
     """
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:
-        return None
+        return {"integrated_lufs": None, "true_peak_dbfs": None}
     buf = np.ascontiguousarray(y[:2], dtype=np.float32)
     if buf.shape[0] == 1:
         buf = np.repeat(buf, 2, axis=0)
@@ -71,7 +71,7 @@ def _ebur128_stats(y: np.ndarray, sr: int) -> dict[str, float | None]:
             timeout=120,
         )
     except Exception:
-        return None
+        return {"integrated_lufs": None, "true_peak_dbfs": None}
     stderr = (
         proc.stderr.decode("utf-8", "replace")
         if isinstance(proc.stderr, bytes)

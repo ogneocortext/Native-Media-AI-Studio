@@ -279,8 +279,14 @@ async def stream_sub_agent(task_id: str) -> EventSourceResponse:
                 )
             return
 
-        # Connect to SSE manager for live updates
+        # Connect to SSE manager for live updates. connect() returns None at
+        # capacity -- without this guard queue.get() would AttributeError.
         queue = await sse_manager.connect()
+        if queue is None:
+            yield _make_sse_event(
+                "error", {"message": "Too many SSE connections; try again shortly"}
+            )
+            return
         try:
             while True:
                 try:

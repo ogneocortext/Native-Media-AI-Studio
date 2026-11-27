@@ -855,6 +855,17 @@ class SunoEnhancer:
                 error="librosa not installed",
             )
 
+        # An unrecognized format used to skip BOTH export branches and still
+        # report success with no files -- fail fast instead.
+        if self.config.output_format not in ("wav", "mp3", "both"):
+            return EnhanceResult(
+                success=False,
+                output_dir=str(output_dir),
+                wav_path=None,
+                mp3_path=None,
+                error=f"unknown output_format: {self.config.output_format!r} (want wav|mp3|both)",
+            )
+
         stem_names = ["vocals", "drums", "bass", "other"]
         loaded: dict[str, np.ndarray] = {}
         sr = 22050
@@ -1412,13 +1423,19 @@ class SunoEnhancer:
                 _report(18, "export_wav")
             if self.config.output_format in ("mp3", "both"):
                 mp3_path = output_dir / f"{base_name}_enhanced.mp3"
-                await asyncio.to_thread(
-                    self._encode_mp3,
-                    wav_path or output_dir / f"{base_name}_enhanced.wav",
-                    mp3_path,
-                    mixed,
-                    sr,
-                )
+                if wav_path is None:
+                    # MP3-only export: ffmpeg still needs a WAV to read, so
+                    # write a throwaway intermediate and remove it after --
+                    # previously this passed a path that was never written and
+                    # the whole enhance failed with "intermediate WAV missing".
+                    tmp_wav = output_dir / f"{base_name}_enhanced.tmp.wav"
+                    await asyncio.to_thread(self._write_wav, tmp_wav, mixed, sr)
+                    try:
+                        await asyncio.to_thread(self._encode_mp3, tmp_wav, mp3_path, mixed, sr)
+                    finally:
+                        tmp_wav.unlink(missing_ok=True)
+                else:
+                    await asyncio.to_thread(self._encode_mp3, wav_path, mp3_path, mixed, sr)
                 steps.append({"step": 19, "name": "export_mp3", "path": str(mp3_path)})
                 _report(19, "export_mp3")
         except Exception as exc:

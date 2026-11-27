@@ -117,7 +117,13 @@ class CircuitBreaker:
 
         if state.state == "half_open":
             calls = self._half_open_calls.get(name, 0)
-            return calls < self.half_open_max_calls
+            if calls >= self.half_open_max_calls:
+                return False
+            # Count the probe we are about to allow; nothing else ever
+            # incremented this counter, so half-open previously permitted
+            # unlimited calls.
+            self._half_open_calls[name] = calls + 1
+            return True
 
         return True  # closed
 

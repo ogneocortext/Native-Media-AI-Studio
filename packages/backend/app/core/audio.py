@@ -207,12 +207,14 @@ def get_audio_analysis(filename: str) -> dict | None:
                 return data
         # Fallback: match by basename for files stored under a subdirectory.
         # ``Path(filename).name`` equals ``filename`` when there is no
-        # directory separator, so we always try the LIKE fallback after an
+        # directory separator, so we always try the suffix match after an
         # exact miss -- it is a cheap indexed scan and harmless otherwise.
+        # A suffix compare (not LIKE) keeps ``_``/``%`` in real filenames
+        # from acting as wildcards, and accepts both '/' and '\\' prefixes.
         basename = Path(filename).name
         row = conn.execute(
-            "SELECT analysis_result FROM audio_files WHERE filename LIKE ?",
-            ("%/" + basename,),
+            "SELECT analysis_result FROM audio_files WHERE substr(filename, -?) IN (?, ?)",
+            (len(basename) + 1, "/" + basename, "\\" + basename),
         ).fetchone()
         if row and row["analysis_result"]:
             data = _safe_json_loads(row["analysis_result"], {})

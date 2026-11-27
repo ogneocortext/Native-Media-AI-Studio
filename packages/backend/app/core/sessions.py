@@ -114,8 +114,8 @@ def _row_to_session(row: sqlite3.Row) -> dict[str, Any]:
         "audio_id": row["audio_id"],
         "music_prompt_id": row["music_prompt_id"],
         "status": row["status"],
-        "config": json.loads(row["config"]) if row["config"] else {},
-        "selected_visuals": json.loads(row["selected_visuals"]) if row["selected_visuals"] else [],
+        "config": _safe_json_loads(row["config"], {}),
+        "selected_visuals": _safe_json_loads(row["selected_visuals"], []),
         "output_path": row["output_path"],
         "total_frames": row["total_frames"],
         "generated_frames": row["generated_frames"],
@@ -124,3 +124,13 @@ def _row_to_session(row: sqlite3.Row) -> dict[str, Any]:
         "created_at": row["created_at"],
         "completed_at": row["completed_at"],
     }
+
+
+def _safe_json_loads(val: str | None, default: Any = None) -> Any:
+    """Safely parse JSON string, returning default on error."""
+    if not val:
+        return default if default is not None else {}
+    try:
+        return json.loads(val)
+    except (json.JSONDecodeError, TypeError):
+        return default if default is not None else {}
