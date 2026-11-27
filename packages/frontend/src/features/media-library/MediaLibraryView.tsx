@@ -61,8 +61,14 @@ export interface MediaLibraryViewProps {
 export function MediaLibraryView({ defaultFileType, scope = "all" }: MediaLibraryViewProps) {
   const { files: allFiles, loading: filesLoading, error, refetch: refetchFiles } =
     useMediaFiles(scope);
-  const { handleBulkDelete, handleRename, handleProbe, isOperating, setOperationError } =
-    useFileOperations();
+  const {
+    handleBulkDelete,
+    handleRename,
+    handleProbe,
+    isOperating,
+    operationError,
+    setOperationError,
+  } = useFileOperations();
   const {
     favorites,
     collections,
@@ -172,6 +178,7 @@ export function MediaLibraryView({ defaultFileType, scope = "all" }: MediaLibrar
   const handleFileClick = (file: MediaFile) => {
     setSelectedFile(file);
     setRenameValue(file.filename);
+    setOperationError(null);
     setDetailOpen(true);
   };
 
@@ -756,6 +763,11 @@ export function MediaLibraryView({ defaultFileType, scope = "all" }: MediaLibrar
                 Rename
               </button>
             </div>
+            {operationError && (
+              <p className="text-xs text-red-400 mb-3" role="alert">
+                {operationError}
+              </p>
+            )}
 
             <div className="space-y-2 text-sm text-muted">
               <p>File Type: {selectedFile.file_type}</p>

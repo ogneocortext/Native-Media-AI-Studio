@@ -43,11 +43,24 @@ export function useFileOperations() {
     setIsOperating(true);
     setOperationError(null);
     try {
-      await fetchWithTimeout(`/api/outputs/${encodeURIComponent(relativePath)}/rename`, {
+      const res = await fetchWithTimeout(`/api/outputs/${encodeURIComponent(relativePath)}/rename`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ new_name: newName }),
       });
+      if (!res.ok) {
+        let detail = `Rename failed (${res.status})`;
+        try {
+          const body = (await res.json()) as {
+            detail?: string;
+            error?: { message?: string };
+          };
+          detail = body.detail ?? body.error?.message ?? detail;
+        } catch {
+          // Non-JSON error body — keep the status-based message.
+        }
+        throw new Error(detail);
+      }
       return true;
     } catch (e) {
       setOperationError(e instanceof Error ? e.message : "Rename failed");
