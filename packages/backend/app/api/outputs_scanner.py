@@ -346,6 +346,11 @@ def _scan_file(
         return None
     if _FRAME_SEQ_RE.match(file_path.stem):
         return None
+    # Skip underscore-prefixed internal/test artifacts (e.g.
+    # _engine_coreflux_thumb_A.jpg) — the leading underscore marks them as
+    # pipeline intermediates, not user-facing library items.
+    if file_path.name.startswith("_"):
+        return None
     file_type = get_file_type(file_path.name)
     if file_type == "other" and file_path.suffix.lower() not in _EXTRA_LISTED_EXTS:
         return None
