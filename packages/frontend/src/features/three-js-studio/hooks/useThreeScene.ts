@@ -48,7 +48,6 @@ export function useThreeScene({
   const particlesRef = useRef<THREE.Points | null>(null);
   const clockRef = useRef<THREE.Timer | null>(null);
   const bloomPassRef = useRef<UnrealBloomPass | null>(null);
-  const bloomComposerRef = useRef<EffectComposer | null>(null);
   const finalComposerRef = useRef<EffectComposer | null>(null);
   const composerRef = useRef<EffectComposer | null>(null);
   const caPassRef = useRef<ShaderPass | null>(null);
@@ -107,6 +106,7 @@ export function useThreeScene({
   const pointerHandlersRef = useRef<{
     down: (event: PointerEvent) => void;
     up: (event: PointerEvent) => void;
+    controlsStart: () => void;
   } | null>(null);
 
   const [sceneLoading, setSceneLoading] = useState(true);
@@ -265,7 +265,6 @@ export function useThreeScene({
         particlesRef,
         clockRef,
         bloomPassRef,
-        bloomComposerRef,
         finalComposerRef,
         composerRef,
         caPassRef,
@@ -582,7 +581,11 @@ export function useThreeScene({
     });
 
     return () => {
-      objectTextureRefs.current.forEach((tex) => tex.dispose());
+      // Do not dispose textures here: per-object disposal for removed objects
+      // is handled above (lines 575-580), and renderer.dispose() in
+      // mountThreeScene's cleanup releases all WebGL textures on unmount.
+      // Disposing everything here causes every object texture to reload from
+      // the network whenever ANY object is added or removed.
       objectTextureRefs.current.clear();
     };
   }, [objects]);
@@ -594,7 +597,6 @@ export function useThreeScene({
     objectsMapRef,
     particlesRef,
     bloomPassRef,
-    bloomComposerRef,
     finalComposerRef,
     composerRef,
     caPassRef,

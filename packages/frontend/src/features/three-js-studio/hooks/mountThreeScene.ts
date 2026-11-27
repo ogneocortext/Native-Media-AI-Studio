@@ -51,7 +51,7 @@ const VIGNETTE_SHADER = {
     uniform sampler2D tDiffuse;
     varying vec2 vUv;
     void main() {
-      vec4 texel = texture2D(tDiffuse, vUv);
+      vec4 texel = texture(tDiffuse, vUv);
       vec2 uv = (vUv - vec2(0.5)) * vec2(offset);
       float shade = clamp(dot(uv, uv) * darkness * 4.0, 0.0, 1.0);
       gl_FragColor = vec4(mix(texel.rgb, vec3(0.0), shade), texel.a);
@@ -67,7 +67,6 @@ export interface MountContext {
   beatActiveRef: React.MutableRefObject<boolean>;
   beatPhraseRef: React.MutableRefObject<boolean>;
   beatSyncRef: React.MutableRefObject<boolean>;
-  bloomComposerRef: React.MutableRefObject<EffectComposer | null>;
   bloomPassRef: React.MutableRefObject<UnrealBloomPass | null>;
   bpmRef: React.MutableRefObject<number>;
   caPassRef: React.MutableRefObject<ShaderPass | null>;
@@ -103,6 +102,7 @@ export interface MountContext {
   pointerHandlersRef: React.MutableRefObject<{
     down: (event: PointerEvent) => void;
     up: (event: PointerEvent) => void;
+    controlsStart: () => void;
   } | null>;
   renderAtTimeRef: React.MutableRefObject<(tSec: number, dtSec: number) => void>;
   renderPlayingRef: React.MutableRefObject<boolean>;
@@ -134,7 +134,6 @@ export function mountThreeScene(ctx: MountContext) {
     beatActiveRef,
     beatPhraseRef,
     beatSyncRef,
-    bloomComposerRef,
     bloomPassRef,
     bpmRef,
     caPassRef,
@@ -198,8 +197,6 @@ export function mountThreeScene(ctx: MountContext) {
     cameraRef.current.aspect = w / h;
     cameraRef.current.updateProjectionMatrix();
     rendererRef.current.setSize(w, h);
-    if (composerRef.current) composerRef.current.setSize(w, h);
-    if (bloomComposerRef.current) bloomComposerRef.current.setSize(w, h);
     if (finalComposerRef.current) finalComposerRef.current.setSize(w, h);
   };
   const initScene = async () => {
@@ -256,9 +253,14 @@ export function mountThreeScene(ctx: MountContext) {
     // F1: user drag/orbit input cancels an in-flight
     // camera blend immediately — the blend is a
     // convenience, never a fight with the user.
-    controls.addEventListener("start", () => {
+    // Stored as a named handler so cleanup can removeEventListener;
+    // OrbitControls.dispose() only removes DOM listeners, not
+    // EventDispatcher listeners, so an inline handler would leak on
+    // every mount/unmount cycle.
+    const onControlsStart = () => {
       cameraTransitionRef.current = null;
-    });
+    };
+    controls.addEventListener("start", onControlsStart);
 
     // Click-to-select: raycast against scene objects on a stationary click
     // (a drag is an orbit, so anything past the movement threshold is ignored).
@@ -301,6 +303,7 @@ export function mountThreeScene(ctx: MountContext) {
     pointerHandlersRef.current = {
       down: handlePointerDown,
       up: handlePointerUp,
+      controlsStart: onControlsStart,
     };
 
     const renderScene = new RenderPass(scene, camera);
@@ -329,7 +332,6 @@ export function mountThreeScene(ctx: MountContext) {
     if (vignettePass.uniforms.darkness.value > 0.05) finalComposer.addPass(vignettePass);
     vignettePassRef.current = vignettePass;
     finalComposer.addPass(new OutputPass());
-    bloomComposerRef.current = null;
     composerRef.current = finalComposer;
     finalComposerRef.current = finalComposer;
 
@@ -858,6 +860,10 @@ export function mountThreeScene(ctx: MountContext) {
     if (pointerHandlers) {
       canvas.removeEventListener("pointerdown", pointerHandlers.down);
       canvas.removeEventListener("pointerup", pointerHandlers.up);
+      // OrbitControls.dispose() removes DOM listeners but not its own
+      // EventDispatcher listeners, so the "start" handler added at mount
+      // must be removed explicitly or it leaks on every mount/unmount.
+      controlsRef.current?.removeEventListener("start", pointerHandlers.controlsStart);
       pointerHandlersRef.current = null;
     }
     controlsRef.current?.dispose();
@@ -866,7 +872,6 @@ export function mountThreeScene(ctx: MountContext) {
     characterMixersRef.current.clear();
     finalComposerRef.current?.dispose();
     composerRef.current?.dispose();
-    bloomComposerRef.current?.dispose();
     clockRef.current?.dispose();
     rendererRef.current?.dispose();
     sceneRef.current = null;

@@ -194,7 +194,7 @@ export function InstancedParticles({
           varying float vAlpha;
 
           void main() {
-            vec4 tex = texture2D(uTexture, vUv);
+            vec4 tex = texture(uTexture, vUv);
             float a = tex.a * vAlpha * uAlpha;
             if (a < 0.01) discard;
             gl_FragColor = vec4(vColor * tex.rgb, a);

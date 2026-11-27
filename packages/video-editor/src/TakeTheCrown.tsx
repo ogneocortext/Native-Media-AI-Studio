@@ -99,6 +99,13 @@ const PALETTE = {
   verse: "hsl(198 88% 62%)",
   intro: "hsl(30 70% 46%)",
 };
+// Convert a space-separated HSL string to HSLA with alpha (slash syntax).
+// Appending raw hex (e.g. `hsl(...)1c`) produces invalid CSS — the browser
+// drops the entire declaration. Use this wherever a translucent variant of
+// the section color is needed.
+const hsla = (hsl: string, alpha: number) =>
+  hsl.replace(/\)$/, ` / ${alpha})`);
+
 const getSectionColor = (section: string, bassMix: number) => {
   if (section.includes("DROP")) return PALETTE.drop;
   if (section.includes("INTRO")) return PALETTE.intro;
@@ -279,7 +286,7 @@ export const TakeTheCrownComposition: React.FC = () => {
         />
         <AbsoluteFill
           style={{
-            background: `linear-gradient(180deg, rgba(10,7,6,0.5) 0%, transparent 45%, rgba(10,7,6,0.78) 92%), radial-gradient(900px 620px at 50% 40%, ${glowColor}1c 0%, transparent 60%)`,
+            background: `linear-gradient(180deg, rgba(10,7,6,0.5) 0%, transparent 45%, rgba(10,7,6,0.78) 92%), radial-gradient(900px 620px at 50% 40%, ${hsla(glowColor, 0.11)} 0%, transparent 60%)`,
           }}
         />
       </AbsoluteFill>
@@ -748,7 +755,7 @@ export const TakeTheCrownComposition: React.FC = () => {
                 lineHeight: 1,
                 fontFamily: "Space Grotesk, sans-serif",
                 color: "white",
-                textShadow: `0 0 36px ${glowColor}77`,
+                textShadow: `0 0 36px ${hsla(glowColor, 0.47)}`,
               }}
             >
               {"TAKE".split("").map((ch, i) => (

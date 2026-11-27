@@ -732,6 +732,11 @@ export function ShaderCanvas({
 
     const handleContextRestored = () => {
       console.log("WebGL context restored, reinitializing...");
+      // The old context's WebGLFramebuffer/WebGLTexture objects are dead with
+      // the lost context. Reset so ensureFBOs rebuilds them against the new
+      // context; otherwise it sees matching dimensions and reuses invalid FBOs,
+      // producing INVALID_OPERATION errors on every feedback frame.
+      fboRef.current = { read: null, write: null };
       initGL();
       setContextRestored((v) => v + 1);
     };

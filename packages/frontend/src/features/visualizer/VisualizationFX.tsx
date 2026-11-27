@@ -209,9 +209,9 @@ const FinalGradeShader = {
       float d = length(c);
       vec2 off = c * uAberration * (0.4 + d * 2.2);
       vec3 col;
-      col.r = texture2D(tDiffuse, vUv + off).r;
-      col.g = texture2D(tDiffuse, vUv).g;
-      col.b = texture2D(tDiffuse, vUv - off).b;
+      col.r = texture(tDiffuse, vUv + off).r;
+      col.g = texture(tDiffuse, vUv).g;
+      col.b = texture(tDiffuse, vUv - off).b;
       float m = max(col.r, max(col.g, col.b));
       if (m > uKnee) {
         float mc = uKnee + (m - uKnee) / (1.0 + (m - uKnee) * uCeilSlope);
@@ -247,7 +247,7 @@ const KaleidoscopeShader = {
     uniform float uIntensity, uFold;
     varying vec2 vUv;
     void main(){
-      vec3 orig = texture2D(tDiffuse, vUv).rgb;
+      vec3 orig = texture(tDiffuse, vUv).rgb;
       if (uIntensity <= 0.001) { gl_FragColor = vec4(orig, 1.0); return; }
       vec2 p = vUv - 0.5;
       float r = length(p);
@@ -257,7 +257,7 @@ const KaleidoscopeShader = {
       float folded = mod(a + seg * 0.5, seg) - seg * 0.5;
       vec2 q = vec2(cos(folded), sin(folded)) * r * 0.7;
       vec2 uv2 = clamp(q + 0.5, 0.001, 0.999);
-      vec3 kaleido = texture2D(tDiffuse, uv2).rgb;
+      vec3 kaleido = texture(tDiffuse, uv2).rgb;
       gl_FragColor = vec4(mix(orig, kaleido, clamp(uIntensity, 0.0, 1.0)), 1.0);
     }
   `,
@@ -763,6 +763,7 @@ export function makeTerrainMaterialTSL(opts: TSLTerrainMaterialOpts = {}): Terra
   })();
 
   material.userData = {
+    ...material.userData,
     uniforms: {
       uTime,
       uBass,
@@ -864,6 +865,7 @@ export function makeAudioReactiveMaterialTSL(
   })();
 
   material.userData = {
+    ...material.userData,
     uniforms: {
       uBass,
       uMid,
@@ -948,6 +950,7 @@ export function makeStreakMaterialTSL(opts: StreakMaterialOpts = {}): StreakTSLM
   })();
 
   material.userData = {
+    ...material.userData,
     uniforms: { uBass, uTreble, uStretchLocal, uOpacity, uPixelRatio },
   };
 

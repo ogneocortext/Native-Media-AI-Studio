@@ -67,7 +67,6 @@ export interface UseThreeSceneResult {
   objectsMapRef: React.RefObject<Map<string, THREE.Object3D>>;
   particlesRef: React.RefObject<THREE.Points | null>;
   bloomPassRef: React.RefObject<UnrealBloomPass | null>;
-  bloomComposerRef: React.RefObject<EffectComposer | null>;
   finalComposerRef: React.RefObject<EffectComposer | null>;
   composerRef: React.RefObject<EffectComposer | null>;
   caPassRef: React.RefObject<ShaderPass | null>;
