@@ -7,6 +7,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import operator
+import shutil
+import subprocess
 import time
 from typing import Any
 
@@ -36,6 +38,52 @@ _GO_SIDECARS = {
 }
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# FFmpeg / ffprobe binary status — cached at startup
+#
+# Computed once per process so the version probe does not run a subprocess on
+# every health request. Served from /api/health so the frontend Health page can
+# surface binary availability to the user.
+# ---------------------------------------------------------------------------
+
+_ffmpeg_binary_cache: dict[str, dict[str, str | None]] | None = None
+
+
+def _get_ffmpeg_binary_status() -> dict[str, dict[str, str | None]]:
+    """Return ffmpeg/ffprobe binary status, computed once and cached.
+
+    Shape per binary:
+        {"found": bool, "path": str | None, "version": str | None}
+    version is the first line of `<binary> -version`.
+    """
+    global _ffmpeg_binary_cache
+    if _ffmpeg_binary_cache is not None:
+        return _ffmpeg_binary_cache
+
+    result: dict[str, dict[str, str | None]] = {}
+    for name in ("ffmpeg", "ffprobe"):
+        path = shutil.which(name)
+        entry: dict[str, str | None] = {"found": path is not None, "path": path, "version": None}
+        if path:
+            try:
+                proc = subprocess.run(
+                    [path, "-version"],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=10,
+                )
+                if proc.returncode == 0 and proc.stdout:
+                    entry["version"] = proc.stdout.splitlines()[0]
+            except Exception:
+                entry["version"] = None
+        result[name] = entry
+
+    _ffmpeg_binary_cache = result
+    return result
+
 
 router = APIRouter(prefix="/api/health", tags=["Health"])
 
@@ -227,6 +275,8 @@ async def health_check() -> dict:
         "backend": backend_status,
         "adapters": adapters_response,
         "overall": aggregate.get("overall", "healthy"),
+        "ffmpeg": _get_ffmpeg_binary_status()["ffmpeg"],
+        "ffprobe": _get_ffmpeg_binary_status()["ffprobe"],
     }
 
 
@@ -362,6 +412,8 @@ async def agent_health() -> dict:
         "gpu": gpu,
         "queue": queue_info,
         "models": models_info,
+        "ffmpeg": _get_ffmpeg_binary_status()["ffmpeg"],
+        "ffprobe": _get_ffmpeg_binary_status()["ffprobe"],
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
