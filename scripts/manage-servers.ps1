@@ -230,10 +230,45 @@ function Get-ServiceStatus {
     $port = $config.Port
     $healthPath = $config.HealthPath
 
+    # Pocket binds the Tailscale IP and /health requires the per-launch
+    # Bearer token, so the generic loopback probe can never see it.
+    if ($ServiceName -eq 'pocket') {
+        $up = Test-PocketUp
+        if ($up) { return @{ Running = $true; Port = $port } }
+        return @{ Running = $false; Port = $port }
+    }
+
     # Delegates to shared-utils' Test-ServicePort — one implementation of
     # "listening + health probe" (it already filters to conflicting
     # loopback/wildcard binds via Get-ServicePortListeners).
     return Test-ServicePort -Port $port -HealthPath $healthPath
+}
+
+function Test-PocketUp {
+    # Pocket TTS health check. /health requires the Bearer token that
+    # tools/pocket/start-pocket.ps1 writes to pocket-token.txt on every
+    # launch (the backend reads the same file via pocket.token_file), and
+    # Pocket may bind 127.0.0.1 or the Tailscale IP depending on tailnet
+    # availability — so probe both addresses with the token. If the token
+    # file is missing (Pocket launched outside the script), fall back to a
+    # bare TCP-listen check: a bound port means an instance exists and a
+    # second launch would fail to bind anyway.
+    $token = $null
+    $tokenPath = 'D:\Tools\streaming-tts\pocket\pocket-token.txt'
+    if (Test-Path $tokenPath) {
+        try { $token = (Get-Content $tokenPath -Raw).Trim() } catch {}
+    }
+    foreach ($addr in @('127.0.0.1', '100.95.60.73')) {
+        try {
+            $headers = @{}
+            if ($token) { $headers['Authorization'] = "Bearer $token" }
+            $resp = Invoke-WebRequest -Uri "http://$addr`:8811/health" `
+                -Headers $headers -TimeoutSec 2 -UseBasicParsing
+            if ($resp.StatusCode -eq 200) { return $true }
+        } catch {}
+    }
+    return [bool](Get-NetTCPConnection -State Listen -LocalPort 8811 `
+        -ErrorAction SilentlyContinue)
 }
 
 function Get-OrphanReloaders {
@@ -336,13 +371,7 @@ function Start-StudioService {
     # so the standard loopback port/health check does not apply. Handle it
     # with direct health probes on both possible addresses.
     if ($ServiceName -eq 'pocket') {
-        $pocketUp = $false
-        foreach ($addr in @('127.0.0.1', '100.95.60.73')) {
-            try {
-                $resp = Invoke-WebRequest -Uri "http://$addr:8811/health" -TimeoutSec 2 -UseBasicParsing
-                if ($resp.StatusCode -eq 200) { $pocketUp = $true; break }
-            } catch {}
-        }
+        $pocketUp = Test-PocketUp
         if ($pocketUp) {
             Write-Ok 'Pocket TTS already running'
             return
@@ -350,7 +379,7 @@ function Start-StudioService {
         Write-Step 'Starting Pocket TTS'
         $pocketLauncher = Join-Path $ProjectRoot 'tools\pocket\start-pocket.ps1'
         $pocketProc = Start-Process -FilePath 'pwsh' `
-            -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $pocketLauncher `
+            -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$pocketLauncher`"" `
             -WorkingDirectory $ProjectRoot `
             -WindowStyle Hidden `
             -RedirectStandardOutput (Join-Path $LogDir 'pocket.out.log') `
@@ -359,14 +388,7 @@ function Start-StudioService {
         Register-StartedProcess -Process $pocketProc -Service 'pocket' -ServiceName 'Pocket TTS'
         # Pocket loads the TTS model before binding, so this can take ~30s.
         for ($i = 1; $i -le 45; $i++) {
-            $pocketUp = $false
-            foreach ($addr in @('127.0.0.1', '100.95.60.73')) {
-                try {
-                    $resp = Invoke-WebRequest -Uri "http://$addr:8811/health" -TimeoutSec 2 -UseBasicParsing
-                    if ($resp.StatusCode -eq 200) { $pocketUp = $true; break }
-                } catch {}
-            }
-            if ($pocketUp) { break }
+            if (Test-PocketUp) { $pocketUp = $true; break }
             Start-Sleep -Seconds 1
         }
         if ($pocketUp) {
@@ -400,18 +422,12 @@ function Start-StudioService {
     # Tailscale IP (100.95.60.73:8811) when available, falling back to
     # 127.0.0.1 — probe both addresses.
     if ($ServiceName -eq 'backend') {
-        $pocketUp = $false
-        foreach ($addr in @('127.0.0.1', '100.95.60.73')) {
-            try {
-                $resp = Invoke-WebRequest -Uri "http://$addr:8811/health" -TimeoutSec 2 -UseBasicParsing
-                if ($resp.StatusCode -eq 200) { $pocketUp = $true; break }
-            } catch {}
-        }
+        $pocketUp = Test-PocketUp
         if (-not $pocketUp) {
             Write-Step 'Pocket TTS not running — launching via start-pocket.ps1'
             $pocketLauncher = Join-Path $ProjectRoot 'tools\pocket\start-pocket.ps1'
             $pocketProc = Start-Process -FilePath 'pwsh' `
-                -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $pocketLauncher `
+                -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$pocketLauncher`"" `
                 -WorkingDirectory $ProjectRoot `
                 -WindowStyle Hidden `
                 -RedirectStandardOutput (Join-Path $LogDir 'pocket.out.log') `
@@ -420,14 +436,7 @@ function Start-StudioService {
             Register-StartedProcess -Process $pocketProc -Service 'backend' -ServiceName 'Pocket TTS'
             # Pocket loads the TTS model before binding, so this can take ~30s.
             for ($i = 1; $i -le 45; $i++) {
-                $pocketUp = $false
-                foreach ($addr in @('127.0.0.1', '100.95.60.73')) {
-                    try {
-                        $resp = Invoke-WebRequest -Uri "http://$addr:8811/health" -TimeoutSec 2 -UseBasicParsing
-                        if ($resp.StatusCode -eq 200) { $pocketUp = $true; break }
-                    } catch {}
-                }
-                if ($pocketUp) { break }
+                if (Test-PocketUp) { $pocketUp = $true; break }
                 Start-Sleep -Seconds 1
             }
             if ($pocketUp) {
