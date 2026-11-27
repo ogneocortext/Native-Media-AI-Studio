@@ -30,6 +30,7 @@ rendering. Your media never leaves your computer.
 | RAM       | 32 GB                            |
 | CPU       | 6-core Ryzen 5-class             |
 | Software  | Windows 11, Node.js 26+, pnpm 12+, Python 3.10+, PowerShell 7.6+ |
+| Media     | ffmpeg + ffprobe on PATH         |
 
 The app is deliberately tuned for modest hardware — models are quantized and
 jobs run one at a time, so an 8 GB card is a supported target, not a
@@ -58,6 +59,31 @@ restore each piece.
 Optional services (the app works without them, with reduced AI features):
 ComfyUI on port 8188 for image/video/3D generation, Ollama on 11434 for chat and
 embeddings. `config/ports.json` is the single source of truth for every port.
+
+## FFmpeg prerequisite
+
+The Studio's media features (library probe, loudness and true-peak measurement,
+waveform extraction, mastering, audio edit, cover art) all depend on **ffmpeg
+and ffprobe being installed and on the PATH** of the environment that launches
+the backend. Without them those features return unavailable or null results
+instead of errors; the Health page reports binary status.
+
+Install ffmpeg (which bundles ffprobe):
+
+```powershell
+winget install ffmpeg
+# or
+choco install ffmpeg
+```
+
+Verify both binaries resolve:
+
+```powershell
+where ffmpeg
+where ffprobe
+```
+
+Full version and install guidance: `docs/setup/SYSTEM_REQUIREMENTS.md`.
 
 ## Documentation
 
