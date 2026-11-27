@@ -145,8 +145,16 @@ export function GPUCard() {
   }
 
   const memPercent = gpu.memory_percent || 0;
+  const tempC = gpu.temperature_c;
+  const utilPct = gpu.gpu_utilization;
   const tempColor =
-    gpu.temperature_c > 80 ? "#ef4444" : gpu.temperature_c > 70 ? "#f59e0b" : "#22c55e";
+    tempC == null
+      ? "#6b7280"
+      : tempC > 80
+        ? "#ef4444"
+        : tempC > 70
+          ? "#f59e0b"
+          : "#22c55e";
   const formatGB = (mb: number) =>
     mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`;
 
@@ -220,17 +228,22 @@ export function GPUCard() {
             <span className="text-muted flex items-center gap-1">
               <Activity size={12} /> GPU Utilization
             </span>
-            <span className="font-bold">{gpu.gpu_utilization}%</span>
+            <span className="font-bold">
+              {utilPct == null ? "n/a" : `${utilPct}%`}
+            </span>
           </div>
           <div className="h-2.5 bg-background rounded-full overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{
-                width: `${gpu.gpu_utilization}%`,
-                background: getUsageColor(gpu.gpu_utilization),
+                width: `${utilPct ?? 0}%`,
+                background: utilPct == null ? "#6b7280" : getUsageColor(utilPct),
               }}
             />
           </div>
+          {utilPct == null && (
+            <p className="text-[11px] text-muted mt-1">sensor unavailable</p>
+          )}
         </div>
 
         {/* Temperature */}
@@ -242,14 +255,16 @@ export function GPUCard() {
             className="font-bold tabular-nums"
             style={{ color: tempColor }}
             title={
-              gpu.temperature_c >= 80
-                ? "Hot — approaching throttle"
-                : gpu.temperature_c >= 70
-                  ? "Warm"
-                  : "Normal"
+              tempC == null
+                ? "Sensor unavailable"
+                : tempC >= 80
+                  ? "Hot — approaching throttle"
+                  : tempC >= 70
+                    ? "Warm"
+                    : "Normal"
             }
           >
-            {gpu.temperature_c}°C
+            {tempC == null ? "n/a" : `${tempC}°C`}
           </span>
         </div>
 

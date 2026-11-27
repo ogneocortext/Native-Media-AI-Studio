@@ -194,9 +194,9 @@ export function GpuMonitorPage() {
               minute: "2-digit",
               second: "2-digit",
             }),
-            temp: gpu.temperature_c,
+            temp: gpu.temperature_c ?? undefined,
             vram: gpu.memory_percent,
-            util: gpu.gpu_utilization,
+            util: gpu.gpu_utilization ?? undefined,
           };
           return [...prev, point].slice(-MAX_HISTORY);
         });

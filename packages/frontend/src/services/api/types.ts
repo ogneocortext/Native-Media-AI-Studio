@@ -1013,9 +1013,9 @@ export interface GPUSnapshot {
   memory_free_mb: number;
   memory_total_mb: number;
   memory_percent: number;
-  gpu_utilization: number;
-  memory_controller_utilization?: number;
-  temperature_c: number;
+  gpu_utilization: number | null;
+  memory_controller_utilization?: number | null;
+  temperature_c: number | null;
   processes?: {
     pid: number;
     name: string;

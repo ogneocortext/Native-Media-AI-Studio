@@ -730,9 +730,12 @@ class ResourceMonitor:
                 "memory_free_mb": free // (1024 * 1024),
                 "memory_total_mb": total // (1024 * 1024),
                 "memory_percent": round((used / total) * 100, 1) if total else 0,
-                "gpu_utilization": 0,  # NVML unavailable
-                "memory_controller_utilization": 0,
-                "temperature_c": 0,
+                # NVML is unavailable on this path, so utilization, memory-controller
+                # utilization, and temperature are unknown — report null, not a
+                # fabricated 0 that renders as a real idle-GPU measurement.
+                "gpu_utilization": None,
+                "memory_controller_utilization": None,
+                "temperature_c": None,
                 "processes": [],
                 "memory_available": True,
                 "fallback": "torch.cuda",

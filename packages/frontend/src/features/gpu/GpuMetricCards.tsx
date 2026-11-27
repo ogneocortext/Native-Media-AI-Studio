@@ -10,13 +10,13 @@ import { THROTTLE_TEMP } from "./gpuConstants";
 
 interface MetricCardsProps {
   snapshot: {
-    temperature_c: number;
+    temperature_c: number | null;
     memory_percent: number;
     memory_used_mb: number;
     memory_total_mb: number;
     memory_free_mb: number;
-    memory_controller_utilization?: number;
-    gpu_utilization: number;
+    memory_controller_utilization?: number | null;
+    gpu_utilization: number | null;
     available: boolean;
     name?: string;
   };
@@ -32,11 +32,13 @@ export function GpuMetricCards({ snapshot, windowHistory, historyLength }: Metri
   const temp = snapshot.temperature_c;
   const memPct = snapshot.memory_percent;
   const util = snapshot.gpu_utilization;
-  const tempColor = getTempColor(temp);
+  const tempColor = temp == null ? "#6b7280" : getTempColor(temp);
+  const utilColor = util == null ? "#6b7280" : getUsageColor(util);
 
   const thermalStatus = (() => {
     if (!snapshot.available)
       return { text: "Unavailable", color: "text-muted", icon: null as ReactNode };
+    if (temp == null) return { text: "Sensor unavailable", color: "text-muted", icon: null };
     if (temp >= 90) return { text: "Critical", color: "text-red-400", icon: null };
     if (temp >= 80) return { text: "Hot", color: "text-orange-400", icon: null };
     if (temp >= 70) return { text: "Warm", color: "text-amber-400", icon: null };
@@ -44,7 +46,8 @@ export function GpuMetricCards({ snapshot, windowHistory, historyLength }: Metri
     return { text: "Cool", color: "text-emerald-400", icon: null };
   })();
 
-  const headroom = Math.max(0, THROTTLE_TEMP - temp);
+  const headroom = temp == null ? null : Math.max(0, THROTTLE_TEMP - temp);
+  const zone = temp == null ? null : temp >= 85 ? "hot" : temp >= 65 ? "warm" : "cool";
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -58,7 +61,7 @@ export function GpuMetricCards({ snapshot, windowHistory, historyLength }: Metri
           </span>
         </div>
         <p className="text-2xl font-bold" style={{ color: tempColor }}>
-          {temp.toFixed(0)}°C
+          {temp == null ? "n/a" : `${temp.toFixed(0)}°C`}
         </p>
         <p className={`text-xs mt-1 flex items-center gap-1 ${thermalStatus.color}`}>
           {thermalStatus.icon}
@@ -165,20 +168,23 @@ export function GpuMetricCards({ snapshot, windowHistory, historyLength }: Metri
       {/* GPU Utilization */}
       <Card>
         <div className="flex items-center gap-2 mb-2">
-          <Activity size={14} className={`text-${getUsageColor(util).replace("bg-", "text-")}`} />
+          <Activity size={14} style={{ color: utilColor }} />
           <span className="text-xs text-muted">GPU Utilization</span>
         </div>
-        <p className="text-2xl font-bold" style={{ color: getUsageColor(util) }}>
-          {util.toFixed(0)}%
+        <p className="text-2xl font-bold" style={{ color: utilColor }}>
+          {util == null ? "n/a" : `${util.toFixed(0)}%`}
         </p>
         <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
           <div
             className="h-full rounded-full transition-all"
-            style={{ width: `${Math.min(util, 100)}%`, background: getUsageColor(util) }}
+            style={{ width: `${Math.min(util ?? 0, 100)}%`, background: utilColor }}
           />
         </div>
         <p className="text-xs text-muted mt-1.5">
-          Mem ctrl: {snapshot.memory_controller_utilization ?? 0}%
+          Mem ctrl:{" "}
+          {snapshot.memory_controller_utilization == null
+            ? "n/a"
+            : `${snapshot.memory_controller_utilization}%`}
         </p>
         <div className="h-[36px] mt-2 -mx-1 opacity-90">
           <ResponsiveContainer width="100%" height="100%">
@@ -189,9 +195,9 @@ export function GpuMetricCards({ snapshot, windowHistory, historyLength }: Metri
               <Area
                 type="monotone"
                 dataKey="util"
-                stroke={getUsageColor(util)}
+                stroke={utilColor}
                 strokeWidth={2.5}
-                fill={`${getUsageColor(util)}33`}
+                fill={`${utilColor}33`}
                 dot={false}
                 isAnimationActive={false}
               />
@@ -206,36 +212,48 @@ export function GpuMetricCards({ snapshot, windowHistory, historyLength }: Metri
           <Activity size={14} className="text-amber-400" />
           <span className="text-xs text-muted">Thermal Headroom</span>
           <span className="ml-auto text-[11px] text-muted tabular-nums">
-            {headroom.toFixed(0)}°C to throttle
+            {headroom == null ? "—" : `${headroom.toFixed(0)}°C to throttle`}
           </span>
         </div>
         <p className="text-2xl font-bold text-white">
-          {temp >= 85 ? "Low headroom" : temp >= 70 ? "Medium headroom" : "High headroom"}
+          {temp == null
+            ? "n/a"
+            : temp >= 85
+              ? "Low headroom"
+              : temp >= 70
+                ? "Medium headroom"
+                : "High headroom"}
         </p>
         <div
           className="mt-2 flex gap-1"
           role="img"
-          aria-label={`Thermal headroom ${temp >= 85 ? "low" : temp >= 70 ? "medium" : "high"}, ${headroom.toFixed(0)} degrees below ${THROTTLE_TEMP} degree throttle point`}
+          aria-label={
+            headroom == null || zone == null
+              ? "Thermal headroom unknown, sensor unavailable"
+              : `Thermal headroom ${zone === "hot" ? "low" : zone === "warm" ? "medium" : "high"}, ${headroom.toFixed(0)} degrees below ${THROTTLE_TEMP} degree throttle point`
+          }
         >
           <div
-            className={`h-1.5 flex-1 rounded-full ${temp < 65 ? "bg-emerald-500" : "bg-emerald-500/25"}`}
+            className={`h-1.5 flex-1 rounded-full ${zone === "cool" ? "bg-emerald-500" : "bg-emerald-500/25"}`}
             title="Cool zone (<65°C)"
           />
           <div
-            className={`h-1.5 flex-1 rounded-full ${temp >= 85 ? "bg-amber-500/30" : temp >= 65 ? "bg-amber-500" : "bg-white/10"}`}
+            className={`h-1.5 flex-1 rounded-full ${zone === "hot" ? "bg-amber-500/30" : zone === "warm" ? "bg-amber-500" : "bg-white/10"}`}
             title="Warm zone (65–85°C)"
           />
           <div
-            className={`h-1.5 flex-1 rounded-full ${temp >= 85 ? "bg-red-500" : "bg-white/10"}`}
+            className={`h-1.5 flex-1 rounded-full ${zone === "hot" ? "bg-red-500" : "bg-white/10"}`}
             title={`Hot zone (≥85°C, throttle at ${THROTTLE_TEMP}°C)`}
           />
         </div>
         <p className="text-xs text-muted mt-1.5">
-          {temp >= 85
-            ? "Approaching throttle — reduce concurrent workloads"
-            : temp >= 70
-              ? "Warm — fan curve active"
-              : "Cool — safe for sustained loads"}
+          {temp == null
+            ? "Sensor unavailable"
+            : temp >= 85
+              ? "Approaching throttle — reduce concurrent workloads"
+              : temp >= 70
+                ? "Warm — fan curve active"
+                : "Cool — safe for sustained loads"}
         </p>
       </Card>
     </div>
