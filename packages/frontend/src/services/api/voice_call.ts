@@ -153,9 +153,22 @@ export function connectCallSession(opts: CallSessionOptions): CallSession {
     opts.onEvent({ type: "error", message: "Call connection failed." });
   };
 
+  // Messages sent while the socket is still CONNECTING used to be dropped
+  // silently — CallPanel sends `hello` immediately after connect, so the
+  // role handshake was almost always lost. Buffer and flush on open instead.
+  const pending: (string | ArrayBuffer)[] = [];
+  ws.onopen = () => {
+    let payload = pending.shift();
+    while (payload !== undefined) {
+      ws.send(payload);
+      payload = pending.shift();
+    }
+  };
   const send = (payload: string | ArrayBuffer) => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(payload);
+    } else if (ws.readyState === WebSocket.CONNECTING) {
+      pending.push(payload);
     }
   };
 

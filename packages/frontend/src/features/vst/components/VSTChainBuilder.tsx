@@ -42,7 +42,7 @@ export const VSTChainBuilder = React.memo<VSTChainBuilderProps>(({
   isProcessing,
   availableInputs,
 }) => {
-  const [chainName, setChainName] = useState(chain?.name ?? "");
+  const [chainName, setChainName] = useState(chain?.name ?? "New Chain");
   const [sampleRate, setSampleRate] = useState(chain?.sample_rate ?? 48000);
   const [blockSize, setBlockSize] = useState(chain?.block_size ?? 512);
   const [selectedInput, setSelectedInput] = useState<string>("");
@@ -249,10 +249,19 @@ export const VSTChainBuilder = React.memo<VSTChainBuilderProps>(({
               <RotateCw size={16} />
             </button>
           </div>
-          <button onClick={onDelete} className={`${styles.iconBtn} ${styles.dangerBtn}`} title="Delete Chain">
+          <button
+            onClick={onDelete}
+            className={`${styles.iconBtn} ${styles.dangerBtn}`}
+            title="Delete Chain"
+            disabled={!chain}
+          >
             <Trash2 size={16} />
           </button>
-          <button onClick={handleSaveChain} className={styles.saveBtn} disabled={isProcessing}>
+          <button
+            onClick={handleSaveChain}
+            className={styles.saveBtn}
+            disabled={isProcessing || !chainName.trim()}
+          >
             <Save size={16} /> Save
           </button>
         </div>

@@ -231,7 +231,6 @@ class CallLine:
         self.answered_at: float | None = None
         self.ended_at: float | None = None
         self._clients: dict[str, WebSocket] = {}
-        self._stt: NateStt | None = None
         self._teardown_task: asyncio.Task[None] | None = None
 
     # -- snapshot -----------------------------------------------------------
@@ -455,16 +454,6 @@ class CallLine:
             )
         finally:
             await client.aclose()
-
-    async def feed_nate_pcm(self, data: bytes) -> None:
-        """Nate's mic PCM -> STT -> transcript text to Maya."""
-        if self._stt is None:
-            self._stt = NateStt(
-                lambda text: asyncio.create_task(
-                    self._send_text("maya", {"type": "transcript", "text": text})
-                )
-            )
-        await self._stt.feed(data)
 
 
 call_line = CallLine()

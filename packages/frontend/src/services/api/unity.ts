@@ -30,11 +30,15 @@ export async function getUnityStatus(): Promise<UnityStatus> {
 export async function listUnityCommands(): Promise<UnityCommandInfo[]> {
   // The backend proxies the Unity Pipeline /api/commands response, which is an
   // envelope ({ commands: [...], count, ... }) rather than a bare array.
-  const data = await getJson<UnityCommandInfo[] | { commands?: UnityCommandInfo[] }>(
+  const data = await getJson<UnityCommandInfo[] | { commands?: unknown }>(
     `${BASE}/commands`,
     { timeout: 15000 },
   );
-  return Array.isArray(data) ? data : (data.commands ?? []);
+  if (Array.isArray(data)) return data;
+  // Guard the envelope too: a malformed `commands` field must not reach
+  // callers as a non-array (the Custom tab calls .map on the result).
+  const commands = (data as { commands?: unknown } | null)?.commands;
+  return Array.isArray(commands) ? (commands as UnityCommandInfo[]) : [];
 }
 
 /**

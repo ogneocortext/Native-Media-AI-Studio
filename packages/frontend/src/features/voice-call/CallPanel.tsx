@@ -67,7 +67,7 @@ export function CallPanel() {
   const playCtxRef = useRef<AudioContext | null>(null);
   const playNextRef = useRef(0);
   const playSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const speakAbortRef = useRef<AbortController | null>(null);
+  const speakCooldownRef = useRef<number | null>(null);
 
   // Sync with the shared state on mount, then keep the WebSocket in sync.
   useEffect(() => {
@@ -206,6 +206,11 @@ export function CallPanel() {
     sessionRef.current?.close();
     sessionRef.current = null;
     stopMic();
+    if (speakCooldownRef.current !== null) {
+      window.clearTimeout(speakCooldownRef.current);
+      speakCooldownRef.current = null;
+    }
+    setSpeaking(false);
     setError(null);
   }, [stopMic]);
 
@@ -256,8 +261,6 @@ export function CallPanel() {
   const speak = useCallback(() => {
     const text = speakText.trim();
     if (!text || speaking) return;
-    const controller = new AbortController();
-    speakAbortRef.current = controller;
     setSpeaking(true);
     setError(null);
     try {
@@ -265,10 +268,11 @@ export function CallPanel() {
       setSpeakText("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Speak failed.");
-    } finally {
-      if (speakAbortRef.current === controller) speakAbortRef.current = null;
-      setSpeaking(false);
     }
+    // The backend streams TTS with no completion event, so concurrent speaks
+    // would interleave PCM chunks into garbled audio. Hold the button for a
+    // cooldown instead of the old AbortController, which could never abort.
+    speakCooldownRef.current = window.setTimeout(() => setSpeaking(false), 2000);
   }, [speakText, speaking]);
 
   // -- derived UI ----------------------------------------------------------
