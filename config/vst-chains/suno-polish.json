@@ -1,0 +1,60 @@
+{
+  "name": "Suno Polish",
+  "plugins": [
+    {
+      "name": "TDR VOS SlickEQ",
+      "parameters": {
+        "LOW Freq": 30.0,
+        "LOW Shape": 1.0,
+        "LOW Gain": -48.0,
+        "MID Freq": 350.0,
+        "MID Gain": -2.0,
+        "MID Shape": 0.0,
+        "HIGH Freq": 10000.0,
+        "HIGH Gain": 0.0,
+        "HIGH Shape": 0.0
+      }
+    },
+    {
+      "name": "TDR VOS SlickEQ",
+      "parameters": {
+        "LOW Gain": 0.0,
+        "MID Gain": 0.0,
+        "HIGH Freq": 3090.0,
+        "HIGH Gain": -1.5,
+        "HIGH Shape": 0.0
+      }
+    },
+    {
+      "name": "TDR VOS SlickEQ",
+      "parameters": {
+        "LOW Gain": 0.0,
+        "MID Gain": 0.0,
+        "HIGH Freq": 4120.0,
+        "HIGH Gain": -1.5,
+        "HIGH Shape": 0.0
+      }
+    },
+    {
+      "name": "Airwindows Consolidated",
+      "parameters": {
+        "Bigness": 0.25,
+        "Dry/Wet": 0.9,
+        "Input Level": 0.0,
+        "Output Level": 0.0
+      }
+    },
+    {
+      "name": "TDR VOS SlickEQ",
+      "parameters": {
+        "LOW Gain": 0.0,
+        "MID Gain": 0.0,
+        "HIGH Gain": 0.0,
+        "EQ Model": 1.0,
+        "EQ Sat": 0.12
+      }
+    }
+  ],
+  "sample_rate": 44100,
+  "block_size": 512
+}
