@@ -19,6 +19,8 @@ section is served at all.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from .config import config
 from .connection import get_db
 
@@ -103,3 +105,47 @@ def hidden_paths() -> set[str]:
     items are allowed back into the general surfaces.
     """
     return flagged_paths()
+
+
+def _outputs_rel(path: str | Path) -> str | None:
+    """output/-relative posix path for an absolute path inside output/."""
+    try:
+        return (
+            Path(path)
+            .resolve()
+            .relative_to(Path(config.output_dir).resolve())
+            .as_posix()
+        )
+    except (OSError, ValueError):
+        return None
+
+
+def path_is_flagged(path: str | Path, *, hidden: set[str] | None = None) -> bool:
+    """True when an absolute path inside output/ resolves to a flagged item.
+
+    For list surfaces that hold filesystem paths rather than the
+    output/-relative strings :func:`hidden_paths` returns. Pass ``hidden``
+    when filtering many items to avoid a DB hit per call.
+    """
+    hidden = flagged_paths() if hidden is None else hidden
+    if not hidden:
+        return False
+    rel = _outputs_rel(path)
+    return rel is not None and rel in hidden
+
+
+def tree_is_flagged(path: str | Path, *, hidden: set[str] | None = None) -> bool:
+    """True when ``path`` is flagged or contains a flagged descendant.
+
+    For list surfaces that expose whole directories (remixes, stem sets)
+    rather than individual files: hiding one flagged stem hides the set it
+    belongs to, matching how the library treats the directory as one item.
+    """
+    hidden = flagged_paths() if hidden is None else hidden
+    if not hidden:
+        return False
+    rel = _outputs_rel(path)
+    if rel is None:
+        return False
+    prefix = rel + "/"
+    return any(h == rel or h.startswith(prefix) for h in hidden)

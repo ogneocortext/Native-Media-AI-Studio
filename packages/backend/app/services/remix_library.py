@@ -47,14 +47,18 @@ def list_remixes() -> list[dict[str, Any]]:
     Reads ``REMIX_DIR`` through the shim at call time so tests can
     monkeypatch `stem_remixer.REMIX_DIR`.
     """
+    from ..core.nsfw import hidden_paths, tree_is_flagged
     from . import stem_remixer
 
+    hidden = hidden_paths()
     out: list[dict[str, Any]] = []
     if not stem_remixer.REMIX_DIR.is_dir():
         return out
     for entry in sorted(stem_remixer.REMIX_DIR.iterdir()):
         # `.probes` is the cache, not a remix.
         if not entry.is_dir() or entry.name.startswith("."):
+            continue
+        if tree_is_flagged(entry, hidden=hidden):
             continue
         manifest_path = entry / "remix.json"
         if not manifest_path.exists():
@@ -89,8 +93,10 @@ def list_remix_versions(name: str) -> list[dict[str, Any]]:
     Returns [] for an unknown name, so a caller can treat "no history"
     and "no such remix" the same way - neither has anything to play.
     """
+    from ..core.nsfw import hidden_paths, tree_is_flagged
+
     out_dir = remix_dir(name)
-    if not out_dir.is_dir():
+    if not out_dir.is_dir() or tree_is_flagged(out_dir, hidden=hidden_paths()):
         return []
     versions_root = out_dir / VERSIONS_DIRNAME
 

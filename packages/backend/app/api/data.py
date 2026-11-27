@@ -292,7 +292,15 @@ def list_audio_files(limit: int = 100, *, distinct: bool = True):
         limit: Maximum number of files to return.
         distinct: If True (default), deduplicate by filename (most recent only).
     """
-    return database.get_audio_files(limit=limit, distinct=distinct)
+    from ..core.nsfw import hidden_paths, path_is_flagged
+
+    hidden = hidden_paths()
+    rows = database.get_audio_files(limit=limit, distinct=distinct)
+    return [
+        row
+        for row in rows
+        if not (row.get("stored_path") and path_is_flagged(row["stored_path"], hidden=hidden))
+    ]
 
 
 @router.get("/audio/{audio_id}")

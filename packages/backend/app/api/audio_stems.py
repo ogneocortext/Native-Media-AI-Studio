@@ -211,6 +211,9 @@ async def get_stems_status() -> dict:
     if not AUDIO_DIR.exists():
         return {"tracks": tracks}
     try:
+        from ..core.nsfw import hidden_paths
+
+        hidden = hidden_paths()
         for f in sorted(AUDIO_DIR.rglob("*"), key=lambda x: x.stat().st_mtime, reverse=True):
             if (
                 f.is_file()
@@ -218,6 +221,8 @@ async def get_stems_status() -> dict:
                 and not f.name.startswith(".")
             ):
                 relative = f.relative_to(AUDIO_DIR).as_posix()
+                if f"audio/{relative}" in hidden:
+                    continue
                 stem_dir = find_stem_dir(relative)
                 stems: list[str] = []
                 if stem_dir is not None and stem_dir.exists():

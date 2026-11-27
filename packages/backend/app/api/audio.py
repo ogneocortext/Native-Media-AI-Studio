@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from ..core.config import PROJECT_ROOT
+from ..core.nsfw import hidden_paths, path_is_flagged
 from ..services.analysis_resolver import (
     hash_prefix,
     resolve_analysis,
@@ -601,8 +602,12 @@ async def search_audio_library(body: AudioSearchRequest):
         key=body.key,
         limit=body.limit,
     )
+    hidden = hidden_paths()
     results = []
     for row in rows:
+        stored = row.get("stored_path")
+        if stored and path_is_flagged(stored, hidden=hidden):
+            continue
         analysis = row.get("analysis_result") or {}
         results.append(
             {
@@ -1446,6 +1451,7 @@ async def list_uploaded_audio():
     """List all uploaded audio files, deduplicated by display name."""
     files = []
     if AUDIO_DIR.exists():
+        hidden = hidden_paths()
         seen_names = set()
         for f in sorted(AUDIO_DIR.rglob("*"), key=lambda x: x.stat().st_mtime, reverse=True):
             if (
@@ -1453,6 +1459,10 @@ async def list_uploaded_audio():
                 and f.suffix.lower() in ALLOWED_EXTENSIONS
                 and not f.name.startswith(".")
             ):
+                stat = f.stat()
+                relative = f.relative_to(AUDIO_DIR).as_posix()
+                if f"audio/{relative}" in hidden:
+                    continue
                 # Deduplicate by display name -- strip ALL 8-hex hash prefixes (files may have 2-3)
                 import re
 
@@ -1460,8 +1470,6 @@ async def list_uploaded_audio():
                 if display_name in seen_names:
                     continue
                 seen_names.add(display_name)
-                stat = f.stat()
-                relative = f.relative_to(AUDIO_DIR).as_posix()
                 parent = str(Path(relative).parent) if Path(relative).parent != Path(".") else ""
                 files.append(
                     {
@@ -1620,11 +1628,16 @@ async def analyze_all_pending(backend: str = "sonara"):
     if not AUDIO_DIR.exists():
         return {"status": "ok", "analyzed": 0, "total": 0, "files": [], "job_id": None}
 
-    # Get all audio files recursively (matches list_uploaded_audio behavior)
+    # Get all audio files recursively (matches list_uploaded_audio behavior),
+    # skipping NSFW-flagged files the library lists already hide.
+    hidden = hidden_paths()
     audio_files = [
         f
         for f in AUDIO_DIR.rglob("*")
-        if f.is_file() and f.suffix.lower() in ALLOWED_EXTENSIONS and not f.name.startswith(".")
+        if f.is_file()
+        and f.suffix.lower() in ALLOWED_EXTENSIONS
+        and not f.name.startswith(".")
+        and f"audio/{_relative_audio_path(f)}" not in hidden
     ]
 
     # Determine which files actually need analysis (skip cached ones)

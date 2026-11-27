@@ -160,13 +160,19 @@ async def generate_section(request: VideoGenerateRequest) -> VideoGenerateRespon
                     if matches:
                         request.audio_path = str(matches[0])
             if not request.audio_path:
-                # Fallback: most recent uploaded audio
+                # Fallback: most recent uploaded audio, skipping NSFW-flagged
+                # files the same way the audio library lists do.
+                from ..core.nsfw import hidden_paths, path_is_flagged
+
+                hidden = hidden_paths()
                 candidates = (
                     sorted(audio_dir.rglob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
                     if audio_dir.exists()
                     else []
                 )
-                candidates = [c for c in candidates if c.is_file()]
+                candidates = [
+                    c for c in candidates if c.is_file() and not path_is_flagged(c, hidden=hidden)
+                ]
                 fallback = str(candidates[0]) if candidates else None
                 if not fallback:
                     raise ValueError(

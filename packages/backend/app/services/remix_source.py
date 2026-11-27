@@ -275,8 +275,10 @@ def list_stem_sources() -> list[dict[str, Any]]:
     round-trip per track. ``library_file`` (B6) carries the library filename
     whenever the join is unambiguous, and is omitted when it is not.
     """
+    from ..core.nsfw import hidden_paths, tree_is_flagged
     from . import stem_remixer
 
+    hidden = hidden_paths()
     found: dict[str, dict[str, Any]] = {}
     sep = stem_remixer.SEPARATION_DIR
     for model_dir in sorted(sep.iterdir()):
@@ -284,6 +286,8 @@ def list_stem_sources() -> list[dict[str, Any]]:
             continue
         for track_dir in sorted(model_dir.iterdir()):
             if not track_dir.is_dir():
+                continue
+            if tree_is_flagged(track_dir, hidden=hidden):
                 continue
             present = {s: (track_dir / f"{s}.wav").exists() for s in STEM_NAMES}
             if not any(present.values()):
