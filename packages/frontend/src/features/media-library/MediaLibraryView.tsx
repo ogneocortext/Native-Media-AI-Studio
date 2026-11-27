@@ -36,6 +36,7 @@ import { DuplicatesPanel } from "./components/DuplicatesPanel";
 import { TrashPanel } from "./components/TrashPanel";
 import { extractThumbnailAtTime } from "../../services/api/media";
 import { listCollectionItems, setNsfwFlag } from "../../services/api";
+import type { MediaProbeResponse } from "../../services/api/media";
 import { EmptySection } from "../../components/common";
 import { formatFileSize, formatDateTime } from "../../utils/format";
 import { audioEntryLabel } from "../../state/audioNaming";
@@ -125,6 +126,8 @@ export function MediaLibraryView({ defaultFileType, scope = "all" }: MediaLibrar
   const [collectionItems, setCollectionItems] = useState<string[]>([]);
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
   const [nsfwSaving, setNsfwSaving] = useState(false);
+  const [probeResult, setProbeResult] = useState<MediaProbeResponse | null>(null);
+  const [probeError, setProbeError] = useState<string | null>(null);
 
   const filteredFiles = useFileFilters(allFiles, filter, itemTags);
 
@@ -335,12 +338,44 @@ export function MediaLibraryView({ defaultFileType, scope = "all" }: MediaLibrar
     setCurrentPage(1);
   }, [filter.query, filter.fileType, filter.tagFilter, filter.sortBy, filter.sortOrder, view]);
 
+  // Clear the previous file's probe result when the detail modal switches files.
+  useEffect(() => {
+    setProbeResult(null);
+    setProbeError(null);
+  }, [selectedFile]);
+
   const loading = filesLoading || orgLoading;
   const combinedError = error ?? orgError;
 
   const isTypeScoped = defaultFileType !== "all";
 
   const isNsfwScope = scope === "nsfw";
+
+  // ---------- Probe result helpers ----------
+
+  /** Format seconds as m:ss. */
+  const formatDuration = (seconds: number | string | undefined | null): string => {
+    const s = typeof seconds === "string" ? parseFloat(seconds) : seconds ?? 0;
+    if (!Number.isFinite(s) || s < 0) return "—";
+    const total = Math.floor(s);
+    const m = Math.floor(total / 60);
+    const sec = total % 60;
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  /** Format bitrate bps -> kbps string, or "—". */
+  const formatBitrate = (bps: number | string | undefined | null): string => {
+    const b = typeof bps === "string" ? parseFloat(bps) : bps ?? 0;
+    if (!Number.isFinite(b) || b <= 0) return "—";
+    return `${Math.round(b / 1000)} kbps`;
+  };
+
+  /** Channels count -> plain label with count. */
+  const channelsLabel = (ch: number | string | undefined | null): string => {
+    const c = typeof ch === "string" ? parseInt(ch, 10) : ch ?? 0;
+    if (!Number.isFinite(c) || c <= 0) return "—";
+    return c === 1 ? "Mono (1 ch)" : c === 2 ? "Stereo (2 ch)" : `${c} ch`;
+  };
 
   const pageTitle = isNsfwScope
     ? "NSFW"
@@ -880,6 +915,128 @@ export function MediaLibraryView({ defaultFileType, scope = "all" }: MediaLibrar
                 </div>
               </div>
 
+              {/* Technical section — probe results from ffprobe */}
+              <div className="mt-4 border-t border-white/5 pt-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted uppercase tracking-wider">
+                    Technical
+                  </span>
+                </div>
+                {probeError && (
+                  <p className="text-xs text-red-400">{probeError}</p>
+                )}
+                {probeResult?.probe && (
+                  <div className="space-y-1 text-xs text-muted">
+                    {/* Cast probe to a shape we can safely traverse */}
+                    {(() => {
+                      const probe = probeResult.probe;
+                      const format = probe.format as Record<string, unknown> | undefined;
+                      const streams = probe.streams as unknown[];
+                      const formatName =
+                        (typeof format?.format_name === "string"
+                          ? format.format_name
+                          : undefined) ?? "—";
+                      const duration = formatDuration(
+                        typeof format?.duration === "string" || typeof format?.duration === "number"
+                          ? format.duration
+                          : undefined,
+                      );
+
+                      return (
+                        <>
+                          <p>
+                            Container:{""}
+                            <span className="text-white">{formatName}</span>
+                          </p>
+                          <p>
+                            Duration:{""}
+                            <span className="text-white">{duration}</span>
+                          </p>
+                              {streams.length > 0 && (
+                                <>
+                                  {streams.map((stream, i) => {
+                                    const s = stream as Record<string, unknown>;
+                                    const codecType = s.codec_type;
+                                    if (codecType === "audio") {
+                                      return (
+                                        <p key={`stream-${i}`}>
+                                          Audio:{""}
+                                          <span className="text-white">
+                                            {typeof s.codec_name === "string"
+                                              ? s.codec_name
+                                              : "—"}
+                                          </span>
+                                          {typeof s.bit_rate === "string" || typeof s.bit_rate === "number" ? (
+                                            <>
+                                              {" · "}
+                                              <span className="text-white">
+                                                {formatBitrate(s.bit_rate)}
+                                              </span>
+                                            </>
+                                          ) : null}
+                                          {typeof s.sample_rate === "string" || typeof s.sample_rate === "number" ? (
+                                            <>
+                                              {" · "}
+                                              <span className="text-white">
+                                                {s.sample_rate} Hz
+                                              </span>
+                                            </>
+                                          ) : null}
+                                          {typeof s.channels === "string" || typeof s.channels === "number" ? (
+                                            <>
+                                              {" · "}
+                                              <span className="text-white">
+                                                {channelsLabel(s.channels)}
+                                              </span>
+                                            </>
+                                          ) : null}
+                                        </p>
+                                      );
+                                    }
+                                    if (codecType === "video") {
+                                      return (
+                                        <p key={`stream-${i}`}>
+                                          Video:{""}
+                                          <span className="text-white">
+                                            {typeof s.codec_name === "string"
+                                              ? s.codec_name
+                                              : "—"}
+                                          </span>
+                                          {typeof s.width === "number" && typeof s.height === "number" ? (
+                                            <>
+                                              {" · "}
+                                              <span className="text-white">
+                                                {s.width} × {s.height}
+                                              </span>
+                                            </>
+                                          ) : null}
+                                          {typeof s.r_frame_rate === "string" ? (
+                                            <>
+                                              {" · "}
+                                              <span className="text-white">
+                                                {s.r_frame_rate} fps
+                                              </span>
+                                            </>
+                                          ) : null}
+                                        </p>
+                                      );
+                                    }
+                                    return null;
+                                  })}
+                                </>
+                              )}
+                            </>
+                          );
+                        })()}
+                  </div>
+                )}
+                {!probeResult?.probe && !probeError && (
+                  <p className="text-xs text-gray-500">
+                    Click "Probe Analysis" to load technical details.
+                  </p>
+                )}
+              </div>
+
               <div className="mt-4 flex flex-wrap gap-2">
                 {(selectedFile.file_type === "audio" ||
                   selectedFile.file_type === "video") && (
@@ -896,9 +1053,15 @@ export function MediaLibraryView({ defaultFileType, scope = "all" }: MediaLibrar
                 )}
                 <button
                   onClick={() => {
-                    void handleProbe(selectedFile.relative_path || selectedFile.filename);
-                    setDetailOpen(false);
-                    setSelectedFile(null);
+                    void (async () => {
+                      const res = await handleProbe(
+                        selectedFile.relative_path || selectedFile.filename,
+                      );
+                      setProbeResult(res ?? null);
+                      setProbeError(
+                        res?.error ?? (res === null ? "Probe failed" : null),
+                      );
+                    })();
                   }}
                   className="px-3 py-1 text-sm bg-violet-900/30 text-violet-300 rounded hover:bg-violet-800/50"
                 >
