@@ -52,6 +52,89 @@ known_plugins:
     status: "verified"
     description: "32-bit version of SlickEQ"
 
+  - name: "Surge XT"
+    path: "assets/vst/Surge XT.vst3"
+    category: "instrument"
+    vendor: "Surge Synth Team"
+    parameters: 599
+    status: "verified"
+    license: "GPL-3.0"
+    source: "https://github.com/surge-synthesizer/releases-xt/releases/tag/1.3.4"
+    description: "Free and open-source hybrid synthesizer (VST3)"
+
+  - name: "Surge XT Effects"
+    path: "assets/vst/Surge XT Effects.vst3"
+    category: "effect"
+    vendor: "Surge Synth Team"
+    parameters: 22
+    status: "verified"
+    license: "GPL-3.0"
+    source: "https://github.com/surge-synthesizer/releases-xt/releases/tag/1.3.4"
+    description: "Surge XT effects section (VST3)"
+
+  - name: "Dexed"
+    path: "assets/vst/Dexed.vst3"
+    category: "instrument"
+    vendor: "Digital Suburban"
+    parameters: 184
+    status: "verified"
+    license: "GPL-3.0"
+    source: "https://github.com/asb2m10/dexed/releases/tag/v1.1.0"
+    description: "FM synthesizer modeled on the Yamaha DX7 (VST3)"
+
+  - name: "Dragonfly Early Reflections"
+    path: "assets/vst/DragonflyEarlyReflections.vst3"
+    category: "effect"
+    vendor: "Michael Willis"
+    parameters: 9
+    status: "verified"
+    license: "GPL-3.0"
+    source: "https://github.com/michaelwillis/dragonfly-reverb/releases/tag/3.2.10"
+    description: "Early reflections reverb (VST3)"
+
+  - name: "Dragonfly Hall Reverb"
+    path: "assets/vst/DragonflyHallReverb.vst3"
+    category: "effect"
+    vendor: "Michael Willis"
+    parameters: 20
+    status: "verified"
+    license: "GPL-3.0"
+    source: "https://github.com/michaelwillis/dragonfly-reverb/releases/tag/3.2.10"
+    description: "Concert hall reverb (VST3)"
+
+  - name: "Dragonfly Plate Reverb"
+    path: "assets/vst/DragonflyPlateReverb.vst3"
+    category: "effect"
+    vendor: "Michael Willis"
+    parameters: 11
+    status: "verified"
+    license: "GPL-3.0"
+    source: "https://github.com/michaelwillis/dragonfly-reverb/releases/tag/3.2.10"
+    description: "Plate reverb (VST3)"
+
+  - name: "Dragonfly Room Reverb"
+    path: "assets/vst/DragonflyRoomReverb.vst3"
+    category: "effect"
+    vendor: "Michael Willis"
+    parameters: 19
+    status: "verified"
+    license: "GPL-3.0"
+    source: "https://github.com/michaelwillis/dragonfly-reverb/releases/tag/3.2.10"
+    description: "Room reverb (VST3)"
+
+  - name: "Airwindows Consolidated"
+    path: "assets/vst/Airwindows Consolidated.vst3"
+    category: "effect"
+    vendor: "Airwindows"
+    parameters: 9
+    status: "verified"
+    license: "GPL-3.0"
+    source: "https://github.com/baconpaul/airwin2rack/releases/tag/DAWPlugin"
+    description: "Consolidated Airwindows effects suite (VST3, 400+ effects)"
+
+  # NOT INSTALLED: LSP Plugins 1.2.37 - Windows builds require account registration
+  # at https://lsp-builds.com (task rules prohibit account sign-ups)
+
 # Plugin presets directory
 presets_dir: "assets/vst/presets"
 
