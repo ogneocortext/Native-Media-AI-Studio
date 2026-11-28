@@ -103,6 +103,13 @@ $ServiceConfig = @{
         WorkingDir = Join-Path $ProjectRoot 'packages\backend'
         Args = @($jobRunner, '-m', 'watchfiles', '--filter', 'python', '--target-type', 'command', $backendTarget)
         LogFile = 'backend.log'
+        # CORS allowlist for Maya's cloud VM over the tailnet. The frontend
+        # loads from customrig.tailb89a58.ts.net:5173, so the browser sends
+        # Origin: http://customrig.tailb89a58.ts.net:5173 on API requests.
+        # Without PUBLIC_ORIGINS, the backend's CORS middleware rejects it.
+        Environment = @{
+            'PUBLIC_ORIGINS' = 'http://customrig.tailb89a58.ts.net:5173,http://customrig.tailb89a58.ts.net:8004'
+        }
     }
     frontend = @{
         Name = 'Frontend'
@@ -504,13 +511,19 @@ function Start-StudioService {
             Write-Err "Python not found: $($config.Python)"
             return
         }
-        $proc = Start-Process -FilePath $config.Python `
-            -ArgumentList $config.Args `
-            -WorkingDirectory $config.WorkingDir `
-            -WindowStyle Hidden `
-            -RedirectStandardOutput $logFile `
-            -RedirectStandardError $errFile `
-            -PassThru
+        $startParams = @{
+            FilePath            = $config.Python
+            ArgumentList        = $config.Args
+            WorkingDirectory    = $config.WorkingDir
+            WindowStyle         = 'Hidden'
+            RedirectStandardOutput = $logFile
+            RedirectStandardError  = $errFile
+            PassThru            = $true
+        }
+        if ($config.Environment) {
+            $startParams['Environment'] = $config.Environment
+        }
+        $proc = Start-Process @startParams
         Register-StartedProcess -Process $proc -Service $ServiceName -ServiceName $config.Name
     }
     elseif ($config.LocalCmd) {
