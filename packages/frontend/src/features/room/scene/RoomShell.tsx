@@ -58,6 +58,114 @@ function Wall({
   );
 }
 
+/** Deterministic PRNG so shelf dressing is stable across renders. */
+function mulberry32(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Five-color book palette — cream, walnut, indigo, plum + rare brass. */
+const BOOK_COLORS = ["#e9dfc8", "#5C3D2E", "#2a3054", "#4A3566", "#8a6a52"];
+const BOOK_BRASS = "#B08D57";
+
+/** A run of book spines filling ~66% of the shelf length, with small
+ *  gaps and the occasional lean — the focal-wall density target. */
+function BookRow({
+  x0,
+  x1,
+  bottomY,
+  z,
+  seed,
+}: {
+  x0: number;
+  x1: number;
+  bottomY: number;
+  z: number;
+  seed: number;
+}) {
+  const books = useMemo(() => {
+    const rnd = mulberry32(seed);
+    const out: { dx: number; w: number; h: number; c: string; lean: number }[] = [];
+    let x = x0 + 0.02;
+    let covered = 0;
+    const target = (x1 - x0) * 0.66;
+    while (covered < target && x < x1 - 0.05) {
+      const w = 0.024 + rnd() * 0.028;
+      const h = 0.19 + rnd() * 0.11;
+      const c =
+        rnd() < 0.07 ? BOOK_BRASS : BOOK_COLORS[Math.floor(rnd() * BOOK_COLORS.length)];
+      const lean = rnd() < 0.12 ? (rnd() - 0.5) * 0.3 : 0;
+      out.push({ dx: x + w / 2, w, h, c, lean });
+      covered += w;
+      x += w + (rnd() < 0.72 ? 0.004 : 0.02 + rnd() * 0.035);
+    }
+    return out;
+  }, [x0, x1, seed]);
+  return (
+    <group>
+      {books.map((b, i) => (
+        <mesh
+          key={i}
+          position={[b.dx, bottomY + b.h / 2, z]}
+          rotation={[0, 0, b.lean]}
+          castShadow
+        >
+          <boxGeometry args={[b.w, b.h, 0.16]} />
+          <meshStandardMaterial color={b.c} roughness={0.85} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+/** One dressed bookcase pier: cornice, plinth, uprights, shelves, books. */
+function PierBookcase({ x0, x1, seedBase }: { x0: number; x1: number; seedBase: number }) {
+  const wood = useWoodMat(1);
+  const ys = [0.42, 0.92, 1.42, 1.85];
+  const w = x1 - x0;
+  const cx = (x0 + x1) / 2;
+  return (
+    <group>
+      {/* cornice + plinth + uprights give the flat wall a case read */}
+      <mesh position={[cx, 2.34, -1.9]} castShadow>
+        <boxGeometry args={[w + 0.08, 0.07, 0.22]} />
+        <meshStandardMaterial {...wood} />
+      </mesh>
+      <mesh position={[cx, 0.07, -1.9]} castShadow receiveShadow>
+        <boxGeometry args={[w + 0.08, 0.14, 0.26]} />
+        <meshStandardMaterial {...wood} />
+      </mesh>
+      {[x0 + 0.03, x1 - 0.03].map((x) => (
+        <mesh key={x} position={[x, 1.36, -1.9]} castShadow>
+          <boxGeometry args={[0.05, 2.62, 0.2]} />
+          <meshStandardMaterial {...wood} />
+        </mesh>
+      ))}
+      {ys.map((y, i) => (
+        <group key={y}>
+          <mesh position={[cx, y, -1.9]} castShadow receiveShadow>
+            <boxGeometry args={[w - 0.04, 0.025, 0.2]} />
+            <meshStandardMaterial {...wood} />
+          </mesh>
+          <BookRow
+            x0={x0 + 0.06}
+            x1={x1 - 0.06}
+            bottomY={y + 0.013}
+            z={-1.8}
+            seed={seedBase + i * 13}
+          />
+        </group>
+      ))}
+    </group>
+  );
+}
+
 /** Walnut bookcase wall on the north side with the single arch niche. */
 function BookcaseWall() {
   const wood = useWoodMat(2);
@@ -101,20 +209,13 @@ function BookcaseWall() {
           <meshStandardMaterial {...wood} />
         </mesh>
       ))}
-      {/* a few book spines in the niche — cream/indigo/plum family */}
-      {[
-        [-1.2, 0.98, "#5C3D2E"],
-        [-1.05, 0.97, "#4A3566"],
-        [-0.9, 1.0, "#8a6a52"],
-        [-0.55, 0.99, "#2c2620"],
-        [-0.35, 0.98, "#5C3D2E"],
-        [0.1, 1.0, "#4A3566"],
-      ].map(([x, y, c], i) => (
-        <mesh key={i} position={[x as number, y as number, -1.9]} castShadow>
-          <boxGeometry args={[0.09, 0.2 - (i % 3) * 0.02, 0.16]} />
-          <meshStandardMaterial color={c as string} roughness={0.85} />
-        </mesh>
+      {/* books in the niche slot — the only stretch not backed by wall */}
+      {[0.91, 1.36, 1.81].map((y, i) => (
+        <BookRow key={y} x0={-0.92} x1={-0.62} bottomY={y} z={-1.85} seed={90 + i * 17} />
       ))}
+      {/* dressed piers either side of the arch — the focal-wall density */}
+      <PierBookcase x0={-2.22} x1={-1.62} seedBase={300} />
+      <PierBookcase x0={-0.48} x1={0.85} seedBase={500} />
     </group>
   );
 }

@@ -283,19 +283,32 @@ function SideTable() {
 /* ------------------------------------------------------------------ */
 
 function FloorLamp() {
+  const metal = { color: "#2c2119", metalness: 0.6, roughness: 0.4 } as const;
   return (
     <group>
-      <mesh position={[0, 0.02, 0]}>
-        <cylinderGeometry args={[0.14, 0.16, 0.04, 20]} />
-        <meshStandardMaterial color="#2c2119" metalness={0.6} roughness={0.4} />
+      {/* weighted base */}
+      <mesh position={[0, 0.025, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.15, 0.18, 0.05, 20]} />
+        <meshStandardMaterial {...metal} />
       </mesh>
+      {/* collar where stem meets base */}
+      <mesh position={[0, 0.07, 0]}>
+        <cylinderGeometry args={[0.035, 0.045, 0.04, 14]} />
+        <meshStandardMaterial {...metal} />
+      </mesh>
+      {/* stem — thick enough to read at bookmark distance */}
       <mesh position={[0, 0.85, 0]} castShadow>
-        <cylinderGeometry args={[0.014, 0.014, 1.66, 10]} />
-        <meshStandardMaterial color="#2c2119" metalness={0.6} roughness={0.4} />
+        <cylinderGeometry args={[0.02, 0.026, 1.62, 12]} />
+        <meshStandardMaterial {...metal} />
+      </mesh>
+      {/* neck rising into the shade */}
+      <mesh position={[0, 1.5, 0]}>
+        <cylinderGeometry args={[0.018, 0.024, 0.24, 12]} />
+        <meshStandardMaterial {...metal} />
       </mesh>
       {/* drum shade — the emissive bulb inside */}
-      <mesh position={[0, 1.62, 0]}>
-        <cylinderGeometry args={[0.16, 0.19, 0.24, 24, 1, true]} />
+      <mesh position={[0, 1.66, 0]}>
+        <cylinderGeometry args={[0.17, 0.2, 0.26, 24, 1, true]} />
         <meshStandardMaterial
           color="#d8b98c"
           emissive="#ffb066"
@@ -304,7 +317,23 @@ function FloorLamp() {
           roughness={0.9}
         />
       </mesh>
-      <mesh position={[0, 1.58, 0]}>
+      {/* shade rims top and bottom — the assembled read */}
+      {[1.53, 1.79].map((y, i) => (
+        <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[i === 0 ? 0.2 : 0.17, 0.008, 8, 28]} />
+          <meshStandardMaterial {...metal} />
+        </mesh>
+      ))}
+      {/* finial stem + tip on top of the shade */}
+      <mesh position={[0, 1.82, 0]}>
+        <cylinderGeometry args={[0.008, 0.01, 0.08, 8]} />
+        <meshStandardMaterial {...metal} />
+      </mesh>
+      <mesh position={[0, 1.88, 0]}>
+        <sphereGeometry args={[0.022, 12, 12]} />
+        <meshStandardMaterial {...metal} />
+      </mesh>
+      <mesh position={[0, 1.6, 0]}>
         <sphereGeometry args={[0.045, 16, 16]} />
         <meshStandardMaterial
           color="#ffd9a0"
@@ -525,11 +554,12 @@ function FrameArt({ url }: { url: string }) {
 }
 
 function FrameEmpty() {
-  // Empty private store = an empty frame: dark indigo mat, faint inner glow.
+  // Empty private store = an empty frame: blank cream mount, the
+  // direction sheet's honest placeholder.
   return (
     <mesh position={[0, 0, 0.004]}>
       <planeGeometry args={[0.34, 0.44]} />
-      <meshStandardMaterial color={INDIGO} roughness={0.95} />
+      <meshStandardMaterial color={CREAM} roughness={0.95} />
     </mesh>
   );
 }

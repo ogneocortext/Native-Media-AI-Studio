@@ -24,6 +24,18 @@ const DRAGGABLE = new Set([
   "blanket",
 ]);
 
+/** Wall-hung kinds with no explicit rotation face the room center so a
+ *  frame placed on any wall reads front-on instead of edge-on. */
+const WALL_FACING = new Set(["frame"]);
+
+function facingYaw(obj: RoomObject): number {
+  if (obj.rotationY != null) return obj.rotationY;
+  if (!WALL_FACING.has(obj.kind)) return 0;
+  const [x, , z] = obj.position;
+  // frame art faces local +z; yaw that turns +z toward the room center
+  return Math.atan2(-x, -z);
+}
+
 function DraggableObject({ obj }: { obj: RoomObject }) {
   const beginDrag = useRoomStore((s) => s.beginDrag);
   const updateDrag = useRoomStore((s) => s.updateDrag);
@@ -52,7 +64,7 @@ function DraggableObject({ obj }: { obj: RoomObject }) {
   return (
     <group
       position={obj.position}
-      rotation={[0, obj.rotationY ?? 0, 0]}
+      rotation={[0, facingYaw(obj), 0]}
       onPointerDown={(e) => {
         if (!DRAGGABLE.has(obj.kind)) return;
         e.stopPropagation();
