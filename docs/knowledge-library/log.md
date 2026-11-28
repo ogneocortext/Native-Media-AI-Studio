@@ -237,4 +237,6 @@ for AI agents.
 - Added `docs/knowledge-library/comfyui-update-hardening-2026.md` → `#technical`
 ## 2026-11-25 — Knowledge library additions
 - Added `docs/knowledge-library/kilo-code-plugin-hooks-2026.md` → `#technical`
+## 2026-11-28 — Knowledge library additions
+- Added `docs/knowledge-library/three-js-interior-room-quality-2026.md` → `#technical`
 

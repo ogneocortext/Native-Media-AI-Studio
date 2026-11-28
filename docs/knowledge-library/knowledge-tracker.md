@@ -64,7 +64,8 @@ maintained by hand; `tools/validate-knowledge-tags.py` enforces this.
 - ✅ `video-intro-recipe-schema-2026-10.md`  → `#production`, `#schema`, `#documentation`
 - ✅ `organizational-consistency-2026.md`  → `#production`, `#documentation`, `#knowledge-library`
 
-### 🛠️ Technical Implementation (43/43 completed) ✅
+### 🛠️ Technical Implementation (44/44 completed) ✅
+- ✅ `three-js-interior-room-quality-2026.md`  → `#technical`
 - ✅ `kilo-code-plugin-hooks-2026.md`  → `#technical`
 - ✅ `comfyui-update-hardening-2026.md`  → `#technical`
 - ✅ `stylized-character-modeling-blender-mcp-workflow-best-practices-nov-2026.md`  → `#technical`

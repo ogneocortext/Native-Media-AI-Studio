@@ -220,3 +220,7 @@ still set) — monitor, don't chase.
 - https://github.com/matthewdonsemail-lab/log/blob/HEAD/docs/transparent-video-export.md — VP9 alpha ffmpeg recipe
 - https://x.com/LuisBizarro/status/2107150536369967286 — WebGPU/WGSL visualizer, TSL lyric port
 - https://github.com/alesha-pro/tools/tree/main/skills/lyric-music-video — open-source agent skill for lyric music videos (pipeline reference)
+
+## Related
+
+- [[three-js-interior-room-quality-2026]] :see-also — Three.js Interior Room Quality 2026

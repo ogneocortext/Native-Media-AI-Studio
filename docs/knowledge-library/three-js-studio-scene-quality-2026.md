@@ -110,3 +110,7 @@ of the stub endpoint. The factory becomes a *consumer* of that
 library. Composition quality then becomes T-VID-05's validator
 problem — a problem that can only be posed once scenes have a
 vocabulary worth validating.
+
+## Related
+
+- [[three-js-interior-room-quality-2026]] :see-also — Three.js Interior Room Quality 2026

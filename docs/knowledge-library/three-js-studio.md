@@ -389,3 +389,7 @@ Render pipeline: raw three.js (`WebGLRenderer` on a plain `<canvas>`, no R3F); p
 ---
 
 _Last updated: 2026-09-29_
+
+## Related
+
+- [[three-js-interior-room-quality-2026]] :see-also — Three.js Interior Room Quality 2026
