@@ -117,6 +117,7 @@ export function DocsPage() {
   const [docsError, setDocsError] = useState<string | null>(null);
   const [docsFilter, setDocsFilter] = useState<"all" | "vault" | "guide">("all");
   const [docsSort, setDocsSort] = useState<"alpha" | "recent">("alpha");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [selectedContent, setSelectedContent] = useState<string | null>(null);
   const [loadingDoc, setLoadingDoc] = useState(false);
@@ -138,10 +139,10 @@ export function DocsPage() {
     // every render, so listing it would re-fetch the tree on each render.
   }, [structureDepth]);
 
-  // reset pagination when filter changes
+  // reset pagination when filter, tag, or query changes
   useEffect(() => {
     setVisibleCount(24);
-  }, [docsFilter, docsSort, query, hasSearched]);
+  }, [docsFilter, activeTag, docsSort, query, hasSearched]);
 
   const loadBootstrap = async () => {
     try {
@@ -341,8 +342,8 @@ export function DocsPage() {
   });
 
   // When browsing (no search active), optionally live-filter by query,
-  // then apply the chosen sort. "alpha" keeps the backend's vault-first/
-  // title order; "recent" is newest mtime first.
+  // then apply the tag filter and the chosen sort. "alpha" keeps the
+  // backend's vault-first/title order; "recent" is newest mtime first.
   const browsingDocs = (() => {
     const base =
       !hasSearched && query.trim()
@@ -353,8 +354,13 @@ export function DocsPage() {
               d.tags.some((t) => t.toLowerCase().includes(query.toLowerCase())),
           )
         : filteredDocs;
-    if (docsSort !== "recent") return base;
-    return [...base].sort((a, b) => {
+    const tagged = activeTag
+      ? base.filter((d) =>
+          d.tags.some((t) => t.toLowerCase() === activeTag.toLowerCase()),
+        )
+      : base;
+    if (docsSort !== "recent") return tagged;
+    return [...tagged].sort((a, b) => {
       const ta = a.modified_at ? Date.parse(a.modified_at) : 0;
       const tb = b.modified_at ? Date.parse(b.modified_at) : 0;
       return tb - ta || a.title.localeCompare(b.title);
@@ -455,6 +461,15 @@ export function DocsPage() {
                   : `Guides (${docs.filter((d) => !d.in_vault).length})`}
             </button>
           ))}
+          {activeTag && (
+            <button
+              onClick={() => setActiveTag(null)}
+              aria-label={`Clear tag filter ${activeTag}`}
+              className="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors bg-amber-600/30 border-amber-500/60 text-amber-200 hover:bg-amber-600/50 inline-flex items-center gap-1"
+            >
+              <Tag size={10} /> {activeTag} <X size={10} />
+            </button>
+          )}
           <span className="ml-auto flex items-center gap-1">
             <span className="text-xs text-gray-500">Sort:</span>
             {(
@@ -589,10 +604,18 @@ export function DocsPage() {
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[520px] overflow-y-auto pr-1">
                     {browsingDocs.slice(0, visibleCount).map((d) => (
-                      <button
+                      <div
                         key={d.path}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => void openDoc(d.path)}
-                        className={`text-left p-3 rounded-lg border transition-colors group ${
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            void openDoc(d.path);
+                          }
+                        }}
+                        className={`text-left p-3 rounded-lg border transition-colors group cursor-pointer ${
                           selectedPath === d.path
                             ? "bg-purple-600/20 border-purple-500/50"
                             : "bg-gray-700/30 hover:bg-gray-700/60 border-transparent hover:border-gray-600"
@@ -619,12 +642,31 @@ export function DocsPage() {
                             {d.tags.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1.5">
                                 {d.tags.slice(0, 3).map((t) => (
-                                  <span
+                                  <button
                                     key={t}
-                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-400 border border-gray-700"
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveTag((cur) =>
+                                        cur?.toLowerCase() === t.toLowerCase() ? null : t,
+                                      );
+                                    }}
+                                    aria-pressed={
+                                      activeTag?.toLowerCase() === t.toLowerCase()
+                                    }
+                                    title={
+                                      activeTag?.toLowerCase() === t.toLowerCase()
+                                        ? `Clear tag filter "${t}"`
+                                        : `Filter by tag "${t}"`
+                                    }
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border transition-colors ${
+                                      activeTag?.toLowerCase() === t.toLowerCase()
+                                        ? "bg-amber-600/30 text-amber-200 border-amber-500/60"
+                                        : "bg-gray-800 text-gray-400 border-gray-700 hover:text-gray-200 hover:border-gray-500"
+                                    }`}
                                   >
                                     <Tag size={8} /> {t}
-                                  </span>
+                                  </button>
                                 ))}
                                 {d.tags.length > 3 && (
                                   <span className="text-[10px] text-gray-600">
@@ -635,7 +677,7 @@ export function DocsPage() {
                             )}
                           </div>
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                   {visibleCount < browsingDocs.length && (
