@@ -236,7 +236,7 @@ async def test_fixture_has_the_defect_profile(tmp_path):
 
 @requires_ffmpeg
 @pytest.mark.asyncio
-async def test_finishing_brings_sub_share_into_acceptance(tmp_path):
+async def test_finishing_brings_sub_share_into_acceptance(tmp_path, temp_db):
     report = await _run_finishing_master(tmp_path)
     pcm = await mastering._decode_audio(Path(report["mastered_path"]))
     after_sub = _sub_share(pcm.samples, pcm.sample_rate)
@@ -246,7 +246,7 @@ async def test_finishing_brings_sub_share_into_acceptance(tmp_path):
 
 @requires_ffmpeg
 @pytest.mark.asyncio
-async def test_finishing_brings_presence_share_into_acceptance(tmp_path):
+async def test_finishing_brings_presence_share_into_acceptance(tmp_path, temp_db):
     report = await _run_finishing_master(tmp_path)
     pcm = await mastering._decode_audio(Path(report["mastered_path"]))
     after_presence = _presence_share(pcm.samples, pcm.sample_rate)
@@ -258,7 +258,7 @@ async def test_finishing_brings_presence_share_into_acceptance(tmp_path):
 
 @requires_ffmpeg
 @pytest.mark.asyncio
-async def test_finishing_final_loudness_within_acceptance_tolerance(tmp_path):
+async def test_finishing_final_loudness_within_acceptance_tolerance(tmp_path, temp_db):
     report = await _run_finishing_master(tmp_path)
     after_lufs = report["after"]["integrated_lufs"]
     assert after_lufs is not None
@@ -273,7 +273,7 @@ async def test_finishing_final_loudness_within_acceptance_tolerance(tmp_path):
 
 @requires_ffmpeg
 @pytest.mark.asyncio
-async def test_no_finishing_params_matches_explicit_defaults(tmp_path):
+async def test_no_finishing_params_matches_explicit_defaults(tmp_path, temp_db):
     """Acceptance clause: callers passing no finishing params are unchanged."""
     src = tmp_path / "defect.m4a"
     await _write_m4a(src, _defect_mix(duration_sec=4.0))

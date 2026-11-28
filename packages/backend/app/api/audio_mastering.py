@@ -23,13 +23,17 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from ..core.config import PROJECT_ROOT
+from ..core.database import get_derivatives, get_provenance
 from ..services.mastering import (
     AUDIO_DIR,
     DEFAULT_CEILING_DBTP,
+    MASTERED_DIR,
     TARGET_LUFS,
     master_file,
     measure_file,
 )
+from ..services.provenance import repo_rel
 
 logger = logging.getLogger(__name__)
 
@@ -175,3 +179,50 @@ async def measure_master(filename: str) -> dict:
     if measurement.get("error"):
         raise HTTPException(status_code=400, detail=measurement["error"])
     return measurement
+
+
+def _resolve_output(filename: str) -> Path:
+    """Resolve a provenance lookup name to a file under MASTERED_DIR or, for
+    repo-relative input like 'output/audio/x.wav', under PROJECT_ROOT."""
+    candidate = Path(filename)
+    if candidate.is_absolute():
+        return candidate
+    if "/" in filename or "\\" in filename:
+        return PROJECT_ROOT / filename
+    return MASTERED_DIR / filename
+
+
+def _sidecar_for(path: Path) -> dict | None:
+    sidecar = path.with_name(path.name + ".provenance.json")
+    if not sidecar.is_file():
+        return None
+    try:
+        import json
+
+        return json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+@router.get("/master/provenance/{filename:path}")
+def master_provenance(filename: str) -> dict:
+    """Origin link for a produced audio file: media_provenance DB rows plus
+    the ``<file>.provenance.json`` sidecar when present."""
+    out = _resolve_output(filename)
+    rel = repo_rel(out)
+    return {
+        "output_path": rel,
+        "exists": out.is_file(),
+        "records": get_provenance(rel),
+        "sidecar": _sidecar_for(out),
+    }
+
+
+@router.get("/master/provenance-source/{source_path:path}")
+def master_provenance_source(source_path: str) -> dict:
+    """All artifacts that list *source_path* as an origin (derivatives)."""
+    src = _resolve_output(source_path)
+    return {
+        "source_path": repo_rel(src),
+        "derivatives": get_derivatives(repo_rel(src)),
+    }

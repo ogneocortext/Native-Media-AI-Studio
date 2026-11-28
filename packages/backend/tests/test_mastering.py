@@ -165,7 +165,7 @@ async def test_measure_loudness_returns_numbers(tmp_path):
 
 @requires_ffmpeg
 @pytest.mark.asyncio
-async def test_master_file_writes_mastered_and_qc(tmp_path):
+async def test_master_file_writes_mastered_and_qc(tmp_path, temp_db):
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
     src = tmp_path / "tone.m4a"
@@ -206,7 +206,7 @@ async def test_master_file_missing_source_returns_error(tmp_path):
 
 @requires_ffmpeg
 @pytest.mark.asyncio
-async def test_master_file_after_true_peak_matches_independent_ebur128(tmp_path):
+async def test_master_file_after_true_peak_matches_independent_ebur128(tmp_path, temp_db):
     """QC honesty: ``after.true_peak_dbtp`` is the ebur128 measure of the
     written artifact — it must match an independent ebur128 run on the same
     file, and the limiter's internal estimate must appear only under its own
@@ -249,7 +249,7 @@ async def test_master_file_after_true_peak_matches_independent_ebur128(tmp_path)
 
 @requires_ffmpeg
 @pytest.mark.asyncio
-async def test_master_file_ceiling_loop_converges_on_hot_input(tmp_path):
+async def test_master_file_ceiling_loop_converges_on_hot_input(tmp_path, temp_db):
     """A 7 kHz square wave produces inter-sample peaks the old 2x estimate
     missed by >10 dB. With the repaired estimator plus the bounded
     compliance loop, the written MP3 must land at or below the -1 dBTP
@@ -287,7 +287,7 @@ async def test_master_file_ceiling_loop_converges_on_hot_input(tmp_path):
 @requires_ffmpeg
 @pytest.mark.asyncio
 async def test_master_file_ceiling_loop_warns_after_max_attempts(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, temp_db
 ):
     """Pathological case: if the artifact still measures over ceiling after
     MAX_CEILING_PASSES trims, qc_warnings must state the final value and the
@@ -319,3 +319,45 @@ async def test_master_file_ceiling_loop_warns_after_max_attempts(
     assert any(
         "still exceeds ceiling" in w and "attempts" in w for w in warnings
     ), warnings
+
+
+@requires_ffmpeg
+@pytest.mark.asyncio
+async def test_master_file_records_provenance(tmp_path, temp_db):
+    """A successful master writes a ``<file>.provenance.json`` sidecar and a
+    ``media_provenance`` DB row linking output -> source, so the origin
+    survives restarts."""
+    import json as _json
+
+    from app.core.database import get_derivatives, get_provenance
+
+    mastering.AUDIO_DIR = tmp_path
+    mastering.MASTERED_DIR = tmp_path / "mastered"
+    mastering.MASTERED_DIR.mkdir(parents=True, exist_ok=True)
+    src = tmp_path / "tone.m4a"
+    await _write_m4a(src, _sine(440, 1.0))
+
+    report = await mastering.master_file(
+        "tone.m4a", target_lufs=-14.0, ceiling_dbtp=-1.0
+    )
+    assert report.get("error") is None, report.get("error")
+    out = Path(report["mastered_path"])
+
+    sidecar = out.with_name(out.name + ".provenance.json")
+    assert sidecar.is_file(), "provenance sidecar missing"
+    record = _json.loads(sidecar.read_text(encoding="utf-8"))
+    assert record["tool"] == "mastering"
+    assert record["source_paths"] and record["source_paths"][0].endswith(
+        "tone.m4a"
+    )
+    assert "tone.m4a" in record["source_paths"][0]
+
+    rows = get_provenance(record["output_path"])
+    assert rows, "no media_provenance row for mastered file"
+    assert rows[0]["tool"] == "mastering"
+    assert any("tone.m4a" in s for s in rows[0]["source_paths"])
+
+    # The reverse link: asking what derived from the source finds the master.
+    src_rel = record["source_paths"][0]
+    derivatives = get_derivatives(src_rel)
+    assert any(d["output_path"] == record["output_path"] for d in derivatives)

@@ -47,6 +47,7 @@ from scipy import signal as scipy_signal
 
 from ..core.config import PROJECT_ROOT
 from .ffmpeg_tools import _find_binary, _run, compute_loudness
+from .provenance import record_media_provenance
 
 logger = logging.getLogger(__name__)
 
@@ -842,6 +843,45 @@ async def master_file(
         tuned, pcm.sample_rate, BAND_PRESENCE_LO_HZ, BAND_PRESENCE_HI_HZ
     )
 
+    applied = {
+        "gain_db": round(applied_gain_db, 2),
+        "true_peak_estimate_dbtp": (
+            round(true_peak_estimate, 2)
+            if true_peak_estimate is not None
+            else None
+        ),
+        "ceiling_compliance_attempts": ceiling_attempts,
+        "gain_trim_db": round(trim_db, 2),
+        "target_lufs": target_lufs,
+        "ceiling_dbtp": ceiling_dbtp,
+        "tone_fixes": tone_fixes,
+        "gain_passes": _pass + 1,
+        "finishing": finishing,
+        "sub_cut_db": round(sub_cut_db, 2),
+        "presence_db": round(presence_db, 2),
+        "band_energy": {
+            "before": {
+                "sub_db": round(before_sub_db, 1),
+                "presence_db": round(before_presence_db, 1),
+            },
+            "after": {
+                "sub_db": round(after_sub_db, 1),
+                "presence_db": round(after_presence_db, 1),
+            },
+        },
+    }
+
+    # Persist the origin link — sidecar next to the artifact plus a
+    # media_provenance DB row — so source -> derived survives restarts and
+    # file moves. Best-effort: provenance failure never fails the master.
+    record_media_provenance(
+        output_path=out_path,
+        tool="mastering",
+        source_paths=[src],
+        params=applied,
+        qc={"before": before, "after": after, "qc_warnings": qc_warnings},
+    )
+
     return {
         "filename": filename,
         "mastered_path": str(out_path),
@@ -849,31 +889,5 @@ async def master_file(
         "before": before,
         "after": after,
         "qc_warnings": qc_warnings,
-        "applied": {
-            "gain_db": round(applied_gain_db, 2),
-            "true_peak_estimate_dbtp": (
-                round(true_peak_estimate, 2)
-                if true_peak_estimate is not None
-                else None
-            ),
-            "ceiling_compliance_attempts": ceiling_attempts,
-            "gain_trim_db": round(trim_db, 2),
-            "target_lufs": target_lufs,
-            "ceiling_dbtp": ceiling_dbtp,
-            "tone_fixes": tone_fixes,
-            "gain_passes": _pass + 1,
-            "finishing": finishing,
-            "sub_cut_db": round(sub_cut_db, 2),
-            "presence_db": round(presence_db, 2),
-            "band_energy": {
-                "before": {
-                    "sub_db": round(before_sub_db, 1),
-                    "presence_db": round(before_presence_db, 1),
-                },
-                "after": {
-                    "sub_db": round(after_sub_db, 1),
-                    "presence_db": round(after_presence_db, 1),
-                },
-            },
-        },
+        "applied": applied,
     }

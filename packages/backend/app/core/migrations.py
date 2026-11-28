@@ -914,6 +914,32 @@ def _migrate_v26(conn: sqlite3.Connection):
     """)
 
 
+def _migrate_v27(conn: sqlite3.Connection):
+    """Media provenance — origin links between source files and derived outputs.
+
+    One row per produced artifact: which tool made it, which source path(s)
+    it came from, the parameters used, and the QC summary. Paths are stored
+    repo-relative so they survive moves of the checkout. The companion
+    ``<file>.provenance.json`` sidecar (written by services.provenance) keeps
+    the same record adjacent to the artifact if the DB row is ever lost.
+    """
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS media_provenance (
+            id TEXT PRIMARY KEY,
+            output_path TEXT NOT NULL,
+            tool TEXT NOT NULL,
+            source_paths TEXT NOT NULL DEFAULT '[]',
+            params TEXT NOT NULL DEFAULT '{}',
+            qc TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_media_provenance_output
+            ON media_provenance(output_path);
+        CREATE INDEX IF NOT EXISTS idx_media_provenance_tool
+            ON media_provenance(tool, created_at);
+    """)
+
+
 def get_schema_version(conn: sqlite3.Connection) -> int:
     """Read the current schema version from the database."""
     row = conn.execute("PRAGMA user_version").fetchone()
@@ -1039,6 +1065,8 @@ def init_db(db_path: Path | None = None):
                         _migrate_v25(conn)
                     if current_version < 26:
                         _migrate_v26(conn)
+                    if current_version < 27:
+                        _migrate_v27(conn)
 
                     set_schema_version(conn, SCHEMA_VERSION)
                     logger.info("Database initialized at version %d", SCHEMA_VERSION)

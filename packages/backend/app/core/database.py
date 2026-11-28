@@ -281,6 +281,13 @@ from .prompts import (
     toggle_prompt_favorite,
 )
 
+# Re-export provenance CRUD
+from .provenance import (
+    get_derivatives,
+    get_provenance,
+    record_provenance,
+)
+
 # Re-export session CRUD
 from .sessions import (
     _row_to_session,
@@ -505,6 +512,10 @@ __all__ = [
     "get_all_preferences",
     "get_preference",
     "set_preference",
+    # provenance
+    "get_derivatives",
+    "get_provenance",
+    "record_provenance",
     # benchmark
     "delete_benchmark_results",
     "get_benchmark_result",
