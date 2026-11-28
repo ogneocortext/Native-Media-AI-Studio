@@ -1141,6 +1141,7 @@ from .api import (  # noqa: E402
     office,
     outputs,
     retrieval,
+    room,
     threestudio,
     transcription,
     treblo_tags,
@@ -1207,6 +1208,7 @@ app.include_router(native_open.router)
 app.include_router(unity_control.router)
 app.include_router(docs.router)
 app.include_router(office.router)
+app.include_router(room.router)
 app.include_router(hyperframes.router)
 app.include_router(media.router)
 app.include_router(media_library.router)
