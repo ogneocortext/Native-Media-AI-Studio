@@ -418,6 +418,7 @@ function App() {
               <Route path="/generate-3d" element={<Navigate to="/create/3d" replace />} />
               <Route path="/ai-tools" element={<Navigate to="/analyze/ai" replace />} />
               <Route path="/ollama-chat" element={<Navigate to="/analyze/ai" replace />} />
+              <Route path="/analyze/chat" element={<Navigate to="/analyze/ai" replace />} />
               <Route path="/docs" element={<Navigate to="/system/docs" replace />} />
               <Route path="/storyboards" element={<Navigate to="/library/storyboards" replace />} />
               <Route path="/image-generation" element={<Navigate to="/create/image" replace />} />

@@ -66,7 +66,6 @@ const ROUTE_LABELS: Partial<Record<string, { label: string; icon?: React.ReactNo
   "/nsfw": { label: "NSFW", icon: <EyeOff size={14} /> },
   "/analyze/audio": { label: "Audio Analysis", icon: <BarChart3 size={14} /> },
   "/analyze/ai": { label: "AI Tools", icon: <Brain size={14} /> },
-  "/analyze/chat": { label: "Ollama Chat", icon: <Mic size={14} /> },
   "/analyze/agent": { label: "Local Sub-Agent", icon: <Cpu size={14} /> },
   "/analyze/agent-chat": { label: "Agent Chat", icon: <MessageSquare size={14} /> },
   "/mastering": { label: "Mastering", icon: <Zap size={14} /> },

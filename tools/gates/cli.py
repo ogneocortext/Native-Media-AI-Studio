@@ -397,7 +397,11 @@ def main(argv=None) -> int:
                 new_argv = []
                 for a in g.argv:
                     if a == "src":
-                        new_argv.extend(sorted(relevant_files))
+                        # Gate cwd is packages/frontend/, so make repo-root-
+                        # relative paths relative to it (e.g.
+                        # packages/frontend/src/App.tsx -> src/App.tsx).
+                        rel_files = [os.path.relpath(f, str(g.cwd)) for f in relevant_files]
+                        new_argv.extend(sorted(rel_files))
                     else:
                         new_argv.append(a)
                 g.argv = new_argv
@@ -407,7 +411,7 @@ def main(argv=None) -> int:
                 # running all tests (kept safe by the cache above on
                 # repeat pushes).
                 test_files = sorted(
-                    f for f in relevant_files
+                    os.path.relpath(f, str(g.cwd)) for f in relevant_files
                     if f.lower().endswith((".test.ts", ".test.tsx",
                                            ".spec.ts", ".spec.tsx")))
                 if test_files:

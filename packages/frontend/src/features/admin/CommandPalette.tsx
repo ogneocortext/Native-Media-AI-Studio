@@ -24,7 +24,6 @@ import {
   Film,
   Rocket,
   Brain,
-  Mic2,
   Activity,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -73,7 +72,7 @@ function getCommands(navigate: ReturnType<typeof useNavigate>): CommandItem[] {
     // Analyze
     { id: "audio-analysis", label: "Audio Analysis", description: "BPM, beats, sections", icon: <BarChart3 size={16} />, category: "Analyze", keywords: "audio analysis bpm beats", action: () => { void navigate("/analyze/audio"); }, shortcut: "A A" },
     { id: "ai-tools", label: "AI Tools", description: "AI-powered tools", icon: <Brain size={16} />, category: "Analyze", keywords: "ai tools models", action: () => { void navigate("/analyze/ai"); }, shortcut: "A T" },
-    { id: "ollama-chat", label: "Ollama Chat", description: "Chat with local LLMs", icon: <Mic2 size={16} />, category: "Analyze", keywords: "ollama chat llm", action: () => { void navigate("/analyze/chat"); }, shortcut: "A O" },
+    { id: "ollama-chat", label: "AI Tools", description: "AI-powered tools", icon: <Brain size={16} />, category: "Analyze", keywords: "ai tools models", action: () => { void navigate("/analyze/ai"); }, shortcut: "A T" },
     { id: "mastering", label: "Mastering", description: "Audio mastering chain", icon: <Zap size={16} />, category: "Analyze", keywords: "mastering audio chain", action: () => { void navigate("/mastering"); }, shortcut: "A M" },
 
     // System
