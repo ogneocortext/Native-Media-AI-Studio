@@ -37,6 +37,28 @@ function Write-Result([string]$status, [string]$msg) {
     }
 }
 
+# Per AGENTS.md §0: multi-line / mixed-quote python -c payloads must be written
+# to a file and executed with -File, never inlined via -c. This helper writes
+# the snippet to a scratch file under $env:TEMP and runs it, returning stdout.
+function Invoke-PythonSnippet {
+    param([string]$PythonExe, [string]$Code)
+    $scratch = Join-Path $env:TEMP ("nma-health-{0:yyyyMMdd-HHmmss-fff}.py" -f (Get-Date))
+    $Code | Set-Content -LiteralPath $scratch -Encoding UTF8
+    try {
+        & $PythonExe -File $scratch 2>&1
+    } finally {
+        if (Test-Path $scratch) { Remove-Item -LiteralPath $scratch -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+# Read the first N lines of a scratch error file with explicit UTF-8 decoding
+# (avoids ANSI-codepage mojibake and NativeCommandError from piping native output).
+function Read-FirstLinesFromScratch {
+    param([string]$Path, [int]$Count = 3)
+    if (-not (Test-Path $Path)) { return @() }
+    Get-Content -LiteralPath $Path -Encoding UTF8 -TotalCount $Count -ErrorAction SilentlyContinue
+}
+
 function Get-VenvHome([string]$cfgPath) {
     if (-not (Test-Path $cfgPath)) { return $null }
     foreach ($line in Get-Content $cfgPath) {
@@ -205,8 +227,12 @@ if ($Torch) {
     Write-Host "`n[8] Torch CUDA validation (nma-studio-cuda)"
     $py = Join-Path $StudioEnv 'Scripts\python.exe'
     if (Test-Path $py) {
-        $code = "import torch; print('torch', torch.__version__, '| cuda', torch.version.cuda); print('arch', torch.cuda.get_arch_list()); print('available', torch.cuda.is_available())"
-        $out = & $py -c $code 2>&1
+        $out = Invoke-PythonSnippet -PythonExe $py -Code @"
+import torch
+print('torch', torch.__version__, '| cuda', torch.version.cuda)
+print('arch', torch.cuda.get_arch_list())
+print('available', torch.cuda.is_available())
+"@
         if ($LASTEXITCODE -eq 0) {
             $out | ForEach-Object { Write-Host "         $_" }
             $pascalOK = ($out -join ' ') -match 'sm_61'
@@ -215,7 +241,8 @@ if ($Torch) {
             elseif ($avail) { Write-Result 'WARN' 'CUDA available but sm_61 not in arch list - GPU ops may fail' }
             else { Write-Result 'FAIL' 'torch.cuda.is_available() is False (wrong wheel for GTX 1070 Ti?)' }
         } else {
-            Write-Result 'FAIL' "torch import failed: $($out | Select-Object -First 3)"
+            $errHead = $out[0..2] -join "`n"
+            Write-Result 'FAIL' "torch import failed: $errHead"
         }
     } else {
         Write-Result 'FAIL' "Studio python not found: $py"
@@ -227,8 +254,12 @@ if ($Torch) {
     Write-Host "`n[8.5] Torch CUDA validation (comfyui-cuda)"
     $py = Join-Path $ComfyEnv 'Scripts\python.exe'
     if (Test-Path $py) {
-        $code = "import torch; print('torch', torch.__version__, '| cuda', torch.version.cuda); print('arch', torch.cuda.get_arch_list()); print('available', torch.cuda.is_available())"
-        $out = & $py -c $code 2>&1
+        $out = Invoke-PythonSnippet -PythonExe $py -Code @"
+import torch
+print('torch', torch.__version__, '| cuda', torch.version.cuda)
+print('arch', torch.cuda.get_arch_list())
+print('available', torch.cuda.is_available())
+"@
         if ($LASTEXITCODE -eq 0) {
             $out | ForEach-Object { Write-Host "         $_" }
             $pascalOK = ($out -join ' ') -match 'sm_61'
@@ -237,7 +268,8 @@ if ($Torch) {
             elseif ($avail) { Write-Result 'WARN' 'CUDA available but sm_61 not in arch list - GPU ops may fail' }
             else { Write-Result 'FAIL' 'torch.cuda.is_available() is False (wrong wheel for GTX 1070 Ti?)' }
         } else {
-            Write-Result 'FAIL' "torch import failed: $($out | Select-Object -First 3)"
+            $errHead = $out[0..2] -join "`n"
+            Write-Result 'FAIL' "torch import failed: $errHead"
         }
     } else {
         Write-Result 'FAIL' "ComfyUI python not found: $py"

@@ -226,7 +226,7 @@ function Export-Patches {
         $idx++
         $rel = $f
         $patchFile = Join-Path $PatchDir ("patch_{0:D3}_{1}.diff" -f $idx, ($rel -replace '[\\/]','_'))
-        & cmd /c "git -C `"$Path`" diff --no-color -- `"$rel`" > `"$patchFile`""
+        git -C $Path diff --no-color -- $rel > $patchFile
         if (Test-Path $patchFile) {
             Write-Host "  Exported patch: $rel -> $(Split-Path $patchFile -Leaf)"
         }
@@ -237,7 +237,7 @@ function Export-Patches {
             $idx++
             $rel = $f
             $patchFile = Join-Path $PatchDir ("patch_{0:D3}_{1}.diff" -f $idx, ($rel -replace '[\\/]','_'))
-            & cmd /c "git -C `"$Path`" diff --cached --no-color -- `"$rel`" > `"$patchFile`""
+            git -C $Path diff --cached --no-color -- $rel > $patchFile
             if (Test-Path $patchFile) {
                 Write-Host "  Exported staged patch: $rel -> $(Split-Path $patchFile -Leaf)"
             }
@@ -256,12 +256,12 @@ function Test-Patches {
 
     # Stash current changes so we can validate patches against upstream HEAD
     # Only $LASTEXITCODE is consumed; the stash output is noise.
-    $null = & cmd /c "git -C `"$Path`" stash push -m `"temp-patch-validation`" --include-untracked 2>&1"
+    $null = git -C $Path stash push -m "temp-patch-validation" --include-untracked 2>&1
     $stashCreated = $LASTEXITCODE -eq 0
 
     foreach ($p in $patches) {
         Write-Step "Validating patch: $($p.Name)"
-        $output = & cmd /c "git -C `"$Path`" apply --check --whitespace=nowarn `"$($p.FullName)`" 2>&1"
+        $output = git -C $Path apply --check --whitespace=nowarn $($p.FullName) 2>&1
         $outputStr = $output -join "`n"
         if ($LASTEXITCODE -ne 0) {
             Write-Warn "Patch validation FAILED against upstream: $($p.Name). Output: $outputStr"
@@ -274,7 +274,7 @@ function Test-Patches {
     # Restore working tree. A failed pop leaves the changes in the stash —
     # surface that loudly instead of silently losing the working tree.
     if ($stashCreated) {
-        $popOutput = & cmd /c "git -C `"$Path`" stash pop 2>&1"
+        $popOutput = git -C $Path stash pop 2>&1
         if ($LASTEXITCODE -ne 0) {
             Write-Fail "stash pop FAILED - local changes are still in the stash!"
             Write-Fail ($popOutput -join "`n")
@@ -291,7 +291,7 @@ function Apply-Patches {
     $patches = Get-ChildItem $PatchDir -Filter '*.diff' | Sort-Object Name
     foreach ($p in $patches) {
         Write-Step "Applying patch: $($p.Name)"
-        $output = & cmd /c "git -C `"$Path`" apply --whitespace=nowarn `"$($p.FullName)`" 2>&1"
+        $output = git -C $Path apply --whitespace=nowarn $($p.FullName) 2>&1
         $outputStr = $output -join "`n"
         if ($LASTEXITCODE -ne 0) {
             Write-Fail "Patch apply FAILED: $($p.Name). Output: $outputStr"
@@ -429,7 +429,7 @@ if (-not $patchesOk) {
 Write-OK "All patches validated.`n"
 
 Write-Step "Pulling latest ComfyUI..."
-$pullOutput = & cmd /c "git -C `"$ComfyUIPath`" pull origin master 2>&1"
+$pullOutput = git -C $ComfyUIPath pull origin master 2>&1
 $pull = $pullOutput -join "`n"
 if ($LASTEXITCODE -ne 0) {
     Write-Fail "git pull failed: $pull"
