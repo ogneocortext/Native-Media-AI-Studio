@@ -80,31 +80,69 @@ function WoodBox({
 
 function ArmchairHer() {
   const velvet = useVelvet();
+  const velvetMat = <meshStandardMaterial map={velvet} roughness={0.95} />;
   return (
     <group>
-      {/* walnut frame: two arms, back posts, seat deck */}
-      <WoodBox args={[0.09, 0.42, 0.62]} position={[-0.36, 0.42, 0]} />
-      <WoodBox args={[0.09, 0.42, 0.62]} position={[0.36, 0.42, 0]} />
-      <WoodBox args={[0.81, 0.5, 0.09]} position={[0, 0.72, -0.31]} />
-      <WoodBox args={[0.78, 0.08, 0.6]} position={[0, 0.4, 0]} />
-      {/* plum velvet cushions */}
-      <mesh position={[0, 0.48, 0.02]} castShadow receiveShadow>
-        <boxGeometry args={[0.62, 0.14, 0.52]} />
-        <meshStandardMaterial map={velvet} roughness={0.95} />
+      {/* visible base: four walnut legs + skirt rail */}
+      {[
+        [-0.27, -0.24],
+        [0.27, -0.24],
+        [-0.27, 0.24],
+        [0.27, 0.24],
+      ].map(([x, z], i) => (
+        <mesh key={i} position={[x, 0.09, z]} castShadow>
+          <cylinderGeometry args={[0.022, 0.016, 0.18, 10]} />
+          <meshStandardMaterial color="#4a3423" roughness={0.6} />
+        </mesh>
+      ))}
+      <WoodBox args={[0.6, 0.06, 0.54]} position={[0, 0.2, 0]} />
+      {/* seat cushion — plush plum velvet, crowned top */}
+      <mesh position={[0, 0.44, 0.02]} castShadow receiveShadow>
+        <boxGeometry args={[0.58, 0.15, 0.52]} />
+        {velvetMat}
       </mesh>
-      <mesh position={[0, 0.82, -0.24]} rotation={[-0.12, 0, 0]} castShadow>
-        <boxGeometry args={[0.62, 0.5, 0.12]} />
-        <meshStandardMaterial map={velvet} roughness={0.95} />
+      <mesh position={[0, 0.52, 0.03]} castShadow receiveShadow>
+        <boxGeometry args={[0.52, 0.05, 0.46]} />
+        {velvetMat}
       </mesh>
-      {/* brass nailheads on arms */}
-      {[-0.36, 0.36].map((x) =>
-        [0.18, 0.36].map((y) => (
-          <mesh key={`${x}-${y}`} position={[x, y, 0.28]}>
-            <sphereGeometry args={[0.012, 8, 8]} />
-            <BrassMat roughness={0.25} />
+      {/* rolled-look arms: walnut core + velvet pad */}
+      {[-1, 1].map((s) => (
+        <group key={s} position={[s * 0.315, 0, 0]}>
+          <WoodBox args={[0.09, 0.34, 0.56]} position={[0, 0.5, 0]} />
+          <mesh position={[0, 0.66, 0]} castShadow>
+            <boxGeometry args={[0.1, 0.07, 0.58]} />
+            {velvetMat}
           </mesh>
-        )),
-      )}
+          {/* brass nailheads down the arm front */}
+          {[0.42, 0.52, 0.62].map((y) => (
+            <mesh key={y} position={[0, y, 0.29]}>
+              <sphereGeometry args={[0.012, 8, 8]} />
+              <BrassMat roughness={0.4} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      {/* high back — the read: tall velvet panel, slight recline, two
+          walnut posts rising past the arms */}
+      <mesh position={[0, 0.78, -0.27]} rotation={[-0.1, 0, 0]} castShadow>
+        <boxGeometry args={[0.6, 0.62, 0.11]} />
+        {velvetMat}
+      </mesh>
+      <mesh position={[0, 0.8, -0.215]} rotation={[-0.1, 0, 0]}>
+        <boxGeometry args={[0.5, 0.5, 0.05]} />
+        {velvetMat}
+      </mesh>
+      {[-0.29, 0.29].map((x) => (
+        <mesh key={x} position={[x, 0.88, -0.29]} castShadow>
+          <cylinderGeometry args={[0.02, 0.016, 0.62, 10]} />
+          <meshStandardMaterial color="#4a3423" roughness={0.6} />
+        </mesh>
+      ))}
+      {/* lumbar cushion hint */}
+      <mesh position={[0, 0.62, -0.2]} rotation={[-0.15, 0, 0]} castShadow>
+        <boxGeometry args={[0.44, 0.16, 0.07]} />
+        {velvetMat}
+      </mesh>
     </group>
   );
 }
