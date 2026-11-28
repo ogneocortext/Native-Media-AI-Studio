@@ -31,11 +31,12 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
             fm = text[3:end].strip()
             body = text[end + 4 :].lstrip("\n")
             meta = _parse_fm_pairs(fm)
-            # Handle multiline tags
-            if "tags" not in meta:
-                tags = _multiline_tags(fm)
-                if tags:
-                    meta["tags"] = tags
+            # Handle multiline lists (``key:\n  - item`` lines)
+            for key in ("tags", "aliases"):
+                if key not in meta:
+                    items = _multiline_list(fm, key)
+                    if items:
+                        meta[key] = items
             return meta, body
     return {}, text
 
@@ -68,14 +69,9 @@ def _parse_fm_list_value(v: str) -> list[str] | None:
     return [v.strip().strip('"').strip("'")]
 
 
-def _multiline_tags(fm: str) -> list[str]:
-    """Extract a ``tags:`` block written as ``- item`` lines."""
-    tags = re.findall(r"^\s*-\s*(\S.+)", fm, re.MULTILINE)
-    # crude but captures tags list
-    if not (tags and any(t in fm for t in ["tags:"])):
-        return []
-    # Only keep first block after tags:
-    m = re.search(r"tags:\s*\n((?:\s*-\s*.+\n)+)", fm)
+def _multiline_list(fm: str, key: str) -> list[str]:
+    """Extract a ``key:`` block written as ``- item`` lines."""
+    m = re.search(rf"{re.escape(key)}:\s*\n((?:\s*-\s*.+\n)+)", fm)
     if not m:
         return []
     return [
@@ -212,13 +208,21 @@ def _scan_docs_uncached() -> list[DocEntry]:
                         aliases = []
                 else:
                     meta, _ = _parse_frontmatter(text)
-                    title = meta.get("title") or _title_from_path(p)
-                    # If file starts with "# Title", use that
-                    m = re.search(r"^#\s+(.+)", text, re.MULTILINE)
-                    if m:
-                        title = m.group(1).strip()[:80]
                     tags = meta.get("tags", [])
                     aliases = meta.get("aliases", [])
+                    # Authored title order: frontmatter title -> first H1 ->
+                    # first alias (Obsidian display name) -> filename fallback.
+                    m = re.search(r"^#\s+(.+)", text, re.MULTILINE)
+                    title = (
+                        meta.get("title")
+                        or (m.group(1).strip()[:80] if m else None)
+                        or (
+                            aliases[0]
+                            if isinstance(aliases, list) and aliases
+                            else None
+                        )
+                        or _title_from_path(p)
+                    )
             except Exception:
                 title = _title_from_path(p)
                 tags = []
