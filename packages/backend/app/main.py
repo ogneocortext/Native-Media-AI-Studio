@@ -919,6 +919,9 @@ app.add_middleware(
         "X-RateLimit-Limit",
         "X-RateLimit-Remaining",
         "X-RateLimit-Reset",
+        # Content-Disposition is required so cross-origin clients can read the
+        # suggested filename on file downloads (e.g. mastered audio files).
+        "Content-Disposition",
     ],
 )
 
