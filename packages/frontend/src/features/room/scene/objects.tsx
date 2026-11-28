@@ -178,25 +178,56 @@ function RecordPlayer() {
       <WoodBox args={[0.62, 0.5, 0.42]} position={[0, 0.32, 0]} />
       {/* plinth shadow gap */}
       <WoodBox args={[0.56, 0.04, 0.36]} position={[0, 0.06, 0]} />
-      {/* turntable */}
-      <mesh position={[0, 0.585, 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.17, 0.17, 0.02, 40]} />
-        <meshStandardMaterial color="#17130f" roughness={0.6} />
+      {/* top slab — the platter bed, slightly proud of the case */}
+      <WoodBox args={[0.58, 0.03, 0.38]} position={[0, 0.565, 0]} />
+      {/* platter — FLAT, axis vertical: dark metal disc */}
+      <mesh position={[-0.02, 0.585, 0.01]} castShadow>
+        <cylinderGeometry args={[0.17, 0.17, 0.015, 48]} />
+        <meshStandardMaterial color="#17130f" roughness={0.35} metalness={0.6} />
       </mesh>
-      <mesh position={[0, 0.6, 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.1, 0.1, 0.012, 32]} />
+      {/* vinyl record — near-black disc on the platter */}
+      <mesh position={[-0.02, 0.595, 0.01]}>
+        <cylinderGeometry args={[0.155, 0.155, 0.006, 48]} />
+        <meshStandardMaterial color="#0b0b0d" roughness={0.3} />
+      </mesh>
+      {/* cream label at the spindle */}
+      <mesh position={[-0.02, 0.6, 0.01]}>
+        <cylinderGeometry args={[0.05, 0.05, 0.002, 32]} />
         <meshStandardMaterial color="#e0d2b4" roughness={0.8} />
       </mesh>
-      {/* tonearm — brass */}
-      <group position={[0.2, 0.62, -0.12]} rotation={[0, 0, -0.5]}>
-        <mesh position={[0.08, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.008, 0.008, 0.2, 8]} />
+      <mesh position={[-0.02, 0.602, 0.01]}>
+        <cylinderGeometry args={[0.008, 0.008, 0.004, 12]} />
+        <meshStandardMaterial color="#3a2c20" roughness={0.6} />
+      </mesh>
+      {/* tonearm — pivot at the back-right corner, reaching in over the
+          disc's edge; brass tube + counterweight + headshell */}
+      <group position={[0.21, 0.615, -0.13]} rotation={[0, -2.11, 0]}>
+        {/* pivot post */}
+        <mesh position={[0, -0.03, 0]}>
+          <cylinderGeometry args={[0.014, 0.018, 0.06, 12]} />
           <BrassMat />
         </mesh>
-        <mesh position={[0, 0.02, 0]}>
-          <sphereGeometry args={[0.025, 12, 12]} />
-          <BrassMat roughness={0.25} />
+        {/* arm reaching forward over the platter edge (~0.23 m run) */}
+        <mesh position={[0.115, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.006, 0.004, 0.23, 10]} />
+          <BrassMat roughness={0.3} />
         </mesh>
+        {/* counterweight behind the pivot */}
+        <mesh position={[-0.045, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.016, 0.016, 0.05, 12]} />
+          <meshStandardMaterial color="#2a2118" roughness={0.5} metalness={0.4} />
+        </mesh>
+        {/* headshell + stylus at the vinyl edge */}
+        <group position={[0.225, -0.012, 0]}>
+          <mesh rotation={[0, 0, Math.PI / 2]}>
+            <boxGeometry args={[0.05, 0.008, 0.018]} />
+            <meshStandardMaterial color="#1a140f" roughness={0.5} />
+          </mesh>
+          <mesh position={[0.01, -0.002, 0]}>
+            <cylinderGeometry args={[0.002, 0.002, 0.012, 6]} />
+            <meshStandardMaterial color="#c9c2b4" metalness={0.8} roughness={0.3} />
+          </mesh>
+        </group>
       </group>
       {/* warm dial glow strip */}
       <mesh position={[-0.18, 0.5, 0.215]}>
