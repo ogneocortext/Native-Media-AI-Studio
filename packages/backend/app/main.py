@@ -1151,6 +1151,7 @@ from .api import (  # noqa: E402
     outputs,
     retrieval,
     room,
+    storyboards,
     threestudio,
     transcription,
     treblo_tags,
@@ -1224,6 +1225,7 @@ app.include_router(unity_control.router)
 app.include_router(docs.router)
 app.include_router(office.router)
 app.include_router(room.router)
+app.include_router(storyboards.router)
 app.include_router(hyperframes.router)
 app.include_router(media.router)
 app.include_router(media_library.router)
