@@ -236,7 +236,7 @@ export function RoomShell() {
         aoMap: floorMaps.aoMap,
         roughness: 0.6,
         metalness: 0.05,
-        color: "#b8a88e",
+        color: "#a68d68",
       }),
     [floorMaps],
   );
@@ -246,7 +246,7 @@ export function RoomShell() {
       new THREE.MeshStandardMaterial({
         map: rugTex,
         roughness: 0.98,
-        color: "#cfc4de",
+        color: "#b3a6cc",
       }),
     [rugTex],
   );
@@ -279,13 +279,16 @@ export function RoomShell() {
       {/* south wall with door opening handled by Door group */}
       <Wall position={[-0.35, WALL_H / 2, 2.1]} size={[4.3, WALL_H, WALL_T]} plaster={plaster} />
       <Wall position={[2.05, WALL_H / 2, 2.1]} size={[1.5, WALL_H, WALL_T]} plaster={plaster} />
-      {/* west wall */}
-      <Wall position={[-2.6, WALL_H / 2, 0]} size={[WALL_T, WALL_H, 4.6]} rotationY={Math.PI / 2} plaster={plaster} />
+      {/* west wall — rotated walls take size=[length, height, thickness]:
+          local X is the length (maps to world Z after rotY), local Z the
+          thickness (maps to world X). Getting this backwards stood the wall
+          up as a fin across the room interior. */}
+      <Wall position={[-2.6, WALL_H / 2, 0]} size={[4.6, WALL_H, WALL_T]} rotationY={Math.PI / 2} plaster={plaster} />
       {/* east wall — segments around the window opening (z 0.4 +/- 0.6) */}
-      <Wall position={[2.6, WALL_H / 2, -1.15]} size={[WALL_T, WALL_H, 1.7]} rotationY={Math.PI / 2} plaster={plaster} />
-      <Wall position={[2.6, WALL_H / 2, 1.65]} size={[WALL_T, WALL_H, 1.3]} rotationY={Math.PI / 2} plaster={plaster} />
-      <Wall position={[2.6, 2.475, 0.4]} size={[WALL_T, 0.45, 1.3]} rotationY={Math.PI / 2} plaster={plaster} />
-      <Wall position={[2.6, 0.44, 0.4]} size={[WALL_T, 0.88, 1.3]} rotationY={Math.PI / 2} plaster={plaster} />
+      <Wall position={[2.6, WALL_H / 2, -1.15]} size={[1.7, WALL_H, WALL_T]} rotationY={Math.PI / 2} plaster={plaster} />
+      <Wall position={[2.6, WALL_H / 2, 1.65]} size={[1.3, WALL_H, WALL_T]} rotationY={Math.PI / 2} plaster={plaster} />
+      <Wall position={[2.6, 2.475, 0.4]} size={[1.3, 0.45, WALL_T]} rotationY={Math.PI / 2} plaster={plaster} />
+      <Wall position={[2.6, 0.44, 0.4]} size={[1.3, 0.88, WALL_T]} rotationY={Math.PI / 2} plaster={plaster} />
 
       {/* ceiling — unlit, dark */}
       <mesh position={[0, WALL_H, 0]} rotation={[Math.PI / 2, 0, 0]} material={ceilMat}>

@@ -55,10 +55,10 @@ function RoomLights() {
 
   // Arrival: her 100%, player 60-70%, entry 30-40%.
   // Late: her pool + one ember pool; everything else near-off.
-  const spotI = late ? 40 * herPresence : 45 * herPresence;
-  const playerA = late ? 2.5 : 10;
-  const playerB = late ? 4 : 15;
-  const entry = late ? 0 : 9;
+  const spotI = late ? 26 * herPresence : 32 * herPresence;
+  const playerA = late ? 1.8 : 5.5;
+  const playerB = late ? 3.0 : 8;
+  const entry = late ? 0 : 5;
 
   return (
     <group>
@@ -219,9 +219,16 @@ export function RoomCanvas({ bookmark }: { bookmark: number }) {
         powerPreference: "high-performance",
       }}
       camera={{ fov: 42, near: 0.1, far: 30, position: [1.2, 1.6, 1.55] }}
-      onCreated={({ gl }) => {
+      onCreated={({ gl, scene, camera }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.0;
+        // QA probe handle (temporary diagnostics).
+        (window as unknown as { __room?: unknown; __THREE?: unknown }).__room = {
+          gl,
+          scene,
+          camera,
+        };
+        (window as unknown as { __THREE?: unknown }).__THREE = THREE;
       }}
     >
       <color attach="background" args={["#07070f"]} />
@@ -274,7 +281,7 @@ export function RoomCanvas({ bookmark }: { bookmark: number }) {
         />
 
         <EffectComposer multisampling={4}>
-          <Bloom mipmapBlur intensity={0.6} luminanceThreshold={1} />
+          <Bloom mipmapBlur intensity={0.5} luminanceThreshold={1.2} />
           <Vignette eskil={false} offset={0.18} darkness={0.72} />
           <Noise opacity={0.04} />
           <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />

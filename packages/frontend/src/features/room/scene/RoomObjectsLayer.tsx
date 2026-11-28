@@ -91,11 +91,11 @@ function PresenceMarker() {
   const { color, intensity } = useMemo(() => {
     switch (maya) {
       case "present":
-        return { color: "#ffd9a0", intensity: 2.4 };
+        return { color: "#ffd9a0", intensity: 1.5 };
       case "recently active":
-        return { color: "#d8a86a", intensity: 1.2 };
+        return { color: "#d8a86a", intensity: 0.9 };
       default:
-        return { color: "#5a4a6a", intensity: 0.35 };
+        return { color: "#5a4a6a", intensity: 0.3 };
     }
   }, [maya]);
 

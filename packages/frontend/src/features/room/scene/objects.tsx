@@ -23,9 +23,9 @@ function BrassMat({ roughness = 0.35 }: { roughness?: number }) {
   return (
     <meshStandardMaterial
       color={BRASS}
-      metalness={0.85}
-      roughness={roughness}
-      envMapIntensity={0.7}
+      metalness={0.72}
+      roughness={Math.max(roughness, 0.5)}
+      envMapIntensity={0.3}
     />
   );
 }
@@ -147,7 +147,7 @@ function RecordPlayer() {
       </mesh>
       <mesh position={[0, 0.6, 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.1, 0.1, 0.012, 32]} />
-        <meshStandardMaterial color={CREAM} roughness={0.8} />
+        <meshStandardMaterial color="#e0d2b4" roughness={0.8} />
       </mesh>
       {/* tonearm — brass */}
       <group position={[0.2, 0.62, -0.12]} rotation={[0, 0, -0.5]}>
@@ -164,9 +164,9 @@ function RecordPlayer() {
       <mesh position={[-0.18, 0.5, 0.215]}>
         <boxGeometry args={[0.1, 0.015, 0.005]} />
         <meshStandardMaterial
-          color="#ffb066"
+          color="#c98d4e"
           emissive="#ff9d4d"
-          emissiveIntensity={1.6}
+          emissiveIntensity={0.9}
         />
       </mesh>
       {/* brass corner protectors */}
@@ -230,7 +230,7 @@ function FloorLamp() {
         <meshStandardMaterial
           color="#d8b98c"
           emissive="#ffb066"
-          emissiveIntensity={1.1}
+          emissiveIntensity={0.5}
           side={THREE.DoubleSide}
           roughness={0.9}
         />
@@ -240,7 +240,7 @@ function FloorLamp() {
         <meshStandardMaterial
           color="#ffd9a0"
           emissive="#ffbf80"
-          emissiveIntensity={3.2}
+          emissiveIntensity={1.3}
         />
       </mesh>
     </group>

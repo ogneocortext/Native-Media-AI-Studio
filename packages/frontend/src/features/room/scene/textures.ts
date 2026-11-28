@@ -84,10 +84,10 @@ export function usePlaster(): THREE.Texture {
   return useMemo(
     () =>
       canvasTexture(512, (ctx, s) => {
-        ctx.fillStyle = "#efe6d4";
+        ctx.fillStyle = "#e2d8c4";
         ctx.fillRect(0, 0, s, s);
         for (let i = 0; i < 9000; i++) {
-          const v = 225 + Math.floor(Math.random() * 30);
+          const v = 205 + Math.floor(Math.random() * 28);
           ctx.fillStyle = `rgba(${v},${v - 8},${v - 22},0.05)`;
           ctx.fillRect(Math.random() * s, Math.random() * s, 1.5, 1.5);
         }
@@ -179,7 +179,7 @@ export function usePaper(): THREE.Texture {
   return useMemo(
     () =>
       canvasTexture(256, (ctx, s) => {
-        ctx.fillStyle = "#e8dcc4";
+        ctx.fillStyle = "#d9c9a8";
         ctx.fillRect(0, 0, s, s);
         for (let i = 0; i < 1200; i++) {
           ctx.fillStyle = `rgba(160,140,100,${Math.random() * 0.08})`;
