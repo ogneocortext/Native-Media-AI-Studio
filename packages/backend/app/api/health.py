@@ -8,7 +8,6 @@ import asyncio
 import logging
 import operator
 import shutil
-import subprocess
 import time
 from typing import Any
 
@@ -20,6 +19,7 @@ from ..adapters.registry import adapter_registry
 from ..core.config import PROJECT_ROOT, config
 from ..diagnostics.health import health_monitor
 from ..diagnostics.resources import resource_monitor
+from ..services.subprocess_runner import run_subprocess_thread
 
 _GO_SIDECAR_ROLES = {
     "go-dashboard": "SSE + service health",
@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 _ffmpeg_binary_cache: dict[str, dict[str, str | None]] | None = None
 
 
-def _get_ffmpeg_binary_status() -> dict[str, dict[str, str | None]]:
+async def _get_ffmpeg_binary_status() -> dict[str, dict[str, str | None]]:
     """Return ffmpeg/ffprobe binary status, computed once and cached.
 
     Shape per binary:
@@ -67,7 +67,7 @@ def _get_ffmpeg_binary_status() -> dict[str, dict[str, str | None]]:
         entry: dict[str, str | None] = {"found": path is not None, "path": path, "version": None}
         if path:
             try:
-                proc = subprocess.run(
+                proc = await run_subprocess_thread(
                     [path, "-version"],
                     capture_output=True,
                     text=True,
@@ -253,6 +253,7 @@ async def health_check() -> dict:
         }
     """
     aggregate = await health_monitor.get_aggregate_health()
+    ffmpeg_status = await _get_ffmpeg_binary_status()
 
     # Map internal status to API response format
     # "healthy" in aggregate maps to "online" for backend
@@ -275,8 +276,8 @@ async def health_check() -> dict:
         "backend": backend_status,
         "adapters": adapters_response,
         "overall": aggregate.get("overall", "healthy"),
-        "ffmpeg": _get_ffmpeg_binary_status()["ffmpeg"],
-        "ffprobe": _get_ffmpeg_binary_status()["ffprobe"],
+        "ffmpeg": ffmpeg_status["ffmpeg"],
+        "ffprobe": ffmpeg_status["ffprobe"],
     }
 
 
@@ -313,6 +314,7 @@ async def agent_health() -> dict:
 
     # Collect all health data in parallel where possible
     aggregate = await health_monitor.get_aggregate_health()
+    ffmpeg_status = await _get_ffmpeg_binary_status()
 
     # Backend info
     import sys
@@ -412,8 +414,8 @@ async def agent_health() -> dict:
         "gpu": gpu,
         "queue": queue_info,
         "models": models_info,
-        "ffmpeg": _get_ffmpeg_binary_status()["ffmpeg"],
-        "ffprobe": _get_ffmpeg_binary_status()["ffprobe"],
+        "ffmpeg": ffmpeg_status["ffmpeg"],
+        "ffprobe": ffmpeg_status["ffprobe"],
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
