@@ -75,12 +75,42 @@ def _hash_files(files: list[str]) -> str:
     return h.hexdigest()
 
 
-def get_cached_result(gate_name: str, all_relevant_files: list[str]) -> str | None:
-    """Return a cached PASS status if the gate's full relevant file set matches.
+def gate_def_hash(gate) -> str:
+    """SHA-256 of a gate's serializable definition.
+
+    Covers name, argv, cwd, optional, timeout, lane — everything that
+    affects the gate's command-line behavior. The ``desc`` field is
+    excluded as it is human-readable only.
+    """
+    import json
+
+    h = hashlib.sha256()
+    h.update(gate.name.encode("utf-8"))
+    h.update(b"\0")
+    h.update(json.dumps(gate.argv, sort_keys=True).encode("utf-8"))
+    h.update(b"\0")
+    h.update(str(gate.cwd).encode("utf-8"))
+    h.update(b"\0")
+    h.update(str(gate.optional).encode("utf-8"))
+    h.update(b"\0")
+    h.update(str(gate.timeout).encode("utf-8"))
+    h.update(b"\0")
+    h.update(gate.lane.encode("utf-8"))
+    return h.hexdigest()
+
+
+def get_cached_result(gate_name: str, all_relevant_files: list[str],
+                      gate_def_hash: str | None = None) -> str | None:
+    """Return a cached PASS status if the gate's inputs match.
 
     The cache key is a SHA-256 over every tracked file the gate could be
-    affected by (not just the changed subset). This means a relevant file
-    modified outside a gated run busts the cache on the next push.
+    affected by (not just the changed subset) plus an optional hash of the
+    gate's own definition (argv, cwd, lane, timeout). This means:
+
+    * a relevant file modified outside a gated run busts the cache on the
+      next push;
+    * changing the gate's own definition (e.g. editing ``gates.py`` to alter
+      a gate's argv) busts that gate's cache.
 
     Returns ``"PASS"`` if a valid cache hit exists, otherwise ``None`` so
     the caller runs the gate.
@@ -93,22 +123,27 @@ def get_cached_result(gate_name: str, all_relevant_files: list[str]) -> str | No
         return None
     if entry.get("file_hash") != _hash_files(all_relevant_files):
         return None
+    if gate_def_hash is not None and entry.get("gate_def_hash") != gate_def_hash:
+        return None
     return "PASS"
 
 
 def save_result(gate_name: str, all_relevant_files: list[str], status: str,
-                duration: float) -> None:
+                duration: float, gate_def_hash: str | None = None) -> None:
     """Persist a gate result to the cache. Only PASS results are cached.
 
     ``all_relevant_files`` is the gate's full relevant file set in the tree
-    (from ``gate_all_relevant_files``), used as the cache key so that
-    out-of-band modifications bust the cache.
+    (from ``gate_all_relevant_files``), used as part of the cache key so that
+    out-of-band modifications bust the cache. ``gate_def_hash`` is an optional
+    hash of the gate's own definition so that changes to the gate's command
+    also bust the cache.
     """
     if status != "PASS":
         return
     cache = _load_cache()
     cache.setdefault("entries", {})[gate_name] = {
         "file_hash": _hash_files(all_relevant_files),
+        "gate_def_hash": gate_def_hash,
         "status": status,
         "duration": round(duration, 2),
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

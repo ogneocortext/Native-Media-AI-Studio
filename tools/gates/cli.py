@@ -360,6 +360,11 @@ def main(argv=None) -> int:
     skipped = []
     cached = []
     changed_temp_files: list[str] = []
+    # Gate definition hashes computed once per gate, before argv mutation
+    # for --changed scoping. Stored so the same hash is used at both
+    # cache-check and cache-save time (the argv is mutated in place for
+    # eslint/ruff/vitest scoping, so recomputing later would mismatch).
+    def_hashes: dict[str, str] = {}
     for g in selected:
         relevant_files: set[str] | None = None
         if changed is not None:
@@ -375,14 +380,16 @@ def main(argv=None) -> int:
         # relevant file modified outside a gated run busts the cache on the
         # next push.
         if relevant_files is not None:
+            all_relevant = gate_all_relevant_files(g)
+            def_hashes[g.name] = cache.gate_def_hash(g)
             cached_status = cache.get_cached_result(
-                g.name, sorted(gate_all_relevant_files(g)))
+                g.name, sorted(all_relevant), def_hashes[g.name])
             if cached_status == "PASS":
                 cached.append({
                     "gate": g,
                     "reason": (f"cached PASS "
                                f"({len(relevant_files)} changed relevant "
-                               f"file(s); {len(gate_all_relevant_files(g))} "
+                               f"file(s); {len(all_relevant)} "
                                f"tracked relevant total)"),
                 })
                 continue
@@ -620,7 +627,7 @@ def main(argv=None) -> int:
             if result and result["status"] == "PASS":
                 all_relevant = gate_all_relevant_files(g)
                 cache.save_result(g.name, sorted(all_relevant), "PASS",
-                                  result["elapsed"])
+                                  result["elapsed"], def_hashes.get(g.name))
 
     # Build final summary for AI agents
     final_summary = {
