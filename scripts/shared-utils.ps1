@@ -920,30 +920,92 @@ function Get-LogTail {
     }
 }
 
+function Test-ListenerTreeMatches {
+    <#
+    .SYNOPSIS
+        True when any conflicting listener's process ancestry matches a
+        regex against the process command lines (e.g. 'watchfiles|run-in-job').
+    .DESCRIPTION
+        Walks each listener's OwningProcess parent chain via CIM, the same
+        technique Get-BackendReloadState uses in manage-servers.ps1. A proxy
+        listener (tailscaled for tailscale serve) has no such ancestor, so it
+        correctly fails the match.
+    #>
+    param(
+        [Parameter(Mandatory)]$Listeners,
+        [Parameter(Mandatory)][string]$Pattern
+    )
+    $procs = @{}
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        ForEach-Object { $procs[[int]$_.ProcessId] = $_ }
+    foreach ($l in $Listeners) {
+        $current = [int]$l.OwningProcess
+        $depth = 0
+        while ($procs.ContainsKey($current) -and $depth -lt 8) {
+            $proc = $procs[$current]
+            if ($proc.CommandLine -match $Pattern) { return $true }
+            $current = [int]$proc.ParentProcessId
+            $depth++
+        }
+    }
+    return $false
+}
+
 function Test-ServicePort {
     <#
     .SYNOPSIS
         Check whether a service is already running on a given port.
     .DESCRIPTION
-        Returns a hashtable with Running, Port, and Note keys.
+        Returns a hashtable with Running, State, Port, and optional Note keys.
         Consumed by manage-servers.ps1 and start-studio.ps1.
+
+        State is one of:
+          'running'             - health probe answers AND (no ManagedPattern
+                                  given, or a listener's process tree matches it)
+          'serving-unmanaged'   - health probe answers but no conflicting
+                                  listener exists, or the listener is not a
+                                  recognized managed process. STOPPED must be
+                                  impossible while the health endpoint returns
+                                  200 — this state exists so a foreign or
+                                  hand-started server can never again hide
+                                  behind a STOPPED report.
+          'stopped'             - nothing answers (a bound-but-dead port lands
+                                  here with Note 'Port bound but service not
+                                  responding').
     .PARAMETER Port
         Local TCP port.
     .PARAMETER HealthPath
         HTTP path to probe (default /api/health).
+    .PARAMETER ManagedPattern
+        Optional regex matched against the command lines in each conflicting
+        listener's process ancestry. When given, health+listener only counts
+        as 'running' if some listener's tree matches (e.g. the backend's
+        watchfiles/run-in-job launcher markers).
     #>
     param(
         [Parameter(Mandatory)][int]$Port,
-        [string]$HealthPath = '/api/health'
+        [string]$HealthPath = '/api/health',
+        [string]$ManagedPattern,
+        [int]$TimeoutSec = 2
     )
-    $listening = Get-ServicePortListeners -Port $Port
-    if ($listening) {
-        if (Test-ServiceRunning -Port $Port -HealthPath $HealthPath) {
-            return @{ Running = $true; Port = $Port }
+    # Probe health first: a 200 must never be reported as STOPPED, even when
+    # the listener filter discards every bind (proxy-only tailscale serve,
+    # filtered addresses, mid-reload socket gaps).
+    $healthOk = Test-ServiceRunning -Port $Port -HealthPath $HealthPath -TimeoutSec $TimeoutSec
+    $listening = @(Get-ServicePortListeners -Port $Port)
+    if ($healthOk) {
+        if (-not $listening) {
+            return @{ Running = $false; State = 'serving-unmanaged'; Port = $Port; Note = 'Health endpoint answers but no conflicting local listener was found' }
         }
-        return @{ Running = $false; Port = $Port; Note = 'Port bound but service not responding' }
+        if ($ManagedPattern -and -not (Test-ListenerTreeMatches -Listeners $listening -Pattern $ManagedPattern)) {
+            return @{ Running = $false; State = 'serving-unmanaged'; Port = $Port; Note = 'Health endpoint answers but the listener is not a recognized managed process' }
+        }
+        return @{ Running = $true; State = 'running'; Port = $Port }
     }
-    return @{ Running = $false; Port = $Port }
+    if ($listening) {
+        return @{ Running = $false; State = 'stopped'; Port = $Port; Note = 'Port bound but service not responding' }
+    }
+    return @{ Running = $false; State = 'stopped'; Port = $Port }
 }
 
 # ---------------------------------------------------------------------------

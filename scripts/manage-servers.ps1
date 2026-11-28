@@ -234,14 +234,20 @@ function Get-ServiceStatus {
     # Bearer token, so the generic loopback probe can never see it.
     if ($ServiceName -eq 'pocket') {
         $up = Test-PocketUp
-        if ($up) { return @{ Running = $true; Port = $port } }
-        return @{ Running = $false; Port = $port }
+        if ($up) { return @{ Running = $true; State = 'running'; Port = $port } }
+        return @{ Running = $false; State = 'stopped'; Port = $port }
     }
 
     # Delegates to shared-utils' Test-ServicePort — one implementation of
-    # "listening + health probe" (it already filters to conflicting
-    # loopback/wildcard binds via Get-ServicePortListeners).
-    return Test-ServicePort -Port $port -HealthPath $healthPath
+    # "health probe + listener check" (it already filters to conflicting
+    # loopback/wildcard binds via Get-ServicePortListeners). The backend gets
+    # a ManagedPattern so a foreign or hand-started server answering /api/health
+    # reports SERVING-UNMANAGED instead of RUNNING — managed launches always
+    # wrap uvicorn in watchfiles under run-in-job.py.
+    $managedPattern = if ($ServiceName -eq 'backend') { 'watchfiles|run-in-job' } else { $null }
+    # 4s probe: /api/health is cheap, but a busy single-worker uvicorn can
+    # exceed the 2s default and a false negative reports a live server STOPPED.
+    return Test-ServicePort -Port $port -HealthPath $healthPath -ManagedPattern $managedPattern -TimeoutSec 4
 }
 
 function Test-PocketUp {
@@ -437,6 +443,15 @@ function Start-StudioService {
         return
     }
 
+    # Something answers the health probe but is not a managed process —
+    # refuse rather than launch a duplicate that the backend's
+    # single-instance mutex would reject anyway (or worse, split traffic).
+    if ($status.State -eq 'serving-unmanaged') {
+        Write-Err "$($config.Name) cannot start: port $port is already serving, but not a process manage-servers started or recognizes"
+        Write-Err "Recovery: identify the owner (Get-NetTCPConnection -LocalPort $port) and stop it, or run 'scripts\manage-servers.ps1 -Action stop -Services $ServiceName'"
+        return
+    }
+
     # Port is either free or bound by something else. If it is bound by a
     # non-responding process, do NOT start a duplicate on a different port —
     # the user must free the port manually.
@@ -623,6 +638,7 @@ if ($PSBoundParameters.ContainsKey('Action')) {
                     id = $svc
                     port = $config.Port
                     running = $status.Running
+                    state = $status.State
                     note = $status.Note
                 }
                 if ($svc -eq 'backend') {
@@ -668,11 +684,22 @@ if ($PSBoundParameters.ContainsKey('Action')) {
             foreach ($svc in $serviceList) {
                 $config = $ServiceConfig[$svc]
                 $status = Get-ServiceStatus $svc
-                $color = if ($status.Running) { 'Green' } else { 'Red' }
-                $state = if ($status.Running) { 'RUNNING' } else { 'STOPPED' }
+                $color = switch ($status.State) {
+                    'running'             { 'Green' }
+                    'serving-unmanaged'   { 'Yellow' }
+                    default               { 'Red' }
+                }
+                $state = switch ($status.State) {
+                    'running'             { 'RUNNING' }
+                    'serving-unmanaged'   { 'SERVING-UNMANAGED' }
+                    default               { 'STOPPED' }
+                }
                 Write-Host "  $($config.Name): " -NoNewline
                 Write-Host $state -ForegroundColor $color -NoNewline
                 Write-Host " (port $($config.Port))"
+                if ($status.State -eq 'serving-unmanaged' -and $status.Note) {
+                    Write-Host "    $($status.Note)" -ForegroundColor DarkYellow
+                }
                 if ($svc -eq 'backend') {
                     $reload = Get-BackendReloadState -Port $config.Port
                     $reloadText = switch ($reload) {
