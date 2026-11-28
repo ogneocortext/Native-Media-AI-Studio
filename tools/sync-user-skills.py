@@ -39,6 +39,12 @@ ROOT = Path(__file__).resolve().parents[1]
 CANON = ROOT / ".claude" / "skills"
 HOME = Path.home()
 
+# Cache for skill_files() keyed by resolved directory path. The function is
+# called repeatedly for the same directories (newest_mtime per host/skill in
+# collect_canonical, plus twice per skill/host in dirs_differ), so memoizing
+# avoids redundant rglob walks on every call.
+_skill_files_cache: dict[Path, dict[str, Path]] = {}
+
 # Skills that live only at user level today. If the canonical repo set already
 # carries one of these, canonical wins and this list entry is ignored — the
 # list is only a fallback so a fresh machine still gets them.
@@ -79,6 +85,9 @@ HOST_DIRS = [
 
 def skill_files(skill_dir: Path) -> dict[str, Path]:
     """rel-posix-path -> file for every non-artifact file under skill_dir."""
+    key = skill_dir.resolve()
+    if key in _skill_files_cache:
+        return _skill_files_cache[key]
     out: dict[str, Path] = {}
     for p in skill_dir.rglob("*"):
         if not p.is_file():
@@ -87,6 +96,7 @@ def skill_files(skill_dir: Path) -> dict[str, Path]:
         if "__pycache__" in rel.split("/") or rel.endswith(".pyc"):
             continue
         out[rel] = p
+    _skill_files_cache[key] = out
     return out
 
 
@@ -95,13 +105,22 @@ def dirs_differ(a: Path, b: Path) -> bool:
     fa, fb = skill_files(a), skill_files(b)
     if set(fa) != set(fb):
         return True
+    # Cheap size pre-check before expensive byte reads
+    for r in fa:
+        try:
+            if fa[r].stat().st_size != fb[r].stat().st_size:
+                return True
+        except OSError:
+            return True
     return any(fa[r].read_bytes() != fb[r].read_bytes() for r in fa)
 
 
 def newest_mtime(skill_dir: Path) -> float:
     """mtime of the most recently written file under skill_dir (0 if empty)."""
-    times = [p.stat().st_mtime for p in skill_dir.rglob("*") if p.is_file()]
-    return max(times) if times else 0.0
+    files = skill_files(skill_dir)
+    if not files:
+        return 0.0
+    return max(p.stat().st_mtime for p in files.values())
 
 
 def collect_canonical() -> tuple[dict[str, Path], list[str]]:
