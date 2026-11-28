@@ -356,7 +356,7 @@ export function DocsPage() {
         {bootstrap && (
           <div className="flex items-center gap-2 text-xs">
             <span className="px-2 py-1 bg-gray-800 rounded border border-gray-700 text-gray-300">
-              v{bootstrap.version ?? "2026-08-24"}
+              v{bootstrap.version ?? "—"}
             </span>
             {bootstrap.ports && (
               <span className="px-2 py-1 bg-gray-800 rounded border border-gray-700 text-gray-400 hidden sm:inline">

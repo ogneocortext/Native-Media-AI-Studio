@@ -5,6 +5,7 @@ Connects Documentation page directly to vault so edits appear instantly.
 
 import logging
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -393,8 +394,15 @@ async def agent_bootstrap():
     except Exception:
         ports = {"backend": 8000, "frontend": 5173, "comfyui": 8188}
 
+    # "version" is the library's freshness stamp: the newest document mtime,
+    # so the value can never drift months stale the way a hand-written date did.
+    _, newest_mtime, _ = _docs_fingerprint()
     return {
-        "version": "2026-08-24",
+        "version": (
+            datetime.fromtimestamp(newest_mtime).date().isoformat()
+            if newest_mtime
+            else None
+        ),
         "project": "Native Media AI Studio",
         "description": "Full-stack music-video creation suite: React/Vite frontend + FastAPI backend + ComfyUI + Blender + Unity MCP",
         "ports": ports,
