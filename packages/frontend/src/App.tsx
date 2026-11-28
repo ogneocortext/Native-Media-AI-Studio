@@ -89,6 +89,7 @@ const AudioAnalysisPage = lazyNamed(
   "AudioAnalysisPage",
 );
 const AIToolsPage = lazyNamed(async () => import("./features/ai-tools/AIToolsPage"), "AIToolsPage");
+const ModelsView = lazyNamed(async () => import("./features/ai-tools/ModelsView"), "ModelsView");
 const AgentChat = lazyNamed(async () => import("./features/agent-chat/AgentChat"), "AgentChat");
 const SubAgentChat = lazyNamed(
   async () => import("./features/sub-agent/SubAgentChat"),
@@ -210,6 +211,10 @@ registerRouteLoader(
   async () => import("./features/audio-analysis/AudioAnalysisPage"),
 );
 registerRouteLoader("/analyze/ai", async () => import("./features/ai-tools/AIToolsPage"));
+registerRouteLoader(
+  "/analyze/ai/models",
+  async () => import("./features/ai-tools/ModelsView"),
+);
 registerRouteLoader("/analyze/agent-chat", async () => import("./features/agent-chat/AgentChat"));
 registerRouteLoader("/render/visualizer", async () => import("./features/visualizer/Visualizer"));
 registerRouteLoader("/render/preview", async () => import("./features/preview/Preview"));
@@ -396,6 +401,10 @@ function App() {
               <Route path="/mastering" element={withErrorBoundary(<MasteringPage />)} />
               <Route path="/analyze/audio" element={withErrorBoundary(<AudioAnalysisPage />)} />
               <Route path="/analyze/ai" element={withErrorBoundary(<AIToolsPage />)} />
+              <Route
+                path="/analyze/ai/models"
+                element={withErrorBoundary(<ModelsView />)}
+              />
               <Route path="/analyze/agent-chat" element={withErrorBoundary(<AgentChat />)} />
               <Route path="/analyze/agent" element={withErrorBoundary(<SubAgentChat />)} />
 
