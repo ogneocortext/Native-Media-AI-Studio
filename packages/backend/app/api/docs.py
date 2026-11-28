@@ -404,7 +404,21 @@ async def agent_bootstrap():
             "comfyui": getattr(config, "comfyui_port", 8188),
         }
     except Exception:
-        ports = {"backend": 8000, "frontend": 5173, "comfyui": 8188}
+        # Honest fallback: read the same canonical file the success path
+        # resolves through (config/ports.json). Anything unreadable stays
+        # null — never a hardcoded port this stack has never used.
+        ports = {"backend": None, "frontend": None, "comfyui": None}
+        try:
+            ports_data = json.loads(
+                (PROJECT_ROOT / "config" / "ports.json").read_text(encoding="utf-8")
+            )
+            ports = {
+                "backend": ports_data.get("backend_port"),
+                "frontend": ports_data.get("frontend_port"),
+                "comfyui": ports_data.get("comfyui_port"),
+            }
+        except Exception:
+            pass
 
     # "version" is the library's freshness stamp: the newest document mtime,
     # so the value can never drift months stale the way a hand-written date did.
