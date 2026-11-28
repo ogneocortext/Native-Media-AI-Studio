@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import shutil
 import tempfile
@@ -21,6 +22,7 @@ from pydantic import BaseModel
 
 from ..core.config import OUTPUT_DIR, PROJECT_ROOT
 from ..core.paths import is_within
+from ..services.provenance import record_media_provenance
 from ..services.vst_host import (
     VSTChain,
     get_vst_host,
@@ -371,9 +373,35 @@ async def process_audio(request: ProcessRequest) -> ProcessResponse:
 
     try:
         result = host.process_file(request.chain_name, input_path, output_path)
-        return ProcessResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Processing failed: {e}") from None
+
+    # Provenance is best-effort record-keeping: a failure here must never
+    # turn a successful render into an error response.
+    chain = host.chains.get(request.chain_name)
+    try:
+        record_media_provenance(
+            output_path=output_path,
+            tool="vst-chain",
+            source_paths=[input_path],
+            params={
+                "chain_name": request.chain_name,
+                "plugins": copy.deepcopy(chain.plugins) if chain else [],
+                "sample_rate": chain.sample_rate if chain else None,
+                "block_size": chain.block_size if chain else None,
+                "render": {
+                    "sample_rate": result["sample_rate"],
+                    "duration": result["duration"],
+                    "channels": result["channels"],
+                },
+            },
+        )
+    except Exception:
+        logger.warning(
+            "provenance recording failed for %s", output_path, exc_info=True
+        )
+
+    return ProcessResponse(**result)
 
 
 @router.post("/process/upload")
