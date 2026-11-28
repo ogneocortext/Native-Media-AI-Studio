@@ -61,6 +61,7 @@ interface DocListEntry {
   tags: string[];
   aliases: string[];
   in_vault: boolean;
+  modified_at?: string | null;
 }
 
 interface BackendNode {
@@ -87,6 +88,16 @@ interface BootstrapData {
   [key: string]: unknown;
 }
 
+function formatDocDate(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso;
+  return new Date(t).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Lightweight markdown renderer (no extra deps) — improved
 // ---------------------------------------------------------------------------
@@ -105,6 +116,7 @@ export function DocsPage() {
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [docsError, setDocsError] = useState<string | null>(null);
   const [docsFilter, setDocsFilter] = useState<"all" | "vault" | "guide">("all");
+  const [docsSort, setDocsSort] = useState<"alpha" | "recent">("alpha");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [selectedContent, setSelectedContent] = useState<string | null>(null);
   const [loadingDoc, setLoadingDoc] = useState(false);
@@ -129,7 +141,7 @@ export function DocsPage() {
   // reset pagination when filter changes
   useEffect(() => {
     setVisibleCount(24);
-  }, [docsFilter, query, hasSearched]);
+  }, [docsFilter, docsSort, query, hasSearched]);
 
   const loadBootstrap = async () => {
     try {
@@ -328,16 +340,26 @@ export function DocsPage() {
     return true;
   });
 
-  // When browsing (no search active), optionally live-filter by query
-  const browsingDocs =
-    !hasSearched && query.trim()
-      ? filteredDocs.filter(
-          (d) =>
-            d.title.toLowerCase().includes(query.toLowerCase()) ||
-            d.path.toLowerCase().includes(query.toLowerCase()) ||
-            d.tags.some((t) => t.toLowerCase().includes(query.toLowerCase())),
-        )
-      : filteredDocs;
+  // When browsing (no search active), optionally live-filter by query,
+  // then apply the chosen sort. "alpha" keeps the backend's vault-first/
+  // title order; "recent" is newest mtime first.
+  const browsingDocs = (() => {
+    const base =
+      !hasSearched && query.trim()
+        ? filteredDocs.filter(
+            (d) =>
+              d.title.toLowerCase().includes(query.toLowerCase()) ||
+              d.path.toLowerCase().includes(query.toLowerCase()) ||
+              d.tags.some((t) => t.toLowerCase().includes(query.toLowerCase())),
+          )
+        : filteredDocs;
+    if (docsSort !== "recent") return base;
+    return [...base].sort((a, b) => {
+      const ta = a.modified_at ? Date.parse(a.modified_at) : 0;
+      const tb = b.modified_at ? Date.parse(b.modified_at) : 0;
+      return tb - ta || a.title.localeCompare(b.title);
+    });
+  })();
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6 pb-10">
@@ -433,8 +455,31 @@ export function DocsPage() {
                   : `Guides (${docs.filter((d) => !d.in_vault).length})`}
             </button>
           ))}
+          <span className="ml-auto flex items-center gap-1">
+            <span className="text-xs text-gray-500">Sort:</span>
+            {(
+              [
+                ["alpha", "A–Z"],
+                ["recent", "Recent"],
+              ] as const
+            ).map(([s, label]) => (
+              <button
+                key={s}
+                onClick={() => setDocsSort(s)}
+                aria-pressed={docsSort === s}
+                aria-label={`Sort ${label}`}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors focus:outline-none focus:ring-1 focus:ring-purple-500/50 ${
+                  docsSort === s
+                    ? "bg-purple-600 border-purple-500 text-white"
+                    : "bg-gray-700 border-gray-600 text-gray-400 hover:text-white hover:border-gray-500"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </span>
           {hasSearched && (
-            <span className="ml-auto text-xs text-gray-500">
+            <span className="text-xs text-gray-500">
               {results.length} results for “{query}” ·{" "}
               <button onClick={handleClearSearch} className="text-purple-400 hover:underline">
                 clear
@@ -566,6 +611,11 @@ export function DocsPage() {
                               {d.title}
                             </p>
                             <p className="text-xs text-gray-500 truncate">{d.path}</p>
+                            {d.modified_at && (
+                              <p className="text-[10px] text-gray-600 mt-0.5">
+                                modified {formatDocDate(d.modified_at)}
+                              </p>
+                            )}
                             {d.tags.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1.5">
                                 {d.tags.slice(0, 3).map((t) => (

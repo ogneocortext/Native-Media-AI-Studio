@@ -98,6 +98,7 @@ class DocEntry(BaseModel):
     tags: list[str] = []
     aliases: list[str] = []
     in_vault: bool
+    modified_at: str | None = None  # file mtime, ISO-8601
 
 
 class DocContent(BaseModel):
@@ -187,6 +188,12 @@ def _scan_docs_uncached() -> list[DocEntry]:
                 else str(p).startswith(str(VAULT_ROOT))
             )
             vault_rel = p.relative_to(VAULT_ROOT).as_posix() if in_vault else rel
+            try:
+                modified_at = datetime.fromtimestamp(p.stat().st_mtime).isoformat(
+                    timespec="seconds"
+                )
+            except OSError:
+                modified_at = None
             # Quick frontmatter read for title/tags
             try:
                 text = p.read_text(encoding="utf-8", errors="ignore")
@@ -225,6 +232,7 @@ def _scan_docs_uncached() -> list[DocEntry]:
                     tags=tags if isinstance(tags, list) else [],
                     aliases=aliases if isinstance(aliases, list) else [],
                     in_vault=in_vault,
+                    modified_at=modified_at,
                 )
             )
         except Exception:
