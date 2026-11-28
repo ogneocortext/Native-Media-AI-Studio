@@ -1,102 +1,59 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import {
-  Brain,
-  Send,
-  Loader2,
-  RefreshCw,
-  AlertCircle,
-  CheckCircle,
-  Zap,
-  WifiOff,
-  MessageCircle,
-  User,
-  Bot,
-  StopCircle,
-  Copy,
-  RotateCw,
-  ChevronRight,
-  Trash2,
-  Volume2,
-  Download,
-  Activity,
-} from "lucide-react";
-import { ToolExecutionCard } from "../../components/ToolExecutionCard";
-import { OllamaModelManager } from "./OllamaModelManager";
+/**
+ * AIToolsPage — orchestrator for the AI Tools page (/analyze/ai).
+ *
+ * Layout (Item 1 + Item 2):
+ *   - Center column: chat owns the center — slim header, message list,
+ *     collapsible tool-execution log, streaming status banner, input pinned
+ *     to bottom.
+ *   - Right rail (sticky): Model / Tools / Templates tabs.
+ *
+ * Chat state + streaming live in useAIChat.ts. This file owns orchestration
+ * state (models, benchmarks, tool registry, video extraction, history,
+ * tool editor) and wires everything together.
+ *
+ * Item 5: kept under the 1,000-line ceiling by extracting chat into
+ * useAIChat and layout into ChatHeader / MessageList / PromptInput /
+ * ToolExecutionLog / RightRail.
+ */
+
+import { useEffect, useState } from "react";
+import { StopCircle } from "lucide-react";
+import { useAIChat, type HistoryEntry } from "./useAIChat";
+import { ChatHeader } from "./ChatHeader";
+import { MessageList } from "./MessageList";
+import { PromptInput } from "./PromptInput";
+import { ToolExecutionLog } from "./ToolExecutionLog";
+import { RightRail } from "./RightRail";
+import { ToolEditor } from "./ToolEditor";
+import { VisualizationCard } from "./VisualizationCard";
+import { StreamStatusBanner } from "./StreamStatusBanner";
+import { DS } from "../../styles/designSystem";
 import {
   getOllamaModels,
-  ollamaChatStream,
-  parseOllamaStream,
   getBenchmarkResults,
-  getHardwareBenchmarks,
   runBenchmark,
   runCodingBenchmark,
   getTaskModelRoutes,
-  selectModel,
   uploadAudioFile,
   type OllamaModel,
-  type ToolDefinition,
   type OllamaBenchmarkResult,
-  type HardwareBenchmarkSummary,
 } from "../../services/api";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { useSpeakAloud } from "../../hooks/useSpeakAloud";
-import { DS } from "../../styles/designSystem";
-import { formatSize } from "../../utils/format";
 import type { VisualizationConfig } from "./VisualizationCanvas";
-import { SimpleMarkdown } from "./SimpleMarkdown";
-import { StreamStatusBanner } from "./StreamStatusBanner";
-import { VideoExtractionCard } from "./VideoExtractionCard";
-import { VisualizationCard } from "./VisualizationCard";
-import { Sidebar } from "./Sidebar";
-import { ToolEditor } from "./ToolEditor";
-import { DEFAULT_TOOLS, type Tool, type HistoryEntry } from "./types";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  model?: string;
-  toolCalls?: number;
-  timestamp: Date;
-  thinking?: string;
-  showThinking?: boolean;
-  toolDetails?: {
-    name: string;
-    arguments: Record<string, unknown>;
-    result?: string;
-    status: "calling" | "done";
-  }[];
-  vizConfig?: VisualizationConfig;
-}
-
-const SUGGESTED_PROMPTS = [
-  "Summarize my current project structure",
-  "Help me plan a beat-synced music video",
-  "Analyze the latest audio track",
-  "Generate a visualizer preset for this track",
-  "Explain the remix mashup workflow",
-];
+import type { Tool } from "./types";
 
 export function AIToolsPage() {
+  // ---- Orchestration state ----
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [_response, setResponse] = useState("");
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [tools, setTools] = useState<Tool[]>(DEFAULT_TOOLS);
+  const [ollamaConnected, setOllamaConnected] = useState(false);
+  const [tools, setTools] = useState<Tool[]>([]);
+  const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set());
   const [showToolEditor, setShowToolEditor] = useState(false);
   const [editingTool, setEditingTool] = useState<Tool | null>(null);
   const [toolJsonValid, setToolJsonValid] = useState(true);
-  const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set());
-  const [ollamaConnected, setOllamaConnected] = useState(false);
-  const [showAllModels, setShowAllModels] = useState(false);
   const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult | undefined>>(
-    {},
-  );
-  const [hwSummary, setHwSummary] = useState<Record<string, HardwareBenchmarkSummary | undefined>>(
     {},
   );
   const [benchmarkRunning, setBenchmarkRunning] = useState(false);
@@ -105,16 +62,6 @@ export function AIToolsPage() {
     routes: Record<string, { engine: string; model: string; reason: string }>;
     excluded_from_chat: string[];
   } | null>(null);
-  const [streamStatus, setStreamStatus] = useState<
-    "idle" | "connecting" | "thinking" | "executing_tool" | "streaming_response" | "done"
-  >("idle");
-  const [toolStep, setToolStep] = useState(0);
-  const [totalToolSteps, setTotalToolSteps] = useState(0);
-  const [currentTool, setCurrentTool] = useState<string | null>(null);
-  const [streamEvents, setStreamEvents] = useState<
-    { time: string; event: string; detail: string }[]
-  >([]);
-  const [showStreamDetails, setShowStreamDetails] = useState(false);
   const [extractRunning, setExtractRunning] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [extractResult, setExtractResult] = useState<{
@@ -127,18 +74,42 @@ export function AIToolsPage() {
     source_filename: string | null | undefined;
     lossless: boolean | undefined;
   } | null>(null);
-  const speakAloud = useSpeakAloud();
-  const { refresh: refreshLibrary } = useAudioLibrary();
-  const abortRef = useRef<AbortController | null>(null);
-  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [vizConfig, setVizConfig] = useState<VisualizationConfig | null>(null);
+  const [prompt, setPrompt] = useState("");
 
+  const { refresh: refreshLibrary } = useAudioLibrary();
+  const speakAloud = useSpeakAloud();
+
+  // ---- Chat hook ----
+  const {
+    messages,
+    generating,
+    error,
+    streamStatus,
+    toolStep,
+    totalToolSteps,
+    currentTool,
+    streamEvents,
+    showStreamDetails,
+    setShowStreamDetails,
+    handleGenerate,
+    handleCancel,
+    handleNewChat: handleNewChatHook,
+    handleClear: handleClearHook,
+    handleCopy,
+    handleRegenerate,
+  } = useAIChat({
+    models,
+    selectedModel,
+    tools,
+    enabledTools,
+    onVizConfig: setVizConfig,
+  });
+
+  // ---- Load models + benchmarks + task routes ----
   useEffect(() => {
     void loadModels(true);
-  }, []);
-
-  const logStreamEvent = useCallback((event: string, detail: string) => {
-    const time = new Date().toLocaleTimeString();
-    setStreamEvents((prev) => [...prev, { time, event, detail }]);
   }, []);
 
   const loadModels = async (verifiedOnly: boolean) => {
@@ -152,19 +123,13 @@ export function AIToolsPage() {
       }));
 
       let benchMap: Record<string, OllamaBenchmarkResult | undefined> = {};
-      let hwMap: Record<string, HardwareBenchmarkSummary | undefined> = {};
-      const [sceneRes, hwRes, routesRes] = await Promise.allSettled([
+      const [sceneRes, routesRes] = await Promise.allSettled([
         getBenchmarkResults(),
-        getHardwareBenchmarks(),
         getTaskModelRoutes().catch(() => null),
       ]);
       if (sceneRes.status === "fulfilled") {
         benchMap = sceneRes.value.results;
         setBenchmarks(benchMap);
-      }
-      if (hwRes.status === "fulfilled") {
-        hwMap = hwRes.value;
-        setHwSummary(hwMap);
       }
       if (routesRes.status === "fulfilled" && routesRes.value) {
         setTaskRoutes(routesRes.value);
@@ -176,12 +141,10 @@ export function AIToolsPage() {
         const sb = b.benchmark?.score ?? benchMap[b.name]?.validation.score ?? -1;
         if (sa !== sb) return sb - sa;
         const la =
-          hwMap[a.name]?.median_latency_ms ??
           a.benchmark?.latency_ms ??
           benchMap[a.name]?.latency_ms ??
           999999;
         const lb =
-          hwMap[b.name]?.median_latency_ms ??
           b.benchmark?.latency_ms ??
           benchMap[b.name]?.latency_ms ??
           999999;
@@ -195,219 +158,6 @@ export function AIToolsPage() {
       }
     } catch {
       setOllamaConnected(false);
-    }
-  };
-
-  const convertToToolDefinitions = useCallback((): ToolDefinition[] => {
-    return tools
-      .filter((t) => enabledTools.has(t.id))
-      .map((t) => ({
-        type: "function" as const,
-        function: {
-          name: t.name,
-          description: t.description,
-          parameters: t.parameters,
-        },
-      }));
-  }, [tools, enabledTools]);
-
-  const handleGenerate = async (contentOverride?: string) => {
-    const content = (contentOverride ?? prompt).trim();
-    if (!content) return;
-    if (!selectedModel) return;
-    setGenerating(true);
-    setError(null);
-    setStreamStatus("connecting");
-    setToolStep(0);
-    setTotalToolSteps(0);
-    setCurrentTool(null);
-    setStreamEvents([]);
-    logStreamEvent("connecting", "Opening stream to model…");
-
-    const supportsTools = models.find((m) => m.name === selectedModel)?.supportsTools;
-    const activeTools = supportsTools ? convertToToolDefinitions() : [];
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    const userMessage: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, userMessage]);
-    if (!contentOverride) setPrompt("");
-
-    const assistantMessage: Message = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: "",
-      model: selectedModel,
-      timestamp: new Date(),
-      showThinking: false,
-      toolDetails: [],
-    };
-    setMessages((prev) => [...prev, assistantMessage]);
-    const assistantId = assistantMessage.id;
-
-    try {
-      const stream = await ollamaChatStream(
-        content,
-        selectedModel,
-        {
-          tools: activeTools,
-          think: true,
-          maxToolCalls: 5,
-        },
-        controller.signal,
-      );
-
-      let fullResponse = "";
-      let fullThinking = "";
-      const toolDetails: {
-        name: string;
-        arguments: Record<string, unknown>;
-        result?: string;
-        status: "calling" | "done";
-      }[] = [];
-      const toolCalls: { name: string; arguments: Record<string, unknown> }[] = [];
-
-      for await (const event of parseOllamaStream(stream)) {
-        if (controller.signal.aborted) break;
-        if (event.type === "content") {
-          const data = event.data as { content: string; thinking?: string };
-          fullResponse += data.content;
-          setStreamStatus("streaming_response");
-          logStreamEvent("content", data.content.slice(0, 80));
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, content: fullResponse } : m)),
-          );
-          if (data.thinking) {
-            fullThinking += data.thinking;
-            setStreamStatus("thinking");
-            setMessages((prev) =>
-              prev.map((m) => (m.id === assistantId ? { ...m, thinking: fullThinking } : m)),
-            );
-          }
-        } else if (event.type === "tool_calls") {
-          const data = event.data as {
-            tool_calls: { name: string; arguments: Record<string, unknown> }[];
-          };
-          setStreamStatus("executing_tool");
-          for (const tc of data.tool_calls) {
-            toolDetails.push({ ...tc, status: "calling" });
-            toolCalls.push({ name: tc.name, arguments: tc.arguments });
-            setToolStep((s) => s + 1);
-            setCurrentTool(tc.name);
-            logStreamEvent("tool_call", `${tc.name}(${JSON.stringify(tc.arguments).slice(0, 80)})`);
-          }
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, toolDetails: [...toolDetails] } : m)),
-          );
-        } else if (event.type === "tool_result") {
-          const data = event.data as { name: string; result: string };
-          setStreamStatus("streaming_response");
-          logStreamEvent("tool_result", `${data.name} → ok`);
-          const target = toolDetails.find((t) => t.name === data.name && t.status === "calling");
-          if (target) {
-            target.result = data.result;
-            target.status = "done";
-          }
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, toolDetails: [...toolDetails] } : m)),
-          );
-          if (data.name === "generate_visualization") {
-            try {
-              const cfg = JSON.parse(data.result) as Partial<VisualizationConfig> | null;
-              if (cfg?.style && cfg.colors) {
-                const viz = cfg as VisualizationConfig;
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === assistantId ? { ...m, vizConfig: viz } : m)),
-                );
-              }
-            } catch {
-              /* result was not a visualization config */
-            }
-          }
-        } else if (event.type === "error") {
-          const data = event.data as { message?: string };
-          setStreamStatus("idle");
-          throw new Error(data.message ?? "Ollama returned no response");
-        }
-      }
-
-      setStreamStatus("done");
-      logStreamEvent("done", `Stream finished (${fullResponse.length} chars)`);
-
-      if (fullResponse) {
-        setHistory((prev) => [
-          {
-            prompt: userMessage.content,
-            response: fullResponse,
-            model: selectedModel,
-            toolCalls: toolDetails.length,
-            timestamp: new Date(),
-          },
-          ...prev.slice(0, 19),
-        ]);
-      }
-    } catch (e: unknown) {
-      setStreamStatus("idle");
-      if (e instanceof Error && e.name === "AbortError") {
-        setError("Generation cancelled");
-      } else {
-        setError(e instanceof Error ? e.message : "Failed to generate response");
-      }
-    } finally {
-      setGenerating(false);
-      abortRef.current = null;
-    }
-  };
-
-  const handleCancel = () => {
-    if (abortRef.current) {
-      abortRef.current.abort();
-      setStreamStatus("idle");
-      logStreamEvent("abort", "Stream aborted by user");
-    }
-  };
-
-  const handleRunBenchmarks = async () => {
-    setBenchmarkRunning(true);
-    try {
-      await runBenchmark();
-      const res = await getBenchmarkResults();
-      setBenchmarks(res.results);
-      logStreamEvent("benchmark", "Ollama benchmarks completed and refreshed");
-    } catch (e) {
-      logStreamEvent("benchmark-error", e instanceof Error ? e.message : String(e));
-    } finally {
-      setBenchmarkRunning(false);
-    }
-  };
-
-  const handleRunCodingBenchmarks = async () => {
-    setCodingBenchmarkRunning(true);
-    try {
-      await runCodingBenchmark();
-      const res = await getBenchmarkResults();
-      setBenchmarks(res.results);
-      logStreamEvent("benchmark", "Coding benchmarks completed and refreshed");
-    } catch (e) {
-      logStreamEvent("benchmark-error", e instanceof Error ? e.message : String(e));
-    } finally {
-      setCodingBenchmarkRunning(false);
-    }
-  };
-
-  const handleAutoSelectModel = async (taskType: "coding" | "vision" | "chat" | "default") => {
-    try {
-      const model = await selectModel(taskType);
-      setSelectedModel(model);
-      logStreamEvent("auto-select", `Selected ${model} for task "${taskType}"`);
-    } catch (e) {
-      logStreamEvent("auto-select-error", e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -435,575 +185,163 @@ export function AIToolsPage() {
     }
   };
 
+  const handleRunBenchmarks = async () => {
+    setBenchmarkRunning(true);
+    try {
+      await runBenchmark();
+      const res = await getBenchmarkResults();
+      setBenchmarks(res.results);
+    } catch {
+      /* benchmarks surface as empty results area in the rail */
+    } finally {
+      setBenchmarkRunning(false);
+    }
+  };
+
+  const handleRunCodingBenchmarks = async () => {
+    setCodingBenchmarkRunning(true);
+    try {
+      await runCodingBenchmark();
+      const res = await getBenchmarkResults();
+      setBenchmarks(res.results);
+    } catch {
+      /* benchmarks surface as empty results area in the rail */
+    } finally {
+      setCodingBenchmarkRunning(false);
+    }
+  };
+
   const handleNewChat = () => {
-    if (abortRef.current) abortRef.current.abort();
-    setMessages([]);
+    handleNewChatHook();
     setHistory([]);
-    setError(null);
-    setPrompt("");
-    setGenerating(false);
-    setStreamStatus("idle");
-    setStreamEvents([]);
-    abortRef.current = null;
   };
 
   const handleClear = () => {
-    setMessages([]);
-    setStreamEvents([]);
-    setStreamStatus("idle");
+    handleClearHook();
   };
 
-  const handleCopy = (text: string) => {
-    void navigator.clipboard.writeText(text);
+  const handleSaveTool = (tool: Tool) => {
+    setTools((prev) => {
+      const existing = prev.find((t) => t.id === tool.id);
+      if (existing) return prev.map((t) => (t.id === tool.id ? tool : t));
+      return [...prev, tool];
+    });
+    setEnabledTools((prev) => new Set([...prev, tool.id]));
+    setShowToolEditor(false);
+    setEditingTool(null);
+    setToolJsonValid(true);
   };
-
-  const handleRegenerate = (message: Message) => {
-    if (message.role !== "assistant") return;
-    const idx = messages.findIndex((m) => m.id === message.id);
-    if (idx === -1) return;
-    const userMsg = messages.at(idx - 1);
-    if (userMsg?.role !== "user") return;
-    setMessages((prev) => prev.slice(0, idx));
-    setGenerating(true);
-    const modelToUse = message.model ?? selectedModel ?? "";
-    setSelectedModel(modelToUse);
-    setPrompt(userMsg.content);
-    void handleGenerate(userMsg.content);
-  };
-
-  const getModelCaps = (m: OllamaModel) =>
-    [
-      m.supportsTools ? "tools" : "",
-      m.supportsVision ? "vision" : "",
-      m.supportsThinking ? "thinking" : "",
-    ].filter(Boolean);
-
-  const getModelLatency = (m: OllamaModel) => {
-    const latency =
-      hwSummary[m.name]?.median_latency_ms ??
-      benchmarks[m.name]?.latency_ms ??
-      m.benchmark?.latency_ms ??
-      null;
-    return latency ? `${(latency / 1000).toFixed(1)}s` : null;
-  };
-
-  const getModelScore = (m: OllamaModel) => {
-    const score = benchmarks[m.name]?.validation.score ?? m.benchmark?.score ?? null;
-    return score !== null && score >= 0 ? Math.round(score) : null;
-  };
-
-  const vizConfig =
-    messages
-      .slice()
-      .reverse()
-      .find((m) => m.vizConfig)?.vizConfig ?? null;
 
   return (
-    <div className={DS.page}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-            <Brain size={20} className="text-primary" />
-          </div>
-          <div>
-            <h1 className={DS.pageTitle}>AI Tools</h1>
-            <p className={DS.pageSubtitle}>
-              Chat with local Ollama models, run tools, and generate visualizations.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {ollamaConnected ? (
-            <span className={"flex items-center gap-1 text-xs " + DS.accentGreen}>
-              <Activity size={12} /> Ollama online
-            </span>
-          ) : (
-            <span className={"flex items-center gap-1 text-xs " + DS.accentRed}>
-              <WifiOff size={12} /> Ollama offline
-            </span>
-          )}
-          <button
-            onClick={handleNewChat}
-            className="px-3 py-1.5 text-xs rounded bg-gray-700/50 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1"
-            title="Start a new conversation"
-          >
-            <RotateCw size={13} className="text-gray-400 shrink-0" />
-            New chat
-          </button>
-          <button
-            onClick={handleClear}
-            disabled={messages.length === 0 || generating}
-            className="px-3 py-1.5 text-xs rounded bg-gray-700/50 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 disabled:opacity-50"
-            title="Clear the conversation"
-          >
-            <Trash2 size={13} className="text-gray-400 shrink-0" />
-            Clear
-          </button>
-        </div>
-      </div>
-
-      <div className={DS.gridChat}>
-        {/* Left column: model selection, benchmarks, stream status, chat, input */}
+    <>
+      <div className={DS.page}>
+        {/* Center column — chat owns the center */}
         <div className="lg:col-span-2 space-y-4">
-          {/* Model Selection */}
-          <div className={DS.card}>
-            <div className={DS.flexBetween + " mb-2"}>
-              <label className={DS.textSmMedium}>Model</label>
-              <button
-                onClick={() => {
-                  const next = !showAllModels;
-                  setShowAllModels(next);
-                  void loadModels(!next);
-                }}
-                className="px-2 py-1 text-xs rounded bg-gray-700/50 hover:bg-gray-700 text-muted border border-gray-600 flex items-center gap-1"
-                title={
-                  showAllModels
-                    ? "Show only verified models"
-                    : "Show all models, including unverified ones"
-                }
-              >
-                {showAllModels ? "Verified only" : "Show all"}
-              </button>
-            </div>
-            {models.length > 0 ? (
-              <div className="space-y-1">
-                {models.map((m) => {
-                  const score = getModelScore(m);
-                  const latency = getModelLatency(m);
-                  const caps = getModelCaps(m);
-                  const isSelected = m.name === selectedModel;
-                  const isBest = models[0]?.name === m.name && score !== null && score >= 60;
-                  const brokenReason = m.verified ? null : m.broken_reason;
-                  return (
-                    <button
-                      key={m.name}
-                      onClick={() => setSelectedModel(m.name)}
-                      className={`flex items-center justify-between p-3 rounded-lg border ${
-                        isSelected
-                          ? "bg-violet-500/10 border-violet-500/30"
-                          : "bg-gray-700/30 border-gray-600/50 hover:bg-gray-700 hover:border-gray-500"
-                      } transition-colors`}
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-medium text-foreground truncate">
-                              {m.name}
-                            </span>
-                            {isSelected && (
-                              <CheckCircle size={12} className="text-violet-400 shrink-0" />
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {m.verified && (
-                              <span className={DS.badgeGreen + " flex items-center gap-1"}>
-                                Verified
-                              </span>
-                            )}
-                            {brokenReason && (
-                              <span className={DS.badgeRed + " flex items-center gap-1"}>
-                                {brokenReason === "not_tested" ? "not tested" : brokenReason}
-                              </span>
-                            )}
-                            {caps.map((cap) => (
-                              <span
-                                key={cap}
-                                className="text-[10px] bg-gray-600/50 text-gray-300 px-1.5 py-0.5 rounded"
-                              >
-                                {cap}
-                              </span>
-                            ))}
-                            {score !== null && (
-                              <span className="text-[10px] bg-gray-600/50 text-gray-300 px-1.5 py-0.5 rounded">
-                                {score}/100
-                              </span>
-                            )}
-                            {latency && (
-                              <span className="text-[10px] bg-gray-600/50 text-gray-300 px-1.5 py-0.5 rounded">
-                                {latency}
-                              </span>
-                            )}
-                            {isBest && (
-                              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">
-                                Best
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <span className={DS.textXs}>
-                          {m.size > 0 ? formatSize(m.size) : "unknown"}
-                        </span>
-                      </div>
-                      <ChevronRight size={14} className="text-muted shrink-0" />
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className={DS.textXs}>
-                  No verified Ollama models available. Start Ollama to use this feature.
-                </p>
-                {!ollamaConnected && (
-                  <p className={DS.textXs + " opacity-70"}>
-                    Ollama is unreachable right now — check that it is running, then retry.
-                  </p>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => void loadModels(true)}
-                    className={DS.btnSecondary + " flex items-center gap-1"}
-                  >
-                    <RefreshCw size={14} /> Retry
-                  </button>
-                  <button
-                    onClick={() => {
-                      const next = !showAllModels;
-                      setShowAllModels(next);
-                      void loadModels(!next);
-                    }}
-                    className="px-2 py-1 text-xs rounded bg-gray-700/50 hover:bg-gray-700 text-muted border border-gray-600 flex items-center gap-1"
-                  >
-                    {showAllModels ? "Verified only" : "Show all"}
-                  </button>
-                </div>
-              </div>
-            )}
-            {/* Benchmark + task-routing controls */}
-            <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <button
-                onClick={() => void handleRunBenchmarks()}
-                disabled={benchmarkRunning}
-                className="px-3 py-1.5 text-xs rounded bg-gray-700/50 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 disabled:opacity-50"
-                title={benchmarkRunning ? "Running benchmarks…" : "Run Ollama benchmarks"}
-              >
-                {benchmarkRunning ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Download size={13} />
-                )}
-                <span className="ml-1">{benchmarkRunning ? "Running…" : "Run benchmarks"}</span>
-              </button>
-              <button
-                onClick={() => void handleRunCodingBenchmarks()}
-                disabled={codingBenchmarkRunning}
-                className="px-3 py-1.5 text-xs rounded bg-gray-700/50 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 disabled:opacity-50"
-                title={
-                  codingBenchmarkRunning ? "Running coding benchmarks…" : "Run coding benchmarks"
-                }
-              >
-                {codingBenchmarkRunning ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Zap size={13} />
-                )}
-                <span className="ml-1">Coding</span>
-              </button>
-              {taskRoutes && (
-                <div className="flex flex-wrap gap-1">
-                  {Object.entries(taskRoutes.routes).map(([task, route]) => (
-                    <button
-                      key={task}
-                      onClick={() =>
-                        void handleAutoSelectModel(task as "coding" | "vision" | "chat" | "default")
-                      }
-                      className="px-2 py-1 text-xs rounded bg-purple-900/20 border border-purple-900/50 hover:bg-purple-900/40 text-purple-300"
-                      title={`Switch to ${route.model} for ${task} (${route.reason})`}
-                    >
-                      {task}: {route.model.split(":")[0]}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Ollama model management: pull, delete, loaded-in-VRAM */}
-          <OllamaModelManager />
-
-          <StreamStatusBanner
-            streamStatus={streamStatus}
-            streamEvents={streamEvents}
-            showStreamDetails={showStreamDetails}
-            setShowStreamDetails={setShowStreamDetails}
-            currentTool={currentTool}
-            toolStep={toolStep}
-            totalToolSteps={totalToolSteps}
+          <ChatHeader
+            ollamaConnected={ollamaConnected}
+            selectedModel={selectedModel}
+            models={models}
+            onSelectModel={setSelectedModel}
+            onNewChat={handleNewChat}
+            onClear={handleClear}
           />
 
-          <VideoExtractionCard
-            extractRunning={extractRunning}
-            extractError={extractError}
-            extractResult={extractResult}
-            handleVideoUpload={(file: File) => {
-              void handleVideoUpload(file);
-            }}
-          />
+          <div className="flex-1 min-h-[300px] max-h-[600px] flex flex-col">
+            <MessageList
+              messages={messages}
+              selectedModel={selectedModel}
+              generating={generating}
+              onRegenerate={handleRegenerate}
+              onCopy={handleCopy}
+              onSpeak={(text: string) => {
+                void speakAloud.speak(text);
+              }}
+              onPromptSuggestion={(text: string) => setPrompt(text)}
+            />
 
-          {/* Conversation */}
-          <div className="flex-1 min-h-[300px] max-h-[600px] overflow-y-auto space-y-4 p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 text-muted">
-                <MessageCircle size={32} className="mb-3 opacity-30" />
-                <p>Start a conversation with your AI model</p>
-                <p className="text-xs mt-1 opacity-50">Select a model and type a message above</p>
-                <div className="flex flex-col gap-2 mt-6 w-full max-w-xs mx-auto">
-                  {SUGGESTED_PROMPTS.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      onClick={() => setPrompt(suggestion)}
-                      className="w-full text-left px-3 py-1.5 text-xs rounded bg-gray-700/50 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 whitespace-nowrap"
-                    >
-                      <Zap size={10} className="text-amber-400 shrink-0" />
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
-              >
-                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
-                  {msg.role === "user" ? (
-                    <User size={14} className="text-gray-400" />
-                  ) : (
-                    <Bot size={14} className="text-violet-400" />
-                  )}
-                </div>
-                <div
-                  className={`flex-1 max-w-[85%] ${msg.role === "user" ? "text-right" : "text-left"}`}
-                >
-                  <div
-                    className={`inline-block p-3 rounded-lg ${
-                      msg.role === "user"
-                        ? "bg-violet-600 text-white"
-                        : "bg-gray-700 border border-gray-600 text-foreground"
-                    }`}
-                  >
-                    {msg.role === "assistant" && msg.model && (
-                      <div className="flex items-center gap-1 mb-1">
-                        <span className="text-[10px] text-violet-300 font-medium">{msg.model}</span>
-                        <button
-                          onClick={() => handleRegenerate(msg)}
-                          disabled={generating}
-                          className="text-[10px] text-gray-400 hover:text-gray-200 px-1 py-0.5 rounded hover:bg-gray-600"
-                          title="Regenerate"
-                        >
-                          <RotateCw size={10} />
-                        </button>
-                        <button
-                          onClick={() => handleCopy(msg.content)}
-                          className="text-[10px] text-gray-400 hover:text-gray-200 px-1 py-0.5 rounded hover:bg-gray-600"
-                          title="Copy"
-                        >
-                          <Copy size={10} />
-                        </button>
-                        <button
-                          onClick={() => void speakAloud.speak(msg.content)}
-                          className="text-[10px] text-gray-400 hover:text-gray-200 px-1 py-0.5 rounded hover:bg-gray-600"
-                          title="Read aloud"
-                        >
-                          <Volume2 size={10} />
-                        </button>
-                      </div>
-                    )}
-                    {msg.role === "assistant" ? (
-                      <SimpleMarkdown content={msg.content} />
-                    ) : (
-                      <div className="whitespace-pre-wrap break-words text-sm">{msg.content}</div>
-                    )}
-                    {msg.role === "assistant" && msg.thinking && !generating && (
-                      <div className="mt-2 pt-2 border-t border-gray-600/50">
-                        <button
-                          onClick={() => {
-                            setMessages((prev) =>
-                              prev.map((m) =>
-                                m.id === msg.id ? { ...m, showThinking: !m.showThinking } : m,
-                              ),
-                            );
-                          }}
-                          className="text-[10px] text-purple-300 hover:text-purple-200 flex items-center gap-1"
-                        >
-                          {msg.showThinking ? "Hide thinking" : "Show thinking"}
-                          <Brain size={10} />
-                        </button>
-                        {msg.showThinking && (
-                          <div className="mt-1 p-2 bg-gray-800/50 rounded text-[11px] text-purple-200 italic whitespace-pre-wrap">
-                            {msg.thinking}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {msg.role === "assistant" && msg.toolDetails && msg.toolDetails.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        {msg.toolDetails.map((tc, i) => (
-                          <div
-                            key={i}
-                            className="p-2 bg-gray-800/50 rounded border border-gray-600/30"
-                          >
-                            <div className="flex items-center gap-2 mb-1">
-                              <Zap size={12} className="text-amber-400 shrink-0" />
-                              <span className="text-xs text-amber-300 font-medium">{tc.name}</span>
-                              <span
-                                className={`ml-auto text-[10px] ${
-                                  tc.status === "calling"
-                                    ? "text-violet-300 animate-pulse"
-                                    : "text-green-400"
-                                }`}
-                              >
-                                {tc.status === "calling" ? "calling…" : "done"}
-                              </span>
-                            </div>
-                            <pre className={DS.mono + " overflow-auto"}>
-                              {JSON.stringify(tc.arguments, null, 2)}
-                            </pre>
-                            {tc.result && (
-                              <div className="mt-1 p-1.5 bg-green-900/10 border border-green-900/20 rounded text-[11px] text-green-300">
-                                {tc.result}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-            {generating && (
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
-                  <Bot size={14} className="text-violet-400 animate-pulse" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] text-violet-300 font-medium">{selectedModel}</span>
-                    <span className="text-[10px] text-purple-300 animate-pulse">Thinking…</span>
-                  </div>
-                  <div className="flex gap-1">
-                    {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="w-3 h-3 bg-gray-600 rounded-full animate-pulse"
-                        style={{ animationDelay: `${i * 0.1}s` }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+            <ToolExecutionLog messages={messages} />
+
+            <StreamStatusBanner
+              streamStatus={streamStatus}
+              streamEvents={streamEvents}
+              showStreamDetails={showStreamDetails}
+              setShowStreamDetails={setShowStreamDetails}
+              currentTool={currentTool}
+              toolStep={toolStep}
+              totalToolSteps={totalToolSteps}
+            />
+
+            <PromptInput
+              prompt={prompt}
+              setPrompt={setPrompt}
+              generating={generating}
+              selectedModel={selectedModel}
+              onSend={() => void handleGenerate()}
+              onCancel={handleCancel}
+            />
           </div>
 
-          {/* Follow-up suggestions */}
-          {messages.length > 0 && !generating && (
-            <div className="space-y-2">
-              <p className={DS.textXs + " text-muted"}>Suggested follow-ups</p>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  "Can you elaborate on that?",
-                  "Give me a concrete example",
-                  "Make it more concise",
-                  "What are the alternatives?",
-                ].map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    onClick={() => setPrompt(suggestion)}
-                    className="px-3 py-1.5 text-xs rounded bg-gray-700/50 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 whitespace-nowrap"
-                  >
-                    <Zap size={10} className="text-amber-400 shrink-0" />
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Prompt Input */}
-          <div className={DS.card}>
-            <div className="relative">
-              <textarea
-                ref={promptRef}
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                className={DS.textarea + " pr-12"}
-                rows={3}
-                placeholder={selectedModel ? `Message ${selectedModel}…` : "Select a model first…"}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
-                    e.preventDefault();
-                    void handleGenerate();
-                  }
-                }}
-              />
-            </div>
-            <div className={DS.flexBetween + " mt-2"}>
-              <span className={DS.textXs}>
-                {prompt.length} / 4000 characters · Ctrl+Enter to send
-              </span>
-              <div className="flex gap-2">
-                {generating && (
-                  <button
-                    onClick={handleCancel}
-                    className={DS.btnSecondary + " flex items-center gap-1"}
-                  >
-                    <StopCircle size={16} className="text-red-400" />
-                    Cancel
-                  </button>
-                )}
-                <button
-                  onClick={() => void handleGenerate()}
-                  disabled={generating || !prompt.trim() || !selectedModel}
-                  className={DS.btnPrimary + " " + DS.btnDisabled}
-                >
-                  {generating ? (
-                    <>
-                      <Loader2 size={16} className={DS.loading} />
-                      Generating…
-                    </>
-                  ) : (
-                    <>
-                      <Send size={16} />
-                      Send
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Error */}
           {error && (
             <div className={DS.cardError}>
-              <AlertCircle size={20} />
+              <StopCircle size={20} />
               <span>{error}</span>
             </div>
           )}
 
-          <VisualizationCard config={vizConfig} />
-
-          {/* Tool Execution Metrics */}
-          <ToolExecutionCard />
+          {vizConfig && <VisualizationCard config={vizConfig} />}
         </div>
 
-        {/* Right sidebar */}
-        <Sidebar
+        {/* Right rail — sticky, tabbed */}
+      <RightRail
+        selectedModel={selectedModel}
+        onSelectModel={setSelectedModel}
+        taskRoutes={taskRoutes}
+        benchmarks={benchmarks}
+        onRunBenchmarks={() => {
+          void handleRunBenchmarks();
+        }}
+        onRunCodingBenchmarks={() => {
+          void handleRunCodingBenchmarks();
+        }}
+        benchmarkRunning={benchmarkRunning}
+        codingBenchmarkRunning={codingBenchmarkRunning}
           tools={tools}
           enabledTools={enabledTools}
-          setEnabledTools={setEnabledTools}
-          setEditingTool={setEditingTool}
-          setToolJsonValid={setToolJsonValid}
-          setShowToolEditor={setShowToolEditor}
-          setTools={setTools}
-          setPrompt={setPrompt}
-          promptRef={promptRef}
-          setSelectedModel={setSelectedModel}
-          models={models}
+          onSetEnabledTools={setEnabledTools}
+          onAddTool={() => {
+            const newTool: Tool = {
+              id: `tool-${Date.now()}`,
+              name: "",
+              description: "",
+              parameters: { type: "object", properties: {}, required: [] },
+            };
+            setEditingTool(newTool);
+            setToolJsonValid(true);
+            setShowToolEditor(true);
+          }}
+          onEditTool={setEditingTool}
+          onDeleteTool={(id: string) => {
+            setTools((prev) => prev.filter((t) => t.id !== id));
+            setEnabledTools((prev) => {
+              const next = new Set(prev);
+              next.delete(id);
+              return next;
+            });
+          }}
+          onTemplateSelect={(text: string) => setPrompt(text)}
+          extractRunning={extractRunning}
+          extractError={extractError}
+          extractResult={extractResult}
+          onVideoUpload={(file: File) => {
+            void handleVideoUpload(file);
+          }}
           history={history}
-          setResponse={setResponse}
+          onHistorySelect={(h) => {
+            setPrompt(h.prompt);
+            if (models.some((m) => m.name === h.model)) {
+              setSelectedModel(h.model);
+            }
+          }}
         />
       </div>
 
@@ -1014,23 +352,13 @@ export function AIToolsPage() {
           setEditingTool={setEditingTool}
           toolJsonValid={toolJsonValid}
           setToolJsonValid={setToolJsonValid}
-          onSave={(tool: Tool) => {
-            setTools((prev) => {
-              const existing = prev.find((t) => t.id === tool.id);
-              if (existing) return prev.map((t) => (t.id === tool.id ? tool : t));
-              return [...prev, tool];
-            });
-            setEnabledTools((prev) => new Set([...prev, tool.id]));
-            setShowToolEditor(false);
-            setEditingTool(null);
-            setToolJsonValid(true);
-          }}
+          onSave={handleSaveTool}
           onClose={() => {
             setShowToolEditor(false);
             setEditingTool(null);
           }}
         />
       )}
-    </div>
+    </>
   );
 }

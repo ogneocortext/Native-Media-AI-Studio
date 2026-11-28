@@ -65,8 +65,10 @@ Topic: Modern bar-mode improvements for Native Media AI Studio's Canvas2D visual
 
 ## Implementation Status (audited 2026-11-06, T-VIZ-38)
 
-All code lives in `packages/frontend/src/features/visualizer/canvas2dModes.ts`
-with shared helpers in `canvas2dHelpers.ts`. Six bar-style modes exist:
+All code lives in the `packages/frontend/src/features/visualizer/canvas2dModes/`
+package (split from `canvas2dModes.ts` in T-VIZ-59: `index.ts` dispatcher,
+`bars.ts`, `shared.ts` toolkit, `types.ts`, plus waveform/scopes/ambient/kinetic
+modules) with shared helpers in `canvas2dHelpers.ts`. Six bar-style modes exist:
 `bars`, `mirrored-bars`, `segmented-led-bars`, `stereo-split-bars`,
 `stacked-frequency-bands`, `dot-peak-matrix`.
 

@@ -71,7 +71,7 @@ candidate, not evidence that it is current.
 |---|---|---|---|
 | Audio selector shows a track | `rg -n "useAudioLibrary|listAudioFiles" packages/frontend/src` | `packages/frontend/src/state/audioLibraryStore.ts` and the page/component using the hook | `packages/frontend/src/state/audioLibraryStore.test.ts` |
 | Remix probe fails | `rg -n "remix_probe|/probe" packages/backend/app packages/backend/tests` | `packages/backend/app/api/audio_remix.py`, then `packages/backend/app/services/remix_analysis.py` | `packages/backend/tests/test_stem_remixer.py` covers service/cache behavior; no direct route test was found in this trace |
-| Visualizer mode rendering | `rg -n "canvas2dModes|selectVizMode" packages/frontend/src/features/visualizer` | `packages/frontend/src/features/visualizer/canvas2dModes.ts` and `docs/architecture/visualizer.md` | `packages/frontend/src/features/visualizer/canvas2dModeBudget.test.ts` and `selectVizMode.test.ts` cover adjacent mode behavior |
+| Visualizer mode rendering | `rg -n "canvas2dModes|selectVizMode" packages/frontend/src/features/visualizer` | `packages/frontend/src/features/visualizer/canvas2dModes/` (index.ts + per-mode modules; was canvas2dModes.ts before the T-VIZ-59 split) and `docs/architecture/visualizer.md` | `packages/frontend/src/features/visualizer/canvas2dModeBudget.test.ts` and `selectVizMode.test.ts` cover adjacent mode behavior |
 
 These searches are starting points, not guarantees. Confirm live paths with
 `rg --files` and inspect imports/callers before editing. If a new discovery
