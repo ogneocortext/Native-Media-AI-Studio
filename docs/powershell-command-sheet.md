@@ -8,7 +8,7 @@ Use PowerShell 7 cmdlets instead (see the Bash → PowerShell translation table 
 
 If you need to search file contents, use the `grep` tool, not `Select-String` or `grep`. If you need to list files, use `glob` or `filesystem_list_directory`, not `Get-ChildItem`. Only use shell commands for genuine PowerShell 7 operations (git, pwsh scripts, python, etc.).
 
-**This machine runs PowerShell 7.7 (STS, built on .NET 11).** Windows 11 also ships PowerShell 5.1 (built on .NET Framework 4.x) — that version is retired for repo work. The two versions install side-by-side: `pwsh.exe` is v7+, `powershell.exe` is v5.1. Always use `pwsh`.
+**This machine runs two PowerShell 7 installs: the agent shell `C:\kilo\pwsh7\pwsh.exe` is 7.6.6 (.NET 10), and the interactive `pwsh` (Microsoft Store) is 7.7.0 GA (.NET 11).** Windows 11 also ships PowerShell 5.1 (built on .NET Framework 4.x) — that version is retired for repo work. The versions install side-by-side: `pwsh.exe` is v7+, `powershell.exe` is v5.1. Always use `pwsh`.
 
 **PowerShell 7.7 GA released 2026-11-10.** Key changes: built on .NET 11, `New-Guid` now generates UUID v7 (time-sortable) by default, new `New-TemporaryDirectory` cmdlet, `Join-Path -Extension`, `Format-* -ExcludeProperty`, update notification removed, MSI installer discontinued. See §2 for breaking changes.
 
@@ -329,8 +329,8 @@ git add . && git commit -m "msg" && git push origin main
 # Is port 5173 (frontend) listening?
 Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue
 
-# Is port 8000 (backend) listening?
-Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue
+# Is port 8004 (backend) listening?
+Get-NetTCPConnection -LocalPort 8004 -ErrorAction SilentlyContinue
 ```
 
 **Start-Process improvements in 7.7:** `-Wait` polling is more efficient. Standard handles are explicitly set when using `-NoNewWindow`.
@@ -403,7 +403,7 @@ Get-Process -Name "python" -ErrorAction SilentlyContinue
 Get-Process -Name "python" | Stop-Process
 
 # Run backend health check
-D:\conda-envs\nma-studio-cuda\Scripts\python.exe -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/api/health').read().decode())"
+D:\conda-envs\nma-studio-cuda\Scripts\python.exe -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8004/api/health').read().decode())"
 
 # Recursively find .ts files
 Get-ChildItem -Path "packages/frontend/src" -Filter "*.ts" -Recurse

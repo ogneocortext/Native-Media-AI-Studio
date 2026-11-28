@@ -36,7 +36,7 @@ example_outputs:
   - tool: remix_probe
     output: '{ "tempo": 128, "key_confident": false }'
   - tool: remix_get_file
-    output: "http://127.0.0.1:8000/api/audio/remix/my_remix/file/master"
+    output: "http://127.0.0.1:8004/api/audio/remix/my_remix/file/master"
 ---
 
 # Remix Skill
@@ -51,7 +51,7 @@ Build mashups from stems of different songs using the local backend API.
 
 ## Critical Rules
 
-- Backs onto the local FastAPI backend at http://127.0.0.1:8000
+- Backs onto the local FastAPI backend at http://127.0.0.1:8004
 - Tempo is detected from drums when present; key is explicit per layer
 - Probe caches live in `output/remixes/.probes/`
 - Nothing leaves the machine
@@ -144,7 +144,7 @@ Get the playable URL for one stem or the mastered "master" of a rendered remix.
 - `which` (string, required): vocals | drums | bass | other | master
 
 ## Notes
-- Backs onto the local FastAPI backend at http://127.0.0.1:8000
+- Backs onto the local FastAPI backend at http://127.0.0.1:8004
 - Tempo is detected from drums when present; key is explicit per layer
 - Probe caches live in `output/remixes/.probes/`
 - Nothing leaves the machine

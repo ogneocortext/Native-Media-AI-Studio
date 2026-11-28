@@ -147,7 +147,7 @@ Suggested location: `tools/go-ports/`
 │  └── go-gateway     :3850  MCP bridge router                │
 │                                                             │
 │  Python Backend (FastAPI)                                   │
-│  ├── Port 8000                                              │
+│  ├── Port 8004                                              │
 │  ├── AI logic, ComfyUI, Blender, Queue                      │
 │  └── Calls Go sidecars over HTTP for high-concurrency work  │
 │                                                             │

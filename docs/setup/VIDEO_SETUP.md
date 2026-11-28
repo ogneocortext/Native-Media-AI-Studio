@@ -44,8 +44,8 @@ and the WanVideoWrapper / AnimateDiff-Evolved custom nodes.
 ## Using video generation
 
 ```powershell
-# Backend is already running on :8000; ComfyUI on :8188
-curl -X POST http://localhost:8000/api/integrations/comfyui/generate-video `
+# Backend is already running on :8004; ComfyUI on :8188
+curl -X POST http://localhost:8004/api/integrations/comfyui/generate-video `
   -H "Content-Type: application/json" `
   -d '{ "prompt": "a cat dancing", "steps": 20, "width": 512, "height": 512, "num_frames": 16, "fps": 8 }'
 ```

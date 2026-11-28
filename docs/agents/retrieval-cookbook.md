@@ -72,7 +72,7 @@ import httpx
 async def search_docs(query: str, limit: int = 5) -> list[dict]:
     async with httpx.AsyncClient() as client:
         r = await client.post(
-            "http://127.0.0.1:8000/api/retrieval/search",
+            "http://127.0.0.1:8004/api/retrieval/search",
             json={"query": query, "limit": limit, "vault_only": False},
         )
         r.raise_for_status()
@@ -97,7 +97,7 @@ Or via HTTP: `GET /api/retrieval/status` returns `embedding_model_available: fal
 
 ```python
 async with httpx.AsyncClient() as client:
-    r = await client.post("http://127.0.0.1:8000/api/retrieval/index", json={"force_reindex": True})
+    r = await client.post("http://127.0.0.1:8004/api/retrieval/index", json={"force_reindex": True})
     r.raise_for_status()
     info = r.json()  # {"chunks": 808, "docs": 211, ...}
 ```

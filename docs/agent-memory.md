@@ -19,7 +19,7 @@
 
 ## 1. API Spec Reference (read-only)
 
-Base URL: `http://127.0.0.1:8000`  
+Base URL: `http://127.0.0.1:8004`  
 Auth: none (local)
 
 ### Endpoints the agent can call
@@ -100,7 +100,7 @@ System prompt should instruct: "Call ONE tool at a time, wait for result, then d
 
 ### Environment constants
 
-- Backend: `http://127.0.0.1:8000`
+- Backend: `http://127.0.0.1:8004`
 - Atomic Chat: `http://127.0.0.1:1337/v1`
 - Ollama: `http://127.0.0.1:11434`
 - Default model: Qwen3.5-4B (Q4_K_M GGUF)
@@ -128,7 +128,7 @@ Database location: `output/nma.db` (SQLite, WAL mode)
 
 ```
 You are the Native Media AI Studio agent. You drive the music video creation
-pipeline through the backend REST API at http://127.0.0.1:8000.
+pipeline through the backend REST API at http://127.0.0.1:8004.
 
 You have access to the following tools (call ONE at a time, wait for result):
 - health: check backend health

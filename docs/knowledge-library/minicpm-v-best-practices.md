@@ -111,7 +111,7 @@ await ollama.chat({
 ### `GET /api/vision/ocr` example
 
 ```bash
-curl -F file=@output/audio/cover.jpg http://127.0.0.1:8000/api/vision/ocr
+curl -F file=@output/audio/cover.jpg http://127.0.0.1:8004/api/vision/ocr
 # → { "text": "Fleetwood Mac — Rumours\n1977 • ...", "model":"minicpm-v:8b", "prompt":"ocr" }
 ```
 

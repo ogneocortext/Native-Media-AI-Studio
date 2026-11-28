@@ -12,7 +12,7 @@
 import { Server } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 
-export const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8000";
+export const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:8004";
 
 // ---------------------------------------------------------------------------
 // Lifecycle state machine for production MCP servers

@@ -100,7 +100,7 @@ Backups are rotated (keep last 5 by default, configurable with `-KeepBackups`).
 **Through the backend API** (recommended):
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/services/comfyui/update
+curl -X POST http://127.0.0.1:8004/api/services/comfyui/update
 ```
 
 This stops ComfyUI if running, runs `git pull`, checks requirement pins (skipping pip if all match), updates custom nodes, and restarts.

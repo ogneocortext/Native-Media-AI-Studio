@@ -7,7 +7,7 @@ and interaction while the server runs on your local machine.
 ## Prerequisites
 
 - Backend and frontend must already be running locally:
-  - Backend: `http://127.0.0.1:8000`
+  - Backend: `http://127.0.0.1:8004`
   - Frontend: `http://127.0.0.1:5173`
 - A tunnel provider account (free tiers work):
   - **ngrok** — https://ngrok.com/download (recommended, most reliable)
@@ -34,7 +34,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\start-tunnel.ps1
 ```
 
 Only the **Vite dev server** is published. Vite proxies `/api`, `/output` and
-`/ws` to `127.0.0.1:8000`, so one public URL reaches both the UI and the API:
+`/ws` to `127.0.0.1:8004`, so one public URL reaches both the UI and the API:
 
 > **Note:** `/api/events` is the canonical SSE realtime path (`config/ports.json` `events_url`);
 > `/ws` remains as a legacy WebSocket compatibility endpoint.
@@ -166,7 +166,7 @@ Known providers (`*.loca.lt`, `*.ngrok-free.app`, `*.ngrok.app`, `*.ngrok.io`,
 | `VITE_PUBLIC_FRONTEND_URL` | Override frontend base URL in tunnel mode | `https://x.loca.lt` |
 | `VITE_PUBLIC_EVENTS_URL` | Override SSE endpoint URL | `https://x.loca.lt/api/events` |
 | `VITE_PUBLIC_SSE_URL` | Alias for `VITE_PUBLIC_EVENTS_URL` | `https://x.loca.lt/api/events` |
-| `VITE_BACKEND_URL` | Backend URL for local dev (ignored in tunnel mode) | `http://127.0.0.1:8000` |
+| `VITE_BACKEND_URL` | Backend URL for local dev (ignored in tunnel mode) | `http://127.0.0.1:8004` |
 
 All are read at **build/dev-server start**, so set them before `pnpm dev`.
 

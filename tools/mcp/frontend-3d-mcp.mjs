@@ -26,7 +26,7 @@ const PORTS_PATH = join(PROJECT_ROOT, "config", "ports.json");
 
 // ─── Configuration Management ────────────────────────────────────────────────
 
-let ports = { backend_url: "http://127.0.0.1:8000", frontend_url: "http://127.0.0.1:5173" };
+let ports = { backend_url: "http://127.0.0.1:8004", frontend_url: "http://127.0.0.1:5173" };
 let configWatcher = null;
 
 function loadPortConfig() {
@@ -64,7 +64,7 @@ function watchPortConfig() {
 loadPortConfig();
 watchPortConfig();
 
-const getBackendUrl = () => ports.backend_url || "http://127.0.0.1:8000";
+const getBackendUrl = () => ports.backend_url || "http://127.0.0.1:8004";
 const getFrontendUrl = () => ports.frontend_url || "http://127.0.0.1:5173";
 
 // ─── Server Setup ────────────────────────────────────────────────────────────

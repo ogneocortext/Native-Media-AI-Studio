@@ -52,7 +52,7 @@ This directory contains project documentation, knowledge base articles, and setu
 Rather than reading the tree to find a file, query the search index directly:
 
 ```bash
-curl "http://127.0.0.1:8000/api/docs/search?q=<query>&limit=10"
+curl "http://127.0.0.1:8004/api/docs/search?q=<query>&limit=10"
 ```
 
 Tokenised BM25 over every markdown file under `docs/`, with title, tag, alias

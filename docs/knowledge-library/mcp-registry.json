@@ -655,7 +655,7 @@
       "protocol": "stdio",
       "environment": {
         "OLLAMA_URL": "http://127.0.0.1:11434",
-        "BACKEND_URL": "http://127.0.0.1:8000"
+        "BACKEND_URL": "http://127.0.0.1:8004"
       },
       "description": "Vision MCP - Ollama VLM screenshot analysis (gemma4:e2b-it-qat, qwen3-vl:4b). Auto-unloads Ollama models to prevent OOM.",
       "tools": {
@@ -686,7 +686,7 @@
       "environment": {
         "OLLAMA_URL": "http://127.0.0.1:11434",
         "COMFYUI_URL": "http://127.0.0.1:8188",
-        "BACKEND_URL": "http://127.0.0.1:8000"
+        "BACKEND_URL": "http://127.0.0.1:8004"
       },
       "description": "Ollama Tools MCP - tool-calling (generate_image/video/audio, analyze_audio/image, 3D prompts, Blender scripts, remix/mashup, context sharing) via local Ollama and ComfyUI",
       "skills": {

@@ -51,11 +51,11 @@ audio file → analysis → music generation → plan → remix → video
 ### Constructor
 
 ```python
-agent = NMAAgent(session_id="my-session", api_base="http://127.0.0.1:8000")
+agent = NMAAgent(session_id="my-session", api_base="http://127.0.0.1:8004")
 ```
 
 - `session_id` — Optional session ID for state tracking. Auto-generated if omitted.
-- `api_base` — Backend API base URL (default: `http://127.0.0.1:8000`).
+- `api_base` — Backend API base URL (default: `http://127.0.0.1:8004`).
 
 ### Main Method: `create_music_video`
 

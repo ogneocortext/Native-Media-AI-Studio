@@ -37,7 +37,7 @@ To prevent decision fatigue, the following stack choices are finalized:
  - **Visuals:** Three.js / `@react-three/fiber` + Canvas2D (`Canvas2DVisualizer` bars/waveform/radial) + Remotion; WebGPU accelerated with TSL (`Three Shading Language`) for shader work, WebGL2 fallback via `WebGLNodesHandler`.
  - **Integrations:** API adapters for local ComfyUI, Ollama, Blender MCP (port 9876), Unity MCP (via go-gateway on 3850).
  - **Go Sidecars:** `go-dashboard` (3847 SSE), `go-gateway` (3850 MCP proxy), `go-worker` (3849 async I/O), `go-media` (3848 FFmpeg), `go-ports` (3851 port checker).
- - **Ports:** Backend resolves dynamically at startup via `port_manager.py`; current live config is in `config/ports.json`. Frontend falls back to 5174 when 5173 is occupied. Backend falls back to 8001 when 8000 is occupied. Go sidecars use fixed ports 3847–3851.
+ - **Ports:** Backend resolves dynamically at startup via `port_manager.py`; current live config is in `config/ports.json` (backend 8004). Frontend falls back to 5174 when 5173 is occupied. Backend falls back to the next free port when the configured one is occupied. Go sidecars use fixed ports 3847–3851.
 
 ---
 
@@ -79,7 +79,7 @@ Outputs must be strictly organized. Every generated media file gets a JSON sidec
 ```text
 Native-Media-AI-Studio/
 ├── packages/frontend/    # React/Vite UI (dynamic port, usually 5174) + Remotion video-editor (8080)
-├── packages/backend/     # FastAPI Server (dynamic port, usually 8001) — ComfyUI on 8188
+├── packages/backend/     # FastAPI Server (dynamic port, config/ports.json — currently 8004) — ComfyUI on 8188
 │   ├── app/api/          # REST routes (jobs, health, audio, outputs, docs, sse)
 │   ├── app/sse/          # SSE handler (canonical); app/websocket/ is legacy shim
 │   ├── app/core/         # Port manager, Health monitor, SQLite setup, CORS, tracing, RequestID middleware
@@ -95,7 +95,7 @@ Native-Media-AI-Studio/
 
 ### 4.1 Dynamic Port System
 To avoid conflicts, the app must resolve ports at startup:
-1. Attempt to bind default ports (Backend: `8000`, Frontend: `5173`).
+1. Attempt to bind default ports (Backend: `8004` per `config/ports.json`, Frontend: `5173`).
 2. If occupied, safely kill orphaned Python processes from previous crashes.
 3. If still occupied, increment port number.
 4. Write final configuration to `config/ports.json` for the UI to consume before mounting.

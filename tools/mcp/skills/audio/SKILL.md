@@ -40,7 +40,7 @@ Analyzes audio tracks and builds music video production plans using the local ba
 
 ## Critical Rules
 
-- Backs onto the local FastAPI backend at http://127.0.0.1:8000
+- Backs onto the local FastAPI backend at http://127.0.0.1:8004
 - Nothing leaves the machine
 - Run analyze_audio first to get BPM/energy, then create_music_video_plan for a plan
 - Match visual style to audio genre (cyberpunk for electronic, cinematic for orchestral)
@@ -90,7 +90,7 @@ mcp__ollama-tools__create_music_video_plan --filename "track.mp3"
 **Returns:** A JSON plan with track info, BPM, duration, energy curve, recommended style, and scene breakdown.
 
 ## Notes
-- Backs onto the local FastAPI backend at http://127.0.0.1:8000
+- Backs onto the local FastAPI backend at http://127.0.0.1:8004
 - Nothing leaves the machine
 
 ## Cross-Skill References

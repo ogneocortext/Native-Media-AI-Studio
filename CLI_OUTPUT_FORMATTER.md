@@ -78,7 +78,7 @@ safe_print(cli.format_result(CLIResult(
 
 # Tables / KV / JSON
 safe_print(cli.format_table(["Endpoint", "Status"], [["/api/health", "[OK]"]], "API"))
-safe_print(cli.format_kv_pairs({"backend_url": "http://127.0.0.1:8000"}, "Config"))
+safe_print(cli.format_kv_pairs({"backend_url": "http://127.0.0.1:8004"}, "Config"))
 safe_print(cli.format_json({"ok": True}, "Response"))
 
 # Test report (what the runners call)

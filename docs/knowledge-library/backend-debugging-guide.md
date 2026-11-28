@@ -19,7 +19,7 @@ type: concept
 
 ## Playbook: "Port occupied but server won't start" (Windows, 2026-09-07)
 
-Symptom: `manage-servers.ps1` reports _Backend: STOPPED_ yet _port 8000 occupied_; starting fails forever.
+Symptom: `manage-servers.ps1` reports _Backend: STOPPED_ yet _port 8004 occupied_; starting fails forever.
 
 1. **Map listeners to processes:** `scripts\check-ports.ps1` (LISTENING port → PID → process name).
 2. **Watch for stale sockets:** `netstat -ano` can show LISTENING entries whose PID no longer exists (uvicorn `--reload` children orphaned after their reloader parent died). `Stop-Service` in `manage-servers.ps1` now kills the reloader parent (`app.main:app` cmdline match) first, then reaps listeners in up to 3 passes.
@@ -260,7 +260,7 @@ channel.onmessage = (e) => console.log("Sync:", e.data);
 
 ```bash
 # Check SSE event payload
-curl -N http://localhost:8000/api/events
+curl -N http://localhost:8004/api/events
 # Should include "priority": "urgent" | "high" | "medium" | "low"
 ```
 
@@ -471,14 +471,14 @@ Two cases the age-based reaper still cannot distinguish, both tracked as Q6:
 
 ### Ports
 
-- Backend: 8000
+- Backend: 8004
 - Frontend: 5173
 - ComfyUI: 8188
 - Ollama: 11434
 
 ### Health Checks
 
-The backend checks adapter health on startup and broadcasts via SSE (`GET /api/events`, `sseService.ts`). Health status is shown in the sidebar. Legacy `ws://127.0.0.1:8000/ws` is a compat shim that returns `426` for HTTP `GET` and `101` only for WebSocket upgrade — new code must use SSE.
+The backend checks adapter health on startup and broadcasts via SSE (`GET /api/events`, `sseService.ts`). Health status is shown in the sidebar. Legacy `ws://127.0.0.1:8004/ws` is a compat shim that returns `426` for HTTP `GET` and `101` only for WebSocket upgrade — new code must use SSE.
 
 ### Orphaned reloaders (2026-10-02)
 

@@ -36,7 +36,7 @@ result = analyzer.analyze_file("output/audio/85a406ef_Take the Crown.mp3", job_i
 Via `POST /api/3d/generate`:
 
 ```bash
-curl -X POST http://localhost:8000/api/3d/generate \
+curl -X POST http://localhost:8004/api/3d/generate \
   -H "Content-Type: application/json" \
   -d '{"prompt": "a futuristic robot, chrome metallic", "steps": 15, "seed": 42}'
 # → {"success": true, "model_path": "output/generated_3d/...glb"}
@@ -183,7 +183,7 @@ torch==2.14.0+cu126
 
 | Issue | Fix |
 |---|---|
-| `503 librosa not installed` on `/audio/analyze` | `venv\Scripts\python -m pip install librosa soundfile` → restart backend (`Stop-Process :8000` → `venv\Scripts\python -m app.main`) |
+| `503 librosa not installed` on `/audio/analyze` | `venv\Scripts\python -m pip install librosa soundfile` → restart backend (`Stop-Process :8004` → `venv\Scripts\python -m app.main`) |
 | `FFmpeg failed: No option name near` | Was `geq: lum,cb,cr` comma bug — fixed `handler.py:213`; pull latest |
 | `Blender MCP tools not appearing` | `uvx blender-mcp install-addon` → enable → N-panel Start; ensure no other process on `9876` |
 | `VRAM full during 3D` | Reduce `steps 30→15`, close ComfyUI/Blender, `GET /api/health/gpu` check |

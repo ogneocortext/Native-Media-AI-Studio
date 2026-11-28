@@ -82,7 +82,7 @@ D:\conda-envs\comfyui-cuda\Scripts\python.exe -c "import torch; print('comfyui t
 D:\conda-envs\studio-tools\Scripts\python.exe -c "import sys; print('studio-tools', sys.version)"
 
 # Services (canonical ports from config/ports.json)
-curl http://127.0.0.1:8000/api/health
+curl http://127.0.0.1:8004/api/health
 curl http://127.0.0.1:5173
 curl http://127.0.0.1:8188/system_stats
 ```

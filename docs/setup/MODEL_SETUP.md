@@ -77,8 +77,8 @@ ComfyUI will start on http://127.0.0.1:8188
 
 Check if backend can see ComfyUI:
 ```powershell
-Invoke-RestMethod -Uri http://localhost:8000/api/integrations/config/mock-mode
-Invoke-RestMethod -Uri http://localhost:8000/api/integrations/models/status
+Invoke-RestMethod -Uri http://localhost:8004/api/integrations/config/mock-mode
+Invoke-RestMethod -Uri http://localhost:8004/api/integrations/models/status
 ```
 
 ## Directory Structure

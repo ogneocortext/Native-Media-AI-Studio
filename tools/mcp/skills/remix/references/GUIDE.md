@@ -134,7 +134,7 @@ The playable URL for one stem (vocals/drums/bass/other) or the mastered "master"
 | remix_get_file | which | string | Yes | — | vocals \| drums \| bass \| other \| master |
 
 ### Notes
-- Backs onto the local FastAPI backend at http://127.0.0.1:8000
+- Backs onto the local FastAPI backend at http://127.0.0.1:8004
 - Tempo is detected from drums when present; key is explicit per layer
 - Probe caches live in `output/remixes/.probes/`
 - Nothing leaves the machine

@@ -118,7 +118,7 @@ Open **three terminals** (all with `nma-studio` activated):
 cd "<your-project-root>"
 conda activate nma-studio
 cd backend
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8004
 
 # Terminal 2 — ComfyUI
 conda activate nma-studio
@@ -307,7 +307,7 @@ You currently have:
    ```powershell
    conda activate nma-studio
    cd backend
-   uvicorn app.main:app --reload --port 8000
+   uvicorn app.main:app --reload --port 8004
    ```
 3. **Test ComfyUI in the new env:**
    ```powershell

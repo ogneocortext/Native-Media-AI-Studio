@@ -33,8 +33,8 @@ type: entity
 │                                                                             │
 │  Frontend (Vite + React)                                                    │
 │  ├── Port: 5173                                                             │
-│  ├── API Proxy: /api → :8000                                                │
-│  ├── SSE: EventSource → :8000/api/events                                    │
+│  ├── API Proxy: /api → :8004                                                │
+│  ├── SSE: EventSource → :8004/api/events                                    │
 │  └── Features: Dashboard, Music Video, 3D Studio, Image Generation         │
 │                                                                             │
 │  Go Sidecars (infrastructure layer)                                          │
@@ -44,7 +44,7 @@ type: entity
 │  └── go-gateway     :3850  MCP bridge router                                │
 │                                                                             │
 │  Backend (FastAPI + uvicorn)                                                │
-│  ├── Port: 8000                                                             │
+│  ├── Port: 8004                                                             │
 │  ├── SSE: /api/events (Server-Sent Events)                                  │
 │  ├── Routes: /api/jobs, /api/health, /api/audio, /api/outputs,              │
 │  │          /api/video, /api/transcription, /api/lyrics, /api/comfyui,     │
@@ -107,17 +107,17 @@ PATHS = {
 
 ```bash
 # Backend health
-GET http://localhost:8000/api/health
+GET http://localhost:8004/api/health
 # Response: {"status": "healthy", "backend": "online", "adapters": {...}}
 
 # GPU snapshot (use this before large renders)
-GET http://localhost:8000/api/health/gpu
+GET http://localhost:8004/api/health/gpu
 # Response: {"available": true, "name": "...", "memory_used_mb": ..., "memory_free_mb": ..., "memory_total_mb": ..., "fallback": false}
 # Per-process VRAM (GeForce WDDM via Performance Counters — no admin needed):
-GET http://localhost:8000/api/health/gpu/processes
+GET http://localhost:8004/api/health/gpu/processes
 
 # Real-time events (SSE canonical — legacy ws://.../ws returns 426):
-GET http://localhost:8000/api/events  # Accept: text/event-stream
+GET http://localhost:8004/api/events  # Accept: text/event-stream
 
 ## SSE Event Reference
 
@@ -204,7 +204,7 @@ EventSource receives event
 ```
 
 ## 3D Generation
-GET http://localhost:8000/api/3d/status
+GET http://localhost:8004/api/3d/status
 # Response: {"available": true, "model_exists": true, "generated_count": 0}
 
 # ComfyUI system stats (direct)
@@ -216,7 +216,7 @@ GET http://localhost:8188/system_stats
 
 ```bash
 # Generate 3D model from text
-POST http://localhost:8000/api/3d/generate
+POST http://localhost:8004/api/3d/generate
 Content-Type: application/json
 
 {
@@ -270,7 +270,7 @@ comfyui_get_history(action="list")
 ```powershell
 # Backend
 $venvPython = "D:\Backup of Important Data for Windows 11 Upgrade\Native Media AI Studio\venv\Scripts\python.exe"
-Start-Process -FilePath $venvPython -ArgumentList "-m","uvicorn","app.main:app","--host","127.0.0.1","--port","8000" -WindowStyle Hidden
+Start-Process -FilePath $venvPython -ArgumentList "-m","uvicorn","app.main:app","--host","127.0.0.1","--port","8004" -WindowStyle Hidden
 
 # ComfyUI
 $comfyuiPython = "D:\conda-envs\comfyui-cuda\Scripts\python.exe"
@@ -286,10 +286,10 @@ Start-Process -FilePath $nodeExe -ArgumentList "`"$viteJs`"", "--port", "5173" -
 
 ```powershell
 # Check if ports are listening
-Get-NetTCPConnection -LocalPort 8000,8188,5173 -State Listen
+Get-NetTCPConnection -LocalPort 8004,8188,5173 -State Listen
 
 # Test backend API
-Invoke-WebRequest -Uri "http://localhost:8000/api/health" -UseBasicParsing
+Invoke-WebRequest -Uri "http://localhost:8004/api/health" -UseBasicParsing
 
 # Test ComfyUI
 Invoke-WebRequest -Uri "http://localhost:8188/system_stats" -UseBasicParsing
@@ -299,7 +299,7 @@ Invoke-WebRequest -Uri "http://localhost:8188/system_stats" -UseBasicParsing
 > The frontend `api.ts` and `sseService.ts` now fall back to direct backend URLs from `config/ports.json` when the Vite proxy is down. If the health badge shows `Offline` while the backend is running, check `config/ports.json` and ensure `backend_url` matches the running port.
 
 > [!note] Backend Startup Resilience
-> `scripts/start-studio.ps1` now retries backend launch twice with backoff and warns if port 8000 is occupied before bind. `packages/backend/app/main.py` logs a pre-flight port check at import time.
+> `scripts/start-studio.ps1` now retries backend launch twice with backoff and warns if port 8004 is occupied before bind. `packages/backend/app/main.py` logs a pre-flight port check at import time.
 
 > [!note] Go Sidecars (2026)
 > `go-dashboard` runs on `:3847` and is started automatically by `scripts/start-services.ps1`. `go-worker` (`:3849`) and `go-gateway` (`:3850`) are available under `bin/` for queue I/O and MCP routing. Frontend can read `dashboard_url` from `config/ports.json` via `portConfig.ts`.
@@ -392,7 +392,7 @@ Invoke-WebRequest -Uri "http://localhost:8188/system_stats" -UseBasicParsing
 python main.py --port 8188 --disable-pinned-memory
 
 # Check VRAM usage
-GET http://localhost:8000/api/health/gpu
+GET http://localhost:8004/api/health/gpu
 # Response includes: memory_used_mb, memory_free_mb, memory_total_mb, memory_percent
 ```
 
@@ -611,7 +611,7 @@ viz = processor.generate_fft_visualization("path/to/audio.mp3")
 
 ```bash
 # Via API
-curl -X POST http://localhost:8000/api/3d/generate \
+curl -X POST http://localhost:8004/api/3d/generate \
   -H "Content-Type: application/json" \
   -d '{"prompt": "a futuristic robot", "steps": 15}'
 
@@ -634,10 +634,10 @@ bpy.ops.object.light_add(type='SUN', location=(5, 5, 10))
 
 ```bash
 # All services
-curl http://localhost:8000/api/health | python -m json.tool
+curl http://localhost:8004/api/health | python -m json.tool
 
 # GPU only
-curl http://localhost:8000/api/health/gpu | python -m json.tool
+curl http://localhost:8004/api/health/gpu | python -m json.tool
 
 # ComfyUI
 curl http://localhost:8188/system_stats | python -m json.tool
@@ -695,8 +695,8 @@ curl http://localhost:8188/system_stats | python -m json.tool
 
 | Variable               | Default                 | Purpose              |
 | ---------------------- | ----------------------- | -------------------- |
-| `VITE_BACKEND_URL`     | `http://127.0.0.1:8000` | Frontend API target  |
-| `VITE_BACKEND_PORT`    | `8000`                  | Backend port         |
+| `VITE_BACKEND_URL`     | `http://127.0.0.1:8004` | Frontend API target  |
+| `VITE_BACKEND_PORT`    | `8004`                  | Backend port         |
 | `VITE_FRONTEND_PORT`   | `5173`                  | Frontend port        |
 | `COMFYUI_PATH`         | (auto)                  | ComfyUI installation |
 | `CUDA_VISIBLE_DEVICES` | `0`                     | GPU device index     |

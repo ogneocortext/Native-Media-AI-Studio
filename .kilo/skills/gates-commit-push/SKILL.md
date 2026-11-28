@@ -11,7 +11,9 @@ description: >-
 
 > [!warning] Every commit carries a Co-authored-by trailer. Multiple agents commit
 > to this repo; the trailer is how the user tracks who did what. End every
-> commit with `Co-authored-by: <your agent name>` — a bare name, no email.
+> commit with the `Co-authored-by:` trailer from the AGENTS.md attribution
+> table (e.g. `Co-authored-by: Devin`) — a bare name, or the project-domain
+> email where the table lists one. Never a third-party GitHub email.
 
 > [!warning] Stage only intended files. Never commit secrets, scratch files
 > (`tmp_*` in repo root), or generated `vite.config.js`/`vite.config.d.ts`
@@ -93,8 +95,9 @@ Scopes seen in this repo: `fix`, `feat`, `chore`, `docs`, `refactor`, `test`,
 body.
 
 > [!warning] The commit-msg hook rejects `Co-authored-by` trailers carrying a
-> third-party GitHub email. Use the bare agent name — never
-> `…+bot@users.noreply.github.com`-style external emails. Verify with
+> third-party GitHub email (`*@users.noreply.github.com`, `noreply@anthropic.com`).
+> Use your agent's trailer from the AGENTS.md attribution table — bare name, or
+> the project-domain email it lists. Verify with
 > `python tools/agent-contribution-report.py --check` if unsure.
 
 > [!warning] The pre-push gate checks the **working tree**, not your commits.

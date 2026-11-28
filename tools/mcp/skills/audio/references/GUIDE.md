@@ -52,7 +52,7 @@ A JSON plan with track info, BPM, duration, energy curve, recommended style, and
 - create_music_video_plan: JSON plan with track info, BPM, duration, energy curve, style, scenes
 
 ### Notes
-- Backs onto the local FastAPI backend at http://127.0.0.1:8000
+- Backs onto the local FastAPI backend at http://127.0.0.1:8004
 - Nothing leaves the machine
 
 ## Cross-Skill References

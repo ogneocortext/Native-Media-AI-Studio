@@ -136,11 +136,11 @@ From `tools/music-gen/server.py` and
 
 ```powershell
 # Preflight — backend liveness + VRAM
-Invoke-RestMethod http://localhost:8000/api/music-gen/status
-Invoke-RestMethod http://localhost:8000/api/music-gen/vram
+Invoke-RestMethod http://localhost:8004/api/music-gen/status
+Invoke-RestMethod http://localhost:8004/api/music-gen/vram
 
 # Start the engine if needed (backend manages the subprocess)
-Invoke-RestMethod -Method Post http://localhost:8000/api/music-gen/start `
+Invoke-RestMethod -Method Post http://localhost:8004/api/music-gen/start `
   -ContentType 'application/json' -Body '{"engine":"ace"}'
 
 # Generate — direct to the service (same body works on the backend
@@ -160,8 +160,8 @@ Invoke-RestMethod -Method Post http://127.0.0.1:8201/unload
 ```
 
 (The backend's own port is whatever the studio is configured with —
-`localhost:8000` above is the conventional default; the service's
-8201 is fixed by `DEFAULT_PORTS`.)
+`localhost:8004` above is the current `config/ports.json` value; the
+service's 8201 is fixed by `DEFAULT_PORTS`.)
 
 ## 6. Guardrails
 

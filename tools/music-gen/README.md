@@ -77,10 +77,10 @@ python tools/music-gen/server.py --engine ace --port 8201
 
 ```powershell
 # Start from backend
-curl -X POST http://127.0.0.1:8000/api/music-gen/start -d '{"engine":"ace"}'
+curl -X POST http://127.0.0.1:8004/api/music-gen/start -d '{"engine":"ace"}'
 
 # Stop
-curl -X POST http://127.0.0.1:8000/api/music-gen/stop?engine=ace
+curl -X POST http://127.0.0.1:8004/api/music-gen/stop?engine=ace
 ```
 
 ## API Endpoints

@@ -137,7 +137,7 @@ Use these instead of re-running a search when you repeatedly need the same slice
 
 - **Video:** grid cover or `VIDEO` icon → click → modal `<video src="/output/video/...mp4" controls autoplay class="max-h-[60vh] bg-black">`.
 - **Audio:** grid cover (extracted) → click → modal `<img cover>` + `<audio controls autoplay>` (`MediaLibrary.tsx:615`). No embedded cover → `Music` placeholder + “No embedded cover” hint.
-- All served via Vite proxy `/output/*` → `http://localhost:8000/output/*` or direct `getOutputUrl()`.
+- All served via Vite proxy `/output/*` → `http://localhost:8004/output/*` or direct `getOutputUrl()`.
 
 ## Performance for large libraries
 

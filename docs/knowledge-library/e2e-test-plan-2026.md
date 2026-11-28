@@ -105,7 +105,7 @@ external service calls.
 
 **Prerequisites**:
 
-- Backend running on port 8000
+- Backend running on port 8004
 - Ollama running on port 11434
 - ComfyUI running on port 8188
 - Test audio file in `packages/frontend/tests/fixtures/audio/`

@@ -56,12 +56,12 @@
 
 ```powershell
 # Backend — dedicated studio venv (preferred, GPU audio/3D work)
-D:\conda-envs\nma-studio-cuda\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+D:\conda-envs\nma-studio-cuda\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8004
 # or via pnpm:
 pnpm dev:backend
 
 # Fallback — local venv (CPU, no CUDA)
-.\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+.\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8004
 
 # Standalone tooling — Python 3.14 (no CUDA)
 D:\conda-envs\studio-tools\Scripts\python.exe tools\convert_blend_to_glb.py stage.blend
