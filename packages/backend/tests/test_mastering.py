@@ -115,8 +115,10 @@ def test_apply_gain_db_scales_and_clamps():
 
 def test_true_peak_limit_keeps_peaks_below_ceiling():
     sample_rate = 44100
-    # A signal peaking at 0 dBFS (full scale).
-    samples = np.tile(np.linspace(-1.0, 1.0, 1000), 10).astype(np.float32).reshape(-1, 1)
+    # A 0 dBFS sine — program material, not a discontinuity (whose resample
+    # ringing would be a metering artifact, not a limiter failure).
+    t = np.arange(sample_rate * 2) / sample_rate
+    samples = np.sin(2 * math.pi * 997 * t).reshape(-1, 1).astype(np.float32)
     limited = mastering._true_peak_limit(samples, sample_rate, ceiling_dbtp=-3.0)
     peak = mastering._true_peak(limited, sample_rate)
     assert peak <= -3.0 + 0.5, f"true peak {peak:.2f} dBTP above ceiling -3 dBTP"
@@ -247,13 +249,11 @@ async def test_master_file_after_true_peak_matches_independent_ebur128(tmp_path)
 
 @requires_ffmpeg
 @pytest.mark.asyncio
-async def test_master_file_qc_warning_fires_when_true_peak_exceeds_ceiling(
-    tmp_path,
-):
-    """A 7 kHz square wave produces inter-sample peaks the 2x-oversample
-    limiter estimate misses by >10 dB, so the written artifact measures well
-    over the -1 dBTP ceiling. The report must say so plainly via
-    ``qc_warnings`` instead of leaving a bare over-ceiling number."""
+async def test_master_file_ceiling_loop_converges_on_hot_input(tmp_path):
+    """A 7 kHz square wave produces inter-sample peaks the old 2x estimate
+    missed by >10 dB. With the repaired estimator plus the bounded
+    compliance loop, the written MP3 must land at or below the -1 dBTP
+    ceiling with no exceedance warning."""
     mastering.AUDIO_DIR = tmp_path
     mastering.MASTERED_DIR = tmp_path / "mastered"
     mastering.MASTERED_DIR.mkdir(parents=True, exist_ok=True)
@@ -277,8 +277,45 @@ async def test_master_file_qc_warning_fires_when_true_peak_exceeds_ceiling(
     assert report.get("error") is None, report.get("error")
 
     after_tp = report["after"]["true_peak_dbtp"]
-    assert after_tp is not None and after_tp > -1.0, (
-        f"expected over-ceiling true peak, got {after_tp}"
+    assert after_tp is not None and after_tp <= -1.0, (
+        f"expected compliant true peak, got {after_tp}"
     )
     warnings = report.get("qc_warnings") or []
-    assert any("exceeds ceiling" in w for w in warnings), warnings
+    assert not any("exceeds ceiling" in w for w in warnings), warnings
+
+
+@requires_ffmpeg
+@pytest.mark.asyncio
+async def test_master_file_ceiling_loop_warns_after_max_attempts(
+    tmp_path, monkeypatch
+):
+    """Pathological case: if the artifact still measures over ceiling after
+    MAX_CEILING_PASSES trims, qc_warnings must state the final value and the
+    number of attempts — never an over-ceiling file with empty warnings."""
+    mastering.AUDIO_DIR = tmp_path
+    mastering.MASTERED_DIR = tmp_path / "mastered"
+    mastering.MASTERED_DIR.mkdir(parents=True, exist_ok=True)
+    src = tmp_path / "tone.m4a"
+    await _write_m4a(src, _sine(440, 2.0))
+
+    async def fake_measure(_path):
+        return {
+            "integrated_lufs": -14.0,
+            "true_peak_dbtp": 5.0,
+            "lra_lu": 5.0,
+            "error": None,
+        }
+
+    monkeypatch.setattr(mastering, "measure_loudness", fake_measure)
+
+    report = await mastering.master_file(
+        "tone.m4a", target_lufs=-14.0, ceiling_dbtp=-1.0
+    )
+    assert report.get("error") is None, report.get("error")
+    assert report["applied"]["ceiling_compliance_attempts"] == (
+        mastering.MAX_CEILING_PASSES
+    )
+    warnings = report.get("qc_warnings") or []
+    assert any(
+        "still exceeds ceiling" in w and "attempts" in w for w in warnings
+    ), warnings

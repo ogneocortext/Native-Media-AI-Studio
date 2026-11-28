@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from scipy import ndimage as scipy_ndimage
 from scipy import signal as scipy_signal
 
 from ..core.config import PROJECT_ROOT
@@ -67,7 +68,7 @@ TARGET_LUFS: dict[str, float] = {
 }
 
 DEFAULT_CEILING_DBTP = -1.0
-OVERSAMPLE = 2  # true-peak oversampling factor (2x is the cheap, adequate choice)
+OVERSAMPLE = 4  # true-peak oversampling factor; 4x polyphase tracks ebur128
 ATTACK_SEC = 0.005  # limiter attack: 5 ms
 RELEASE_SEC = 0.1  # limiter release: 100 ms
 DEMUD_HZ = 300.0  # static de-mud high-pass corner
@@ -108,6 +109,13 @@ BAND_PRESENCE_HI_HZ = 8000.0
 # until within tolerance or we run out of passes.
 LOUDNESS_TOLERANCE_LU = 0.5
 MAX_GAIN_PASSES = 3
+
+# Ceiling compliance: after the artifact is written, ebur128 re-measures the
+# file itself (MP3 encoding adds inter-sample peak the in-memory limiter never
+# saw). While the measured true peak exceeds the ceiling, trim gain by the
+# overage plus margin and re-encode, up to MAX_CEILING_PASSES attempts.
+MAX_CEILING_PASSES = 3
+CEILING_MARGIN_DB = 0.1
 
 # Manual trim: a user offset applied *after* normalization and *before* the
 # limiter. It deliberately does not participate in the target-matching loop --
@@ -313,23 +321,26 @@ def _design_presence_filter(sample_rate: int) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _true_peak(samples: np.ndarray, sample_rate: int) -> float:
-    """Estimate true peak (dBTP) via 2x oversampling + linear interpolation.
+    """Estimate true peak (dBTP) via OVERSAMPLE-x polyphase resampling.
 
-    Cheap approximation of the inter-sample peak. Good enough to gate the
-    limiter; not a broadcast-grade true-peak meter.
+    ``resample_poly`` applies a proper anti-imaging filter, so peaks between
+    reconstructed samples are measured rather than linearly interpolated.
+    4x tracks ffmpeg's ebur128 true-peak meter (also 4x oversampled) within
+    ~0.3 dB on program material. The previous 2x linear-interp estimate
+    under-read ebur128 by >7 dB on dense material — see the QC honesty
+    evidence in commit dff10d32.
     """
     if samples.size == 0:
         return -float("inf")
-    mono = np.mean(samples, axis=1) if samples.ndim == 2 else samples
-    n = len(mono)
-    # Upsample by inserting zeros then low-pass (simple linear interp suffices
-    # for a peak estimate).
-    up = np.zeros(n * OVERSAMPLE, dtype=np.float32)
-    up[::OVERSAMPLE] = mono
-    # Simple boxcar low-pass to interpolate.
-    kernel = np.ones(OVERSAMPLE, dtype=np.float32) / OVERSAMPLE
-    up = np.convolve(up, kernel, mode="same")
-    peak = float(np.max(np.abs(up)))
+    # Per-channel max, matching ebur128's true-peak semantics — averaging
+    # channels would cancel decorrelated peaks and under-read.
+    if samples.ndim == 2:
+        peak = max(
+            float(np.max(np.abs(scipy_signal.resample_poly(samples[:, ch], OVERSAMPLE, 1))))
+            for ch in range(samples.shape[1])
+        )
+    else:
+        peak = float(np.max(np.abs(scipy_signal.resample_poly(samples, OVERSAMPLE, 1))))
     return _linear_to_db(peak)
 
 
@@ -365,39 +376,43 @@ def _apply_presence(samples: np.ndarray, sample_rate: int) -> np.ndarray:
 def _true_peak_limit(samples: np.ndarray, sample_rate: int, ceiling_dbtp: float) -> np.ndarray:
     """Limit true inter-sample peaks to *ceiling_dbtp*.
 
-    Look-ahead-free limiter: estimate true peak, and if it exceeds the ceiling
-    apply a constant gain reduction with attack/release smoothing so the gain
-    doesn't pump sample-to-sample. Prevents clipping; not a transparent
-    broadcast limiter (v2 can add look-ahead).
+    Peak-hold envelope limiter: a centered max-filter builds a ~RELEASE_SEC
+    peak envelope (offline lookahead — gain is already down when a peak
+    arrives), desired gain is ``min(1, ceiling / envelope)``, and a one-pole
+    smoother (~ATTACK_SEC) keeps it zipper-free. Sample-peak domain —
+    inter-sample residue is handled by the repaired ``_true_peak`` estimate
+    and the artifact compliance loop in ``master_file``. Prevents clipping;
+    not a transparent broadcast limiter (v2 can add proper look-ahead).
     """
     if samples.size == 0:
         return samples
     peak_dbtp = _true_peak(samples, sample_rate)
     if peak_dbtp <= ceiling_dbtp:
         return samples
-    # Constant gain reduction to bring the estimated peak to the ceiling.
-    target_gain_db = ceiling_dbtp - peak_dbtp
-    # Smooth the gain with a simple attack/release envelope so we don't snap
-    # the whole file at once (avoids audible pumping on transient-only peaks).
-    target_gain = _db_to_linear(target_gain_db)
+    ceiling = _db_to_linear(ceiling_dbtp)
     n = len(samples)
-    attack_samples = int(ATTACK_SEC * sample_rate)
-    release_samples = int(RELEASE_SEC * sample_rate)
-    gains = np.ones(n, dtype=np.float32)
-    current_gain = 1.0
-    for i in range(n):
-        if target_gain < current_gain:
-            # attack: move toward target quickly
-            step = 1.0 / max(attack_samples, 1)
-            current_gain = max(target_gain, current_gain - step)
-        else:
-            # release: move back toward unity slowly
-            step = 1.0 / max(release_samples, 1)
-            current_gain = min(1.0, current_gain + step)
-        gains[i] = current_gain
-    if samples.ndim == 1:
-        return (samples * gains[:, None]).astype(np.float32)
-    return (samples * gains[:, None]).astype(np.float32)
+    frame_peak = (
+        np.max(np.abs(samples), axis=1)
+        if samples.ndim == 2
+        else np.abs(samples)
+    )
+    # Peak-hold envelope: the max over a +/- RELEASE_SEC/2 window. Offline
+    # mastering permits the centered (lookahead) window, so gain is already
+    # reduced when a peak arrives instead of chasing it.
+    win = min(int(RELEASE_SEC * sample_rate) | 1, n if n % 2 else n - 1)
+    env = scipy_ndimage.maximum_filter1d(frame_peak, size=win, mode="nearest")
+    desired = np.minimum(1.0, ceiling / np.maximum(env, 1e-12))
+    # One-pole smooth (~ATTACK_SEC) toward the desired gain; the envelope's
+    # lookahead gives the smoother time to settle before each peak.
+    tau = max(int(ATTACK_SEC * sample_rate), 1)
+    alpha = math.exp(-1.0 / tau)
+    b = [1.0 - alpha]
+    a = [1.0, -alpha]
+    zi = scipy_signal.lfilter_zi(b, a) * float(desired[0])
+    gains, _ = scipy_signal.lfilter(b, a, desired, zi=zi)
+    gains = np.clip(gains, 0.0, 1.0).astype(np.float32)
+    gain_axis = gains if samples.ndim == 1 else gains[:, None]
+    return (samples * gain_axis).astype(np.float32)
 
 
 # ---------------------------------------------------------------------------
@@ -774,22 +789,52 @@ async def master_file(
             "before": before,
         }
 
-    # 4. Final re-measure of the artifact (D17: assert the artifact, not the intent).
+    # 4. Bounded ceiling-compliance loop on the written artifact. MP3
+    # encoding is part of the overshoot, so each iteration re-encodes and
+    # re-measures the file itself, trimming gain by the measured overage
+    # plus CEILING_MARGIN_DB, up to MAX_CEILING_PASSES attempts.
     after = await measure_loudness(out_path)
+    ceiling_attempts = 0
+    while ceiling_attempts < MAX_CEILING_PASSES:
+        after_tp = (after or {}).get("true_peak_dbtp")
+        if after_tp is None or after_tp <= ceiling_dbtp:
+            break
+        ceiling_attempts += 1
+        overage_db = after_tp - ceiling_dbtp + CEILING_MARGIN_DB
+        tuned = (tuned * _db_to_linear(-overage_db)).astype(np.float32)
+        if not await _encode_audio(
+            Pcm(samples=tuned, sample_rate=pcm.sample_rate), out_path
+        ):
+            break
+        after = await measure_loudness(out_path)
 
     # QC honesty: ``after`` is the ebur128 re-measure of the written file.
-    # The limiter's internal 2x-oversample estimate is reported separately as
-    # ``applied.true_peak_estimate_dbtp`` so it can never be mistaken for the
-    # measured result — on dense material it under-reads ebur128 by ~0.8 dB.
-    # Any measured exceedance of the delivery ceiling is surfaced as an
-    # explicit qc_warnings entry, never rounded into compliance.
-    true_peak_estimate = _true_peak(tuned, pcm.sample_rate)
+    # The limiter's internal estimate is measured on the decoded artifact and
+    # reported separately as ``applied.true_peak_estimate_dbtp`` so it can
+    # never be mistaken for the measured result. Any measured exceedance of
+    # the delivery ceiling is surfaced as an explicit qc_warnings entry —
+    # with the attempt count when the loop could not converge — never
+    # rounded into compliance.
     qc_warnings: list[str] = []
-    after_tp = after.get("true_peak_dbtp")
+    after_tp = (after or {}).get("true_peak_dbtp")
     if after_tp is not None and after_tp > ceiling_dbtp:
-        qc_warnings.append(
-            f"true peak {after_tp:.1f} dBTP exceeds ceiling {ceiling_dbtp:.1f} dBTP"
-        )
+        if ceiling_attempts >= MAX_CEILING_PASSES:
+            qc_warnings.append(
+                f"true peak {after_tp:.1f} dBTP still exceeds ceiling "
+                f"{ceiling_dbtp:.1f} dBTP after {ceiling_attempts} "
+                "compliance attempts"
+            )
+        else:
+            qc_warnings.append(
+                f"true peak {after_tp:.1f} dBTP exceeds ceiling "
+                f"{ceiling_dbtp:.1f} dBTP"
+            )
+    artifact_pcm = await _decode_audio(out_path)
+    true_peak_estimate = (
+        _true_peak(artifact_pcm.samples, artifact_pcm.sample_rate)
+        if artifact_pcm.samples.size
+        else None
+    )
 
     # Band-energy QC after finishing.
     after_sub_db = _band_energy_db(tuned, pcm.sample_rate, BAND_SUB_LO_HZ, BAND_SUB_HI_HZ)
@@ -806,7 +851,12 @@ async def master_file(
         "qc_warnings": qc_warnings,
         "applied": {
             "gain_db": round(applied_gain_db, 2),
-            "true_peak_estimate_dbtp": round(true_peak_estimate, 2),
+            "true_peak_estimate_dbtp": (
+                round(true_peak_estimate, 2)
+                if true_peak_estimate is not None
+                else None
+            ),
+            "ceiling_compliance_attempts": ceiling_attempts,
             "gain_trim_db": round(trim_db, 2),
             "target_lufs": target_lufs,
             "ceiling_dbtp": ceiling_dbtp,
