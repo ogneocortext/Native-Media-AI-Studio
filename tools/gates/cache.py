@@ -75,34 +75,43 @@ def _hash_files(files: list[str]) -> str:
     return h.hexdigest()
 
 
-def get_cached_result(gate_name: str, relevant_files: list[str]) -> str | None:
-    """Return a cached PASS status if the relevant files match, else None.
+def get_cached_result(gate_name: str, all_relevant_files: list[str]) -> str | None:
+    """Return a cached PASS status if the gate's full relevant file set matches.
+
+    The cache key is a SHA-256 over every tracked file the gate could be
+    affected by (not just the changed subset). This means a relevant file
+    modified outside a gated run busts the cache on the next push.
 
     Returns ``"PASS"`` if a valid cache hit exists, otherwise ``None`` so
     the caller runs the gate.
     """
-    if not relevant_files:
+    if not all_relevant_files:
         return None
     cache = _load_cache()
     entry = cache.get("entries", {}).get(gate_name)
     if not entry or entry.get("status") != "PASS":
         return None
-    if entry.get("file_hash") != _hash_files(relevant_files):
+    if entry.get("file_hash") != _hash_files(all_relevant_files):
         return None
     return "PASS"
 
 
-def save_result(gate_name: str, relevant_files: list[str], status: str,
+def save_result(gate_name: str, all_relevant_files: list[str], status: str,
                 duration: float) -> None:
-    """Persist a gate result to the cache. Only PASS results are cached."""
+    """Persist a gate result to the cache. Only PASS results are cached.
+
+    ``all_relevant_files`` is the gate's full relevant file set in the tree
+    (from ``gate_all_relevant_files``), used as the cache key so that
+    out-of-band modifications bust the cache.
+    """
     if status != "PASS":
         return
     cache = _load_cache()
     cache.setdefault("entries", {})[gate_name] = {
-        "file_hash": _hash_files(relevant_files),
+        "file_hash": _hash_files(all_relevant_files),
         "status": status,
         "duration": round(duration, 2),
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "relevant_files": sorted(relevant_files),
+        "relevant_files": sorted(all_relevant_files),
     }
     _save_cache(cache)

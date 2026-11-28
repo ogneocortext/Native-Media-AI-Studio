@@ -14,7 +14,13 @@ from . import cache
 from .executor import _materialize, run_lane
 from .gates import gates
 from .interpreter import _describe, candidate_list, read_cache, resolve_pnpm, resolve_python
-from .selection import changed_from_git, gate_relevant, gate_relevant_files, select_gates
+from .selection import (
+    changed_from_git,
+    gate_all_relevant_files,
+    gate_relevant,
+    gate_relevant_files,
+    select_gates,
+)
 
 # Import test analytics for saving results
 try:
@@ -363,19 +369,21 @@ def main(argv=None) -> int:
                 continue
             relevant_files = gate_relevant_files(g, changed)
 
-        # Cache hit: a previous PASS with the same relevant-file contents
-        # means this gate's output is already known. Skip re-execution and
-        # report [CACHED] instead — this is the main accelerator for
-        # repeated pushes where nothing relevant changed.
+        # Cache hit: a previous PASS with the same full relevant-file set
+        # means this gate's output is already known. Hashing every tracked
+        # file the gate cares about (not just the changed subset) ensures a
+        # relevant file modified outside a gated run busts the cache on the
+        # next push.
         if relevant_files is not None:
             cached_status = cache.get_cached_result(
-                g.name, sorted(relevant_files))
+                g.name, sorted(gate_all_relevant_files(g)))
             if cached_status == "PASS":
                 cached.append({
                     "gate": g,
                     "reason": (f"cached PASS "
-                               f"({len(relevant_files)} relevant file(s) "
-                               f"unchanged)"),
+                               f"({len(relevant_files)} changed relevant "
+                               f"file(s); {len(gate_all_relevant_files(g))} "
+                               f"tracked relevant total)"),
                 })
                 continue
 
@@ -432,22 +440,55 @@ def main(argv=None) -> int:
                 g.argv = g.argv + ["--changed-from-file", tmp_path]
                 changed_temp_files.append(tmp_path)
 
+    # In JSON mode stdout must stay pure JSON, so the streamed lines AND the
+    # per-gate status lines go to stderr instead.
+    json_mode = bool(args.json or args.save_json)
+    stream_to = sys.stderr if json_mode else None
+
+    shared = {
+        "stop": threading.Event(),
+        "print_lock": threading.Lock(),
+        "results": {},
+        "failed_output": {},
+        "gate_output": {},
+        "capture_gates": TEST_ANALYTICS_GATES,
+        "stream": not args.no_stream,
+        "out_file": stream_to,
+        "fail_fast": bool(args.fail_fast),
+        "retry": args.retry,
+        "verbose": args.verbose,
+        "changed": sorted(changed) if changed else None,
+        "environment": {
+            "python_version": None,  # filled after resolution
+            "pnpm_version": None,
+        },
+    }
+
     if not run_selected:
-        available = ", ".join(g.name for g in all_gates)
-        print(f"no gate matched {args.only}; available: {available}")
-        print("  (all selected gates skipped by --changed: "
-              + ", ".join(s["gate"].name for s in skipped) + ")")
+        # All selected gates are either skipped (not relevant) or cached
+        # (unchanged inputs). Report cached gates so the operator sees them
+        # instead of a misleading "no gate matched" message.
+        if cached:
+            print("All selected gates cached (unchanged inputs): "
+                  + ", ".join(c["gate"].name for c in cached))
+            for c in cached:
+                shared["results"][c["gate"].name] = {
+                    "name": c["gate"].name, "status": "CACHED", "elapsed": 0.0,
+                    "attempts": 0, "lane": c["gate"].lane,
+                }
+        elif skipped:
+            available = ", ".join(g.name for g in all_gates)
+            print(f"no gate matched {args.only}; available: {available}")
+            print("  (all selected gates skipped by --changed: "
+                  + ", ".join(s["gate"].name for s in skipped) + ")")
+        else:
+            print("no gate matched " + str(args.only) + "; no gates selected")
         for tmp_path in changed_temp_files:
             try:
                 os.unlink(tmp_path)
             except OSError:
                 pass
         return 0
-
-    # In JSON mode stdout must stay pure JSON, so the streamed lines AND the
-    # per-gate status lines go to stderr instead.
-    json_mode = bool(args.json or args.save_json)
-    stream_to = sys.stderr if json_mode else None
 
     py_gates = [g for g in run_selected if g.lane == "py"]
     node_gates = [g for g in run_selected if g.lane == "node"]
@@ -528,19 +569,6 @@ def main(argv=None) -> int:
     setup_seconds = _time.time() - setup_start
     sys.stdout.flush()
 
-    shared = {
-        "stop": threading.Event(),
-        "print_lock": threading.Lock(),
-        "results": {},
-        "failed_output": {},
-        "gate_output": {},
-        "capture_gates": TEST_ANALYTICS_GATES,
-        "stream": not args.no_stream,
-        "out_file": stream_to,
-        "fail_fast": bool(args.fail_fast),
-        "retry": args.retry,
-        "verbose": args.verbose,
-    }
     threads = []
     if args.serial:
         # Serial mode: both lanes in this thread, one after the other, so
@@ -584,13 +612,14 @@ def main(argv=None) -> int:
 
     # Persist PASS results to the content-hash cache so repeated pushes with
     # unchanged relevant files skip re-execution. Only gates that actually
-    # ran (not cached, not skipped) are eligible.
+    # ran (not cached, not skipped) are eligible. The cache key is the gate's
+    # full relevant file set in the tree, so out-of-band modifications bust it.
     if changed is not None:
         for g in run_selected:
             result = shared["results"].get(g.name)
             if result and result["status"] == "PASS":
-                relevant_files = gate_relevant_files(g, changed)
-                cache.save_result(g.name, sorted(relevant_files), "PASS",
+                all_relevant = gate_all_relevant_files(g)
+                cache.save_result(g.name, sorted(all_relevant), "PASS",
                                   result["elapsed"])
 
     # Build final summary for AI agents

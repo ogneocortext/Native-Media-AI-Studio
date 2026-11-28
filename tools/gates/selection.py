@@ -127,45 +127,45 @@ def gate_relevant(gate: Gate, changed: set[str]) -> bool:
     return True, "gate not specifically scoped"
 
 
-def gate_relevant_files(gate: Gate, changed: set[str]) -> set[str]:
-    """Return the subset of ``changed`` files that ``gate`` could be affected by.
+def _filter_relevant_files(gate: Gate, files: set[str]) -> set[str]:
+    """Filter a set of tracked file paths to those relevant to ``gate``.
 
-    Used for cache hashing (only hash the files a gate cares about) and for
-    scoping file-linting gates (eslint, ruff) and vitest to the changed
-    subset. Mirrors the criteria in ``gate_relevant`` so the two stay
-    consistent.
+    Mirrors the criteria in ``gate_relevant`` so the two stay consistent.
+    Returns an empty set when no file matches.
 
-    Returns an empty set when ``changed`` is empty or no changed file is
-    relevant to this gate.
+    Parameters
+    ----------
+    gate:
+        The gate whose relevant-file criteria to apply.
+    files:
+        Tracked file paths (repo-root relative, as from ``git ls-files``
+        or a changed-file batch).
     """
-    if not changed:
-        return set()
-
-    py_files = {f for f in changed if f.endswith(".py")}
-    ts_files = {f for f in changed if f.lower().endswith((".ts", ".tsx"))}
-    frontend_src = {f for f in changed if f.startswith("packages/frontend/src/")}
-    frontend_test = {f for f in changed if f.startswith("packages/frontend/tests/")}
+    py_files = {f for f in files if f.endswith(".py")}
+    ts_files = {f for f in files if f.lower().endswith((".ts", ".tsx"))}
+    frontend_src = {f for f in files if f.startswith("packages/frontend/src/")}
+    frontend_test = {f for f in files if f.startswith("packages/frontend/tests/")}
     frontend_root = {
-        f for f in changed
+        f for f in files
         if f.startswith("packages/frontend/")
         and not f.startswith("packages/frontend/src/")
         and not f.startswith("packages/frontend/tests/")
     }
     backend_app = {
-        f for f in changed
+        f for f in files
         if f.startswith("packages/backend/app/") and f.endswith(".py")
     }
-    backend_any = {f for f in changed if f.startswith("packages/backend/")}
-    tools_py = {f for f in changed if f.startswith("tools/") and f.endswith(".py")}
-    tools_tests = {f for f in changed if f.startswith("tools/tests/")}
-    docs_files = {f for f in changed if f.startswith("docs/") or f == "AGENTS.md"}
+    backend_any = {f for f in files if f.startswith("packages/backend/")}
+    tools_py = {f for f in files if f.startswith("tools/") and f.endswith(".py")}
+    tools_tests = {f for f in files if f.startswith("tools/tests/")}
+    docs_files = {f for f in files if f.startswith("docs/") or f == "AGENTS.md"}
     text_files = {
-        f for f in changed
+        f for f in files
         if f.lower().endswith((".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py",
                                ".md", ".json", ".yaml", ".yml", ".toml", ".ps1",
                                ".sh", ".css", ".html", ".txt", ".cfg", ".ini"))
     }
-    config_files = {f for f in changed if f.startswith("config/")}
+    config_files = {f for f in files if f.startswith("config/")}
 
     name = gate.name
     if name == "docs":
@@ -175,7 +175,7 @@ def gate_relevant_files(gate: Gate, changed: set[str]) -> set[str]:
     if name == "arch":
         return backend_app
     if name == "routes":
-        return {f for f in changed
+        return {f for f in files
                 if f.startswith("packages/backend/app/api/") and f.endswith(".py")}
     if name == "glsl":
         return ts_files & frontend_src
@@ -192,6 +192,50 @@ def gate_relevant_files(gate: Gate, changed: set[str]) -> set[str]:
     if name == "e2e":
         return ts_files & frontend_src
     return set()
+
+
+def gate_relevant_files(gate: Gate, changed: set[str]) -> set[str]:
+    """Return the subset of ``changed`` files that ``gate`` could be affected by.
+
+    Used for scoping file-linting gates (eslint, ruff) and vitest to the
+    changed subset. Mirrors the criteria in ``gate_relevant`` so the two
+    stay consistent.
+
+    Returns an empty set when ``changed`` is empty or no changed file is
+    relevant to this gate.
+    """
+    if not changed:
+        return set()
+    return _filter_relevant_files(gate, changed)
+
+
+def gate_all_relevant_files(gate: Gate) -> set[str]:
+    """Return ALL tracked files in the tree that ``gate`` could be affected by.
+
+    Runs ``git ls-files`` to enumerate tracked files, then applies the same
+    per-gate criteria as ``gate_relevant_files`` so the two stay consistent.
+
+    This is the cache-key input: a relevant file modified outside a gated
+    run (e.g. via ``--no-verify``) changes this set's contents and busts the
+    cache on the next push, forcing the gate to re-run. An unchanged tree
+    produces the same hash and the gate reports [CACHED].
+
+    Returns an empty set when no tracked file matches (gate always runs).
+    """
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["git", "ls-files"],
+            cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8",
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    if out.returncode != 0:
+        return set()
+    all_files = {f for f in out.stdout.splitlines() if f.strip()}
+    return _filter_relevant_files(gate, all_files)
 
 
 def select_gates(all_gates: list[Gate], only: list[str] | None,
