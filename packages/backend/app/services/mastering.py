@@ -777,6 +777,20 @@ async def master_file(
     # 4. Final re-measure of the artifact (D17: assert the artifact, not the intent).
     after = await measure_loudness(out_path)
 
+    # QC honesty: ``after`` is the ebur128 re-measure of the written file.
+    # The limiter's internal 2x-oversample estimate is reported separately as
+    # ``applied.true_peak_estimate_dbtp`` so it can never be mistaken for the
+    # measured result — on dense material it under-reads ebur128 by ~0.8 dB.
+    # Any measured exceedance of the delivery ceiling is surfaced as an
+    # explicit qc_warnings entry, never rounded into compliance.
+    true_peak_estimate = _true_peak(tuned, pcm.sample_rate)
+    qc_warnings: list[str] = []
+    after_tp = after.get("true_peak_dbtp")
+    if after_tp is not None and after_tp > ceiling_dbtp:
+        qc_warnings.append(
+            f"true peak {after_tp:.1f} dBTP exceeds ceiling {ceiling_dbtp:.1f} dBTP"
+        )
+
     # Band-energy QC after finishing.
     after_sub_db = _band_energy_db(tuned, pcm.sample_rate, BAND_SUB_LO_HZ, BAND_SUB_HI_HZ)
     after_presence_db = _band_energy_db(
@@ -789,8 +803,10 @@ async def master_file(
         "error": None,
         "before": before,
         "after": after,
+        "qc_warnings": qc_warnings,
         "applied": {
             "gain_db": round(applied_gain_db, 2),
+            "true_peak_estimate_dbtp": round(true_peak_estimate, 2),
             "gain_trim_db": round(trim_db, 2),
             "target_lufs": target_lufs,
             "ceiling_dbtp": ceiling_dbtp,

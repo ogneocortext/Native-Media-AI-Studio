@@ -106,6 +106,7 @@ class MasterResponse(BaseModel):
     before: dict | None = None
     after: dict | None = None
     applied: dict | None = None
+    qc_warnings: list[str] | None = None
 
 
 @router.post("/master", response_model=MasterResponse)
@@ -151,6 +152,7 @@ async def master_audio(body: MasterRequest) -> MasterResponse:
         before=result.get("before"),
         after=result.get("after"),
         applied=result.get("applied"),
+        qc_warnings=result.get("qc_warnings"),
     )
 
 

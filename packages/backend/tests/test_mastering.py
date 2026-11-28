@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -199,3 +200,85 @@ async def test_master_file_missing_source_returns_error(tmp_path):
     report = await mastering.master_file("does_not_exist.wav")
     assert report["error"] is not None
     assert report["mastered_path"] is None
+
+
+@requires_ffmpeg
+@pytest.mark.asyncio
+async def test_master_file_after_true_peak_matches_independent_ebur128(tmp_path):
+    """QC honesty: ``after.true_peak_dbtp`` is the ebur128 measure of the
+    written artifact — it must match an independent ebur128 run on the same
+    file, and the limiter's internal estimate must appear only under its own
+    ``applied.true_peak_estimate_dbtp`` name."""
+    mastering.AUDIO_DIR = tmp_path
+    mastering.MASTERED_DIR = tmp_path / "mastered"
+    mastering.MASTERED_DIR.mkdir(parents=True, exist_ok=True)
+    src = tmp_path / "tone.m4a"
+    await _write_m4a(src, _sine(440, 2.0))
+
+    report = await mastering.master_file(
+        "tone.m4a", target_lufs=-14.0, ceiling_dbtp=-1.0
+    )
+    assert report.get("error") is None, report.get("error")
+    out = Path(report["mastered_path"])
+    assert out.exists() and out.stat().st_size > 0
+
+    proc = subprocess.run(
+        [
+            FFMPEG, "-hide_banner", "-nostats", "-i", str(out),
+            "-af", "ebur128=peak=true", "-f", "null", "-",
+        ],
+        capture_output=True, text=True, encoding="utf-8", timeout=120,
+    )
+    m = re.search(
+        r"True peak:\s*\n\s*Peak:\s*([+-]?\d+(?:\.\d+)?)\s*dBFS",
+        proc.stderr or "",
+        re.IGNORECASE,
+    )
+    assert m, f"could not parse ebur128 true peak: {(proc.stderr or '')[-400:]}"
+    independent_tp = float(m.group(1))
+
+    reported_tp = report["after"]["true_peak_dbtp"]
+    assert reported_tp is not None
+    assert abs(reported_tp - independent_tp) <= 0.1, (
+        f"QC true_peak {reported_tp} vs independent ebur128 {independent_tp}"
+    )
+    assert "true_peak_estimate_dbtp" in report["applied"]
+
+
+@requires_ffmpeg
+@pytest.mark.asyncio
+async def test_master_file_qc_warning_fires_when_true_peak_exceeds_ceiling(
+    tmp_path,
+):
+    """A 7 kHz square wave produces inter-sample peaks the 2x-oversample
+    limiter estimate misses by >10 dB, so the written artifact measures well
+    over the -1 dBTP ceiling. The report must say so plainly via
+    ``qc_warnings`` instead of leaving a bare over-ceiling number."""
+    mastering.AUDIO_DIR = tmp_path
+    mastering.MASTERED_DIR = tmp_path / "mastered"
+    mastering.MASTERED_DIR.mkdir(parents=True, exist_ok=True)
+
+    sample_rate = 48000
+    t = np.arange(sample_rate * 3) / sample_rate
+    sq = np.sign(np.sin(2 * math.pi * 7000 * t))
+    stereo = (np.stack([sq, np.roll(sq, 5)], axis=1) * 0.9).astype(np.float32)
+    src = tmp_path / "hot_square.wav"
+    # 16-bit PCM, not float WAV: the quantization noise is part of what pushes
+    # the inter-sample peaks over the ceiling on this signal.
+    with wave.open(str(src), "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(sample_rate)
+        w.writeframes((stereo * 32767).astype("<i2").tobytes())
+
+    report = await mastering.master_file(
+        "hot_square.wav", target_lufs=-14.0, ceiling_dbtp=-1.0
+    )
+    assert report.get("error") is None, report.get("error")
+
+    after_tp = report["after"]["true_peak_dbtp"]
+    assert after_tp is not None and after_tp > -1.0, (
+        f"expected over-ceiling true peak, got {after_tp}"
+    )
+    warnings = report.get("qc_warnings") or []
+    assert any("exceeds ceiling" in w for w in warnings), warnings
