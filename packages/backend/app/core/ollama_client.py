@@ -46,6 +46,13 @@ Ollama 0.40.18 compatibility note (2026-11-24, verified live):
      ``llamacpp`` build's API surface. No endpoints, fields, or
      capabilities changed; every note above still stands. Probe exits 0
      and ``test_ollama_live.py`` passes 10/10 against the live server.
+
+Ollama 0.40.19 compatibility note (2026-11-28, verified live):
+   - Engine-level release only (inkling2 faster short histories / draft
+     proposals / conv snapshots, mlxrunner compact Engram history
+     buffers, llama-server bump) — no API surface change on this
+     Windows ``ggml``/``llamacpp`` build. No endpoints, fields, or
+     capabilities changed; every note above still stands.
 """
 
 from __future__ import annotations

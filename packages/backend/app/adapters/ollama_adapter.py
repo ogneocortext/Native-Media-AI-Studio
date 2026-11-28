@@ -24,6 +24,13 @@ Ollama 0.40.18 compatibility note (2026-11-24, verified live):
      on a model without the ``tools`` capability is HTTP 400, and
      ``_supports_tools`` already gates on ``capabilities``. No code
      change required.
+
+Ollama 0.40.19 compatibility note (2026-11-28, verified live):
+   - Engine-level release only (inkling2 faster short histories / draft
+     proposals / conv snapshots, mlxrunner compact Engram history
+     buffers, llama-server bump) — no API surface change on this
+     Windows ``ggml``/``llamacpp`` build. No endpoints, fields, or
+     capabilities changed; every note above still stands.
 """
 
 from __future__ import annotations
