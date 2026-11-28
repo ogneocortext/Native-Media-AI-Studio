@@ -1610,20 +1610,20 @@ evidence above.
   (virtual frames keep dt60 = 1).
 - **Last session:** Devin, 2026-11-24 â€” landed in this commit.
 
-### T-VIZ-59 — Split canvas2dModes.ts into per-mode modules
+### T-VIZ-59 â€” Split canvas2dModes.ts into per-mode modules
 - **Status:** done
 - **Goal:** The 1,777-line `canvas2dModes.ts` becomes a `canvas2dModes/`
-  package — pure code motion, zero behavior change, all import specifiers
+  package â€” pure code motion, zero behavior change, all import specifiers
   preserved.
 - **Files:** deleted `packages/frontend/src/features/visualizer/canvas2dModes.ts`;
   new `canvas2dModes/{index,types,shared,bars,waveform,scopes,ambient,kinetic}.ts`;
   doc references in `docs/agent-code-navigation.md` and
   `docs/knowledge-library/canvas2d-bar-visualization-research.md`.
-- **Acceptance:** met — `./canvas2dModes` resolves to the package index so
+- **Acceptance:** met â€” `./canvas2dModes` resolves to the package index so
   `Canvas2DVisualizer.tsx` and `canvas2dModes.test.ts` diffs are empty;
   every function body verbatim (only imports/exports/prettier changed);
   `tsc -b` + tests tsconfig clean, vitest canvas2dModes 3/3, eslint clean,
   prettier clean; largest module bars.ts ~640 lines.
-- **Last session:** Devin, 2026-11-28 — landed in this commit. Historical
+- **Last session:** Devin, 2026-11-28 â€” landed in this commit. Historical
   `canvas2dModes.ts` mentions in this ledger are left as-written (they name
   the file as it existed at the time); living docs point at the package.
