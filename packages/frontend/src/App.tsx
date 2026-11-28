@@ -159,6 +159,7 @@ const VoiceLivePage = lazyNamed(
   "VoiceLivePage",
 );
 const VSTPage = lazyNamed(async () => import("./features/vst/VSTPage"), "VSTPage");
+const RoomPage = lazyNamed(async () => import("./features/room/RoomPage"), "RoomPage");
 
 // Register all lazy routes for preloading on hover
 registerRouteLoader(
@@ -239,6 +240,7 @@ registerRouteLoader(
   "/system/onboarding",
   async () => import("./features/onboarding/OnboardingPage"),
 );
+registerRouteLoader("/room", async () => import("./features/room/RoomPage"));
 
 const withErrorBoundary = (element: React.ReactNode) => <ErrorBoundary>{element}</ErrorBoundary>;
 
@@ -285,6 +287,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/render/prompts": "Music Prompts",
   "/about": "About",
   "/office": "Maya's Office",
+  "/room": "The Room",
 };
 
 function RouteTitle() {
@@ -351,6 +354,9 @@ function App() {
 
               {/* Office */}
               <Route path="/office" element={withErrorBoundary(<OfficePage />)} />
+
+              {/* The Room — shared persistent space */}
+              <Route path="/room" element={withErrorBoundary(<RoomPage />)} />
 
               {/* Create */}
               <Route path="/create/music-video" element={withErrorBoundary(<MusicVideoWizard />)} />

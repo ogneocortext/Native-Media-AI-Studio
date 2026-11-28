@@ -35,6 +35,7 @@ import {
   Info,
   EyeOff,
   Puzzle,
+  Armchair,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
@@ -321,6 +322,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Maya's Office",
         icon: <Info size={18} />,
         keywords: "office config greeting currently featured plate",
+      },
+      {
+        path: "/room",
+        label: "The Room",
+        icon: <Armchair size={18} />,
+        keywords: "room shared space 3d library listening",
       },
     ],
     collapsedByDefault: true,

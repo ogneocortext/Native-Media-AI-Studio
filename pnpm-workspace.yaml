@@ -38,15 +38,10 @@ catalog:
   comfyui-mcp: 0.52.206
   '@playwright/mcp': ^0.0.86
   '@tanstack/react-query': ^5.108.4
-# ---------------------------------------------------------------------------
-# TypeScript runs side-by-side: `typescript` (catalog) is
-# @typescript/typescript6 — the JS API that typescript-eslint (<6.1.0
-# peer cap), ts-api-utils and @svgr still require — while
-# `@typescript/native` is typescript@7 (native Go port, `tsc` bin) used
-# by `tsc -b` / `tsc -p` in type-check and build scripts. Do NOT point
-# `typescript` at 7.x: TS 7.0 ships no programmatic API and eslint
-# crashes at import time. TS 7.1+ may unify this again.
-# ---------------------------------------------------------------------------
+  # The Room post chain (knowledge doc three-js-interior-room-quality-2026
+  # §2): scoped addition named in the build packet — exact versions.
+  '@react-three/postprocessing': 3.2.2
+  postprocessing: 6.39.6
 linkWorkspacePackages: true
 preferWorkspacePackages: true
 sharedWorkspaceLockfile: true
