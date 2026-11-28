@@ -227,15 +227,15 @@ function WaveformVisualizer({
           drawWaveform(res.peaks);
           waveformDataRef.current = res.peaks;
         } else {
-          drawPlaceholder();
+          drawEmptyState();
         }
       })
       .catch(() => {
-        drawPlaceholder();
+        drawEmptyState();
       });
   }, [file.relative_path, file.filename, waveform, drawWaveform]);
 
-  function drawPlaceholder() {
+  function drawEmptyState() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -250,13 +250,14 @@ function WaveformVisualizer({
     const width = canvas.width / dpr;
     const height = canvas.height / dpr;
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "rgba(139, 92, 246, 0.25)";
-    const barWidth = width / WAVEFORM_BAR_COUNT;
-    for (let i = 0; i < WAVEFORM_BAR_COUNT; i++) {
-      const h = 12 + Math.random() * (height - 24);
-      const y = (height - h) / 2;
-      ctx.fillRect(i * barWidth, y, Math.max(1, barWidth - 0.5), h);
-    }
+    // Honest empty state: a flat muted baseline, visually distinct from
+    // real peaks — never fabricated bar heights.
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, height / 2);
+    ctx.lineTo(width, height / 2);
+    ctx.stroke();
   }
 
   return (
