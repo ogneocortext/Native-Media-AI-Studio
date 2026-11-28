@@ -49,12 +49,15 @@ export function formatDateTime(dateString: string): string {
 
 export { formatBytes as formatFileSize };
 
-/** Format a byte count into KB/MB/GB with 0-1 decimals (matches the AI-Tools formatSize copies). */
+/** Format a byte count into KB/MB/GB using binary units (1024-based). Single source
+ * of truth so every surface shows identical sizes (no decimal-vs-binary drift). */
 export function formatSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  if (bytes >= 1e9) return (bytes / 1e9).toFixed(1) + " GB";
-  if (bytes >= 1e6) return (bytes / 1e6).toFixed(0) + " MB";
-  return (bytes / 1e3).toFixed(0) + " KB";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.min(Math.max(0, Math.floor(Math.log(bytes) / Math.log(k))), sizes.length - 1);
+  const value = parseFloat((bytes / Math.pow(k, i)).toFixed(1));
+  return `${value} ${sizes[i]}`;
 }
 
 /** Format seconds as mm:ss (or mm:ss.cc when showHundredths is true). */

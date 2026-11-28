@@ -16,6 +16,7 @@ import {
   type OllamaModel,
 } from "../../services/api";
 import { DS } from "../../styles/designSystem";
+import { formatSize } from "../../utils/format";
 
 const rowLabel = (label: string, count: number) => (
   <div className={`${DS.flexBetween} mb-1 text-xs text-muted uppercase tracking-wider font-semibold`}>
@@ -24,7 +25,14 @@ const rowLabel = (label: string, count: number) => (
   </div>
 );
 
-export function OllamaModelManager() {
+function isCloudModel(name: string): boolean {
+  return name.includes(":cloud");
+}
+
+export function OllamaModelManager({
+  selectedModel = null,
+  showDelete = true,
+}: { selectedModel?: string | null; showDelete?: boolean } = {}) {
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [loaded, setLoaded] = useState<unknown[]>([]);
   const [pulling, setPulling] = useState(false);
@@ -86,18 +94,6 @@ export function OllamaModelManager() {
     }
   };
 
-  const formatSize = (bytes: number) => {
-    if (!bytes) return "—";
-    const units = ["B", "KB", "MB", "GB", "TB"];
-    let size = bytes;
-    let unit = 0;
-    while (size >= 1024 && unit < units.length - 1) {
-      size /= 1024;
-      unit++;
-    }
-    return `${size.toFixed(1)} ${units[unit]}`;
-  };
-
   return (
     <div className={DS.card}>
       <div className={`${DS.flexBetween} mb-3`}>
@@ -116,7 +112,7 @@ export function OllamaModelManager() {
         </button>
       </div>
 
-      {/* Installed models */}
+      {/* Installed models summary */}
       <div className="space-y-2 mb-4">
         {rowLabel("Installed", models.length)}
         {models.length === 0 ? (
@@ -125,55 +121,74 @@ export function OllamaModelManager() {
           </p>
         ) : (
           <div className="space-y-1">
-            {models.map((m) => (
-              <div
-                key={m.name}
-                className="flex items-center justify-between gap-2 p-2 bg-gray-700/30 rounded-lg border border-transparent hover:border-gray-500"
-              >
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <span className="text-sm text-foreground truncate">{m.name}</span>
-                  {m.broken_reason && (
-                    <span className="text-[10px] text-red-400/80 shrink-0">{m.broken_reason}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 text-xs text-muted shrink-0">
-                  {m.capabilities?.includes("vision") && (
-                    <span title="Vision" className="flex items-center gap-0.5">
-                      <span className="w-1 h-1 rounded-full bg-blue-400" />
-                    </span>
-                  )}
-                  {m.capabilities?.includes("thinking") && (
-                    <span title="Thinking" className="flex items-center gap-0.5">
-                      <span className="w-1 h-1 rounded-full bg-purple-400" />
-                    </span>
-                  )}
-                  {m.capabilities?.includes("tools") && (
-                    <span title="Tools" className="flex items-center gap-0.5">
-                      <span className="w-1 h-1 rounded-full bg-emerald-400" />
-                    </span>
-                  )}
-                  <span className="font-mono">{formatSize(m.size || 0)}</span>
-                  {m.vram_estimate_mb && (
-                    <span className="text-gray-500">· ~{m.vram_estimate_mb} MB VRAM</span>
-                  )}
-                </div>
-                <button
-                  onClick={() => {
-                    void handleDelete(m.name);
-                  }}
-                  disabled={deleting === m.name}
-                  className="p-1 hover:bg-gray-600 rounded text-muted hover:text-red-400 shrink-0"
-                  aria-label={`Delete ${m.name}`}
-                  title={`Delete ${m.name}`}
+            {models.map((m) => {
+              const cloud = isCloudModel(m.name);
+              const verified = m.verified === true;
+              const brokenReason = m.broken_reason;
+              const caps = m.capabilities ?? [];
+              return (
+                <div
+                  key={m.name}
+                  className="flex items-center justify-between gap-2 p-2 bg-gray-700/30 rounded-lg border border-transparent hover:border-gray-500"
                 >
-                  {deleting === m.name ? (
-                    <RefreshCw size={12} className="animate-spin" />
-                  ) : (
-                    <Trash2 size={13} />
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-sm text-foreground truncate">{m.name}</span>
+                    {cloud && (
+                      <span className="text-[10px] text-blue-400/80 shrink-0">cloud</span>
+                    )}
+                    {!verified && brokenReason && brokenReason !== "not_tested" && (
+                      <span className="text-[10px] text-red-400/80 shrink-0">{brokenReason}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-muted shrink-0">
+                    {caps.includes("vision") && (
+                      <span title="Vision" className="flex items-center gap-0.5">
+                        <span className="w-1 h-1 rounded-full bg-blue-400" />
+                      </span>
+                    )}
+                    {caps.includes("thinking") && (
+                      <span title="Thinking" className="flex items-center gap-0.5">
+                        <span className="w-1 h-1 rounded-full bg-purple-400" />
+                      </span>
+                    )}
+                    {caps.includes("tools") && (
+                      <span title="Tools" className="flex items-center gap-0.5">
+                        <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                      </span>
+                    )}
+                    {verified && (
+                      <span className={DS.badgeGreen + " shrink-0"}>verified</span>
+                    )}
+                    {!cloud && m.size > 0 && (
+                      <>
+                        <span className="font-mono">{formatSize(m.size)}</span>
+                        {m.vram_estimate_mb && (
+                          <span className="text-gray-500">· ~{m.vram_estimate_mb} MB VRAM</span>
+                        )}
+                      </>
+                    )}
+                    {cloud && <span className="text-gray-500">cloud</span>}
+                  </div>
+                  {showDelete && !cloud && (
+                    <button
+                      onClick={() => {
+                        void handleDelete(m.name);
+                      }}
+                      disabled={deleting === m.name}
+                      className="p-1 hover:bg-gray-600 rounded text-muted hover:text-red-400 shrink-0"
+                      aria-label={`Delete ${m.name}`}
+                      title={`Delete ${m.name}`}
+                    >
+                      {deleting === m.name ? (
+                        <RefreshCw size={12} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={13} />
+                      )}
+                    </button>
                   )}
-                </button>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         )}
         {deleteError && (
@@ -247,7 +262,7 @@ export function OllamaModelManager() {
             <AlertCircle size={12} className="shrink-0" /> {pullError}
           </p>
         )}
-        {!pullError && !pulling && models.length > 0 && (
+        {!pullError && !pulling && !selectedModel && (
           <p className={`${DS.textXs} text-emerald-400 mt-1 flex items-center gap-1`}>
             <CheckCircle size={12} className="shrink-0" /> Ready to chat — select a model above.
           </p>
