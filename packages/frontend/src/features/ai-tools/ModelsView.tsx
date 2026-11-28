@@ -19,7 +19,7 @@ export function ModelsView() {
   return (
     <div className={DS.page}>
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/analyze/ai")}>
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => { void navigate("/analyze/ai"); }}>
           <ArrowLeft size={14} className="text-muted hover:text-white" />
           <span className="text-sm text-muted hover:text-white">Back to AI Tools</span>
         </div>

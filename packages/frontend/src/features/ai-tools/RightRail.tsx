@@ -169,7 +169,7 @@ export function RightRail({
 
             <div className="mt-3">
               <button
-                onClick={() => navigate("/analyze/ai/models")}
+                onClick={() => { void navigate("/analyze/ai/models"); }}
                 className="w-full px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center justify-between gap-1"
               >
                 <span>Full model management →</span>
