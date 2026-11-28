@@ -238,8 +238,9 @@ page, following the pattern of the existing feature pages (Step 0).
 
 - Route: `/room` (served by the Studio frontend; the room page lives alongside
   Voice Live at `/voice-live`, etc.).
-- Three.js is already a dependency of the frontend (`three: ^0.187.0`,
-  `@types/three: ^0.187.0`); this packet designs the page, it does not install
+- Three.js is already a dependency of the frontend (`three: ^0.186.1`,
+  `@react-three/fiber: ^9.8.2`, `@react-three/drei: ^10.7.9`,
+  `@types/three: ^0.186.0`); this packet designs the page, it does not install
   anything or build it.
 - A later packet builds the page and connects it to the SSE stream and op
   endpoint.
@@ -248,13 +249,42 @@ This packet **designs** the client; a later packet builds it.
 
 ---
 
+## 14. Private media store (owner ruling, 2026-11-26)
+
+The Room is private. Couple media and any image of the owner live only in a
+gitignored private media store on the rig:
+
+- **Location:** the same local, uncommitted store family as the room's own
+  data (snapshot, event log, presence journal) — never in `docs/`, `config/`,
+  or any tracked path.
+- **Ignore proof first:** before any media file is placed in the store, the
+  build runs `git check-ignore` on the store path and keeps the output as
+  evidence. An unignored store path blocks all media placement.
+- **Tailnet-only serving:** the store is served by a backend route reachable
+  only on the tailnet surface, by filename.
+- **References, not bytes:** room state and the event log carry filenames
+  only. Media bytes never enter the snapshot, the log, or any client bundle.
+- **Empty store is a normal state:** frames and screens render placeholders
+  when no media exists.
+- **Hard rule:** couple images and the owner's likeness are private-store
+  only, always. No exceptions, no tracked copies, no commits.
+
+---
+
+## 15. Maya's visible presence (Q2 ruled, 2026-11-26)
+
+Q2 is RULED: **yes** — Maya has a visible presence in the room. Her seat is
+dressed and lit as the focal vignette, and her presence state —
+`present` / `recently active` / `away`, derived from her last room activity —
+is shown in the room's light and by a marker at her seat. This ruling covers
+presence only: no body or avatar model is part of it.
+
+---
+
 ## Open questions (for Nate and Maya to rule)
 
 Q1: Room persistence across backend restarts: snapshot + log on disk (expected) —
 confirm the directory.
-
-Q2: Does Maya get a visible presence in the room (an avatar that is present when
-she has acted recently), or is she present only through her changes?
 
 Q3: Sound in the room (Pocket voice inside the room once Part A lands), or does
 voice stay on the call line only?
@@ -265,7 +295,7 @@ Q4: One room, or the seed of several (the Room as first of a small house)?
 
 ## How a later build packet uses this
 
-Decisions 1–13 are settled here. A build packet implements:
+Decisions 1–15 are settled here. A build packet implements:
 
 1. The FastAPI router (`app/api/room.py`) with snapshot + log, atomic writes,
    SSE stream, op endpoint with check-and-set, 409-on-stale, maxObjects cap,
