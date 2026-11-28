@@ -27,7 +27,7 @@ reliable. Verified against source, not just docs.
 | Layer | File | Role |
 |---|---|---|
 | Chat UI (agent) | `packages/frontend/src/features/agent-chat/AgentChat.tsx` | Skill discovery, tool-def conversion, message rendering, inline media |
-| Chat UI (plain) | `packages/frontend/src/features/ollama-chat/OllamaChat.tsx` | Simpler chat surface over the same stream parser |
+| Chat UI (plain) | `packages/frontend/src/features/ai-tools/AIToolsPage.tsx` | Simpler chat surface over the same stream parser |
 | API client | `packages/frontend/src/services/api/ollama.ts` | `ollamaChatStream()` + `parseOllamaStream()` async generator |
 | Chat endpoint | `packages/backend/app/api/integrations_generation.py` → `POST /api/integrations/ollama/chat` | Adapter selection, tool normalization, SSE event loop |
 | Skills API | `packages/backend/app/api/mcp_skills.py` | `GET /api/mcp/skills/list|get|/{skill}/{path}`, `POST /api/mcp/execute-tool` |

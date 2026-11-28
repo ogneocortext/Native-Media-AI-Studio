@@ -201,12 +201,6 @@ const NAV_GROUPS: NavGroup[] = [
         keywords: "ai tools models chat",
       },
       {
-        path: "/analyze/chat",
-        label: "Ollama Chat",
-        icon: <Mic size={18} />,
-        keywords: "chat ollama model",
-      },
-      {
         path: "/mastering",
         label: "Mastering",
         icon: <Settings size={18} />,
@@ -673,7 +667,11 @@ export function Sidebar() {
               title="Native Media AI Studio — home"
             >
               <span className="sidebar-logo" aria-hidden>
-                <img src="/brand/logo-signal-mark-gradient.png" alt="" className="sidebar-logo-img" />
+                <img
+                  src="/brand/logo-signal-mark-gradient.png"
+                  alt=""
+                  className="sidebar-logo-img"
+                />
               </span>
               {showText && (
                 <span className="sidebar-brand-text">

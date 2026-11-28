@@ -7,7 +7,6 @@ import {
   AlertCircle,
   CheckCircle,
   Zap,
-  Wifi,
   WifiOff,
   Palette,
   MessageCircle,
@@ -17,19 +16,37 @@ import {
   Copy,
   RotateCw,
   ChevronRight,
+  Trash2,
+  Plus,
+  Volume2,
+  VolumeX,
+  Download,
+  Activity,
+  Shield,
+  Wrench,
 } from "lucide-react";
 import { ToolExecutionCard } from "../../components/ToolExecutionCard";
+import { Card } from "../../components/common";
+import { AudioTransport } from "../../components/audio";
 import {
   getOllamaModels,
   ollamaChatStream,
   parseOllamaStream,
   getBenchmarkResults,
   getHardwareBenchmarks,
+  runBenchmark,
+  runCodingBenchmark,
+  getTaskModelRoutes,
+  selectModel,
+  uploadAudioFile,
   type OllamaModel,
   type ToolDefinition,
   type OllamaBenchmarkResult,
   type HardwareBenchmarkSummary,
 } from "../../services/api";
+import { getOutputUrl } from "../../utils/url";
+import { useAudioLibrary } from "../../hooks/useAudioLibrary";
+import { useSpeakAloud } from "../../hooks/useSpeakAloud";
 import { DS } from "../../styles/designSystem";
 import { formatSize } from "../../utils/format";
 import { VisualizationCanvas } from "./VisualizationCanvas";
@@ -56,6 +73,195 @@ interface Message {
   vizConfig?: VisualizationConfig;
 }
 
+// ---------------------------------------------------------------------------
+// SimpleMarkdown — lightweight markdown → React (no extra dependency)
+// ---------------------------------------------------------------------------
+
+type MDNode =
+  | { type: "text"; content: string }
+  | { type: "bold"; children: MDNode[] }
+  | { type: "italic"; children: MDNode[] }
+  | { type: "code"; content: string }
+  | { type: "link"; href: string; children: MDNode[] }
+  | { type: "br" };
+
+function parseInline(md: string): MDNode[] {
+  const nodes: MDNode[] = [];
+  let i = 0;
+  const len = md.length;
+  while (i < len) {
+    const ch = md[i];
+    if (ch === "`") {
+      const end = md.indexOf("`", i + 1);
+      if (end !== -1) {
+        nodes.push({ type: "code", content: md.slice(i + 1, end) });
+        i = end + 1;
+        continue;
+      }
+      nodes.push({ type: "text", content: ch });
+      i += 1;
+      continue;
+    }
+    if (md.startsWith("**", i)) {
+      const end = md.indexOf("**", i + 2);
+      if (end !== -1) {
+        nodes.push({ type: "bold", children: parseInline(md.slice(i + 2, end)) });
+        i = end + 2;
+        continue;
+      }
+      nodes.push({ type: "text", content: "**" });
+      i += 2;
+      continue;
+    }
+    if (ch === "*") {
+      const end = md.indexOf("*", i + 1);
+      if (end !== -1 && end > i + 1) {
+        nodes.push({ type: "italic", children: parseInline(md.slice(i + 1, end)) });
+        i = end + 1;
+        continue;
+      }
+      nodes.push({ type: "text", content: ch });
+      i += 1;
+      continue;
+    }
+    if (ch === "[") {
+      const close = md.indexOf("]", i + 1);
+      if (close !== -1 && md[close + 1] === "(") {
+        const parenClose = md.indexOf(")", close + 2);
+        if (parenClose !== -1) {
+          nodes.push({
+            type: "link",
+            href: md.slice(close + 2, parenClose),
+            children: parseInline(md.slice(i + 1, close)),
+          });
+          i = parenClose + 1;
+          continue;
+        }
+      }
+      nodes.push({ type: "text", content: ch });
+      i += 1;
+      continue;
+    }
+    if (ch === "\n") {
+      nodes.push({ type: "br" });
+      i += 1;
+      continue;
+    }
+    nodes.push({ type: "text", content: ch });
+    i += 1;
+  }
+  return nodes;
+}
+
+function renderInline(nodes: MDNode[]): React.ReactNode {
+  return nodes.map((node, idx) => {
+    switch (node.type) {
+      case "text":
+        return node.content;
+      case "bold":
+        return <strong key={idx}>{renderInline(node.children)}</strong>;
+      case "italic":
+        return <em key={idx}>{renderInline(node.children)}</em>;
+      case "code":
+        return (
+          <code
+            key={idx}
+            className="text-xs bg-white/10 px-1.5 py-0.5 rounded border border-white/5 text-cyan-300 font-mono"
+          >
+            {node.content}
+          </code>
+        );
+      case "link":
+        return (
+          <a
+            key={idx}
+            href={node.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
+          >
+            {renderInline(node.children)}
+          </a>
+        );
+      case "br":
+        return <br key={idx} />;
+      default:
+        return null;
+    }
+  });
+}
+
+function SimpleMarkdown({ content }: { content: string }): React.ReactNode {
+  if (!content) return null;
+  const blocks = content.split("\n\n");
+  return blocks.map((block, bi) => {
+    const trimmed = block.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith("```")) {
+      const fenceEnd = trimmed.indexOf("```", 3);
+      const langLine = trimmed.slice(3, fenceEnd !== -1 ? fenceEnd : trimmed.length).trim();
+      const codeBody = fenceEnd !== -1 ? trimmed.slice(fenceEnd + 3).trim() : "";
+      return (
+        <div
+          key={bi}
+          className="my-2 rounded-lg border border-white/10 bg-black/30 p-3 overflow-x-auto"
+        >
+          <div className="flex items-center gap-2 mb-1 text-[10px] text-muted font-mono">
+            <span>{langLine || "text"}</span>
+          </div>
+          <pre className="text-sm text-gray-200 font-mono leading-relaxed whitespace-pre break-all">
+            {codeBody}
+          </pre>
+        </div>
+      );
+    }
+    const headingMatch = /^(#{1,3})\s(.+)/s.exec(trimmed);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const text = headingMatch[2];
+      const Tag = level === 1 ? "h2" : level === 2 ? "h3" : "h4";
+      return (
+        <Tag key={bi} className="mt-3 mb-1 text-white font-semibold">
+          {renderInline(parseInline(text))}
+        </Tag>
+      );
+    }
+    if (trimmed.startsWith(">")) {
+      const text = trimmed.slice(1).trim();
+      return (
+        <div key={bi} className="my-2 border-l-2 border-emerald-500 pl-3 italic text-gray-300">
+          {renderInline(parseInline(text))}
+        </div>
+      );
+    }
+    if (/^[-*]\s/m.test(trimmed)) {
+      const items = trimmed.split(/\n(?=[-*]\s)/);
+      return (
+        <ul key={bi} className="my-2 list-disc pl-5 space-y-1 text-gray-200">
+          {items.map((item, ii) => (
+            <li key={ii} className="whitespace-pre-wrap">
+              {renderInline(parseInline(item.replace(/^[-*]\s/, "")))}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    return (
+      <p key={bi} className="my-2 text-gray-200 whitespace-pre-wrap break-words">
+        {renderInline(parseInline(trimmed))}
+      </p>
+    );
+  });
+}
+
+const SUGGESTED_PROMPTS = [
+  "Summarize my current project structure",
+  "Help me plan a beat-synced music video",
+  "Analyze the latest audio track",
+  "Generate a visualizer preset for this track",
+  "Explain the remix mashup workflow",
+];
+
 export function AIToolsPage() {
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -69,9 +275,7 @@ export function AIToolsPage() {
   const [showToolEditor, setShowToolEditor] = useState(false);
   const [editingTool, setEditingTool] = useState<Tool | null>(null);
   const [toolJsonValid, setToolJsonValid] = useState(true);
-  const [enabledTools, setEnabledTools] = useState<Set<string>>(
-    new Set(DEFAULT_TOOLS.map((t) => t.id)),
-  );
+  const [enabledTools, setEnabledTools] = useState<Set<string>>(new Set());
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [showAllModels, setShowAllModels] = useState(false);
   const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult | undefined>>(
@@ -80,28 +284,48 @@ export function AIToolsPage() {
   const [hwSummary, setHwSummary] = useState<Record<string, HardwareBenchmarkSummary | undefined>>(
     {},
   );
+  const [benchmarkRunning, setBenchmarkRunning] = useState(false);
+  const [codingBenchmarkRunning, setCodingBenchmarkRunning] = useState(false);
+  const [taskRoutes, setTaskRoutes] = useState<{
+    routes: Record<string, { engine: string; model: string; reason: string }>;
+    excluded_from_chat: string[];
+  } | null>(null);
+  const [streamStatus, setStreamStatus] = useState<
+    "idle" | "connecting" | "thinking" | "executing_tool" | "streaming_response" | "done"
+  >("idle");
+  const [toolStep, setToolStep] = useState(0);
+  const [totalToolSteps, setTotalToolSteps] = useState(0);
+  const [currentTool, setCurrentTool] = useState<string | null>(null);
+  const [streamEvents, setStreamEvents] = useState<
+    { time: string; event: string; detail: string }[]
+  >([]);
+  const [showStreamDetails, setShowStreamDetails] = useState(false);
+  const [extractRunning, setExtractRunning] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [extractResult, setExtractResult] = useState<{
+    filename: string;
+    relative_path: string;
+    stored_path: string;
+    size_bytes: number;
+    message: string;
+    converted: boolean | undefined;
+    source_filename: string | null | undefined;
+    lossless: boolean | undefined;
+  } | null>(null);
+  const [readAloud, setReadAloud] = useState(false);
+  const speakAloud = useSpeakAloud();
+  const { refresh: refreshLibrary } = useAudioLibrary();
   const abortRef = useRef<AbortController | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
-
-  const handleNewChat = () => {
-    if (abortRef.current) abortRef.current.abort();
-    setMessages([]);
-    setHistory([]);
-    setError(null);
-    setPrompt("");
-    setGenerating(false);
-    abortRef.current = null;
-  };
 
   useEffect(() => {
     void loadModels(true);
   }, []);
 
-  // Keep `response` in sync with the last assistant message for Sidebar compatibility
-  useEffect(() => {
-    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
-    setResponse(lastAssistant?.content ?? "");
-  }, [messages]);
+  const logStreamEvent = useCallback((event: string, detail: string) => {
+    const time = new Date().toLocaleTimeString();
+    setStreamEvents((prev) => [...prev, { time, event, detail }]);
+  }, []);
 
   const loadModels = async (verifiedOnly: boolean) => {
     try {
@@ -115,9 +339,10 @@ export function AIToolsPage() {
 
       let benchMap: Record<string, OllamaBenchmarkResult | undefined> = {};
       let hwMap: Record<string, HardwareBenchmarkSummary | undefined> = {};
-      const [sceneRes, hwRes] = await Promise.allSettled([
+      const [sceneRes, hwRes, routesRes] = await Promise.allSettled([
         getBenchmarkResults(),
         getHardwareBenchmarks(),
+        getTaskModelRoutes().catch(() => null),
       ]);
       if (sceneRes.status === "fulfilled") {
         benchMap = sceneRes.value.results;
@@ -126,6 +351,9 @@ export function AIToolsPage() {
       if (hwRes.status === "fulfilled") {
         hwMap = hwRes.value;
         setHwSummary(hwMap);
+      }
+      if (routesRes.status === "fulfilled" && routesRes.value) {
+        setTaskRoutes(routesRes.value);
       }
 
       const sorted = [...enhanced].sort((a, b) => {
@@ -175,6 +403,12 @@ export function AIToolsPage() {
     if (!selectedModel) return;
     setGenerating(true);
     setError(null);
+    setStreamStatus("connecting");
+    setToolStep(0);
+    setTotalToolSteps(0);
+    setCurrentTool(null);
+    setStreamEvents([]);
+    logStreamEvent("connecting", "Opening stream to model…");
 
     const supportsTools = models.find((m) => m.name === selectedModel)?.supportsTools;
     const activeTools = supportsTools ? convertToToolDefinitions() : [];
@@ -223,17 +457,21 @@ export function AIToolsPage() {
         result?: string;
         status: "calling" | "done";
       }[] = [];
+      const toolCalls: { name: string; arguments: Record<string, unknown> }[] = [];
 
       for await (const event of parseOllamaStream(stream)) {
         if (controller.signal.aborted) break;
         if (event.type === "content") {
           const data = event.data as { content: string; thinking?: string };
           fullResponse += data.content;
+          setStreamStatus("streaming_response");
+          logStreamEvent("content", data.content.slice(0, 80));
           setMessages((prev) =>
             prev.map((m) => (m.id === assistantId ? { ...m, content: fullResponse } : m)),
           );
           if (data.thinking) {
             fullThinking += data.thinking;
+            setStreamStatus("thinking");
             setMessages((prev) =>
               prev.map((m) => (m.id === assistantId ? { ...m, thinking: fullThinking } : m)),
             );
@@ -242,14 +480,21 @@ export function AIToolsPage() {
           const data = event.data as {
             tool_calls: { name: string; arguments: Record<string, unknown> }[];
           };
+          setStreamStatus("executing_tool");
           for (const tc of data.tool_calls) {
             toolDetails.push({ ...tc, status: "calling" });
+            toolCalls.push({ name: tc.name, arguments: tc.arguments });
+            setToolStep((s) => s + 1);
+            setCurrentTool(tc.name);
+            logStreamEvent("tool_call", `${tc.name}(${JSON.stringify(tc.arguments).slice(0, 80)})`);
           }
           setMessages((prev) =>
             prev.map((m) => (m.id === assistantId ? { ...m, toolDetails: [...toolDetails] } : m)),
           );
         } else if (event.type === "tool_result") {
           const data = event.data as { name: string; result: string };
+          setStreamStatus("streaming_response");
+          logStreamEvent("tool_result", `${data.name} → ok`);
           const target = toolDetails.find((t) => t.name === data.name && t.status === "calling");
           if (target) {
             target.result = data.result;
@@ -273,8 +518,23 @@ export function AIToolsPage() {
           }
         } else if (event.type === "error") {
           const data = event.data as { message?: string };
+          setStreamStatus("idle");
           throw new Error(data.message ?? "Ollama returned no response");
         }
+      }
+
+      setMessages((prev) => {
+        const next = [...prev];
+        const last = next[next.length - 1];
+        if (last.role === "assistant") {
+          last.content = fullResponse;
+        }
+        return next;
+      });
+      setStreamStatus("done");
+      logStreamEvent("done", `Stream finished (${fullResponse.length} chars)`);
+      if (readAloud && fullResponse.trim()) {
+        void speakAloud.speak(fullResponse);
       }
 
       if (fullResponse) {
@@ -290,6 +550,7 @@ export function AIToolsPage() {
         ]);
       }
     } catch (e: unknown) {
+      setStreamStatus("idle");
       if (e instanceof Error && e.name === "AbortError") {
         setError("Generation cancelled");
       } else {
@@ -304,7 +565,89 @@ export function AIToolsPage() {
   const handleCancel = () => {
     if (abortRef.current) {
       abortRef.current.abort();
+      setStreamStatus("idle");
+      logStreamEvent("abort", "Stream aborted by user");
     }
+  };
+
+  const handleRunBenchmarks = async () => {
+    setBenchmarkRunning(true);
+    try {
+      await runBenchmark();
+      const res = await getBenchmarkResults();
+      setBenchmarks(res.results);
+      logStreamEvent("benchmark", "Ollama benchmarks completed and refreshed");
+    } catch (e) {
+      logStreamEvent("benchmark-error", e instanceof Error ? e.message : String(e));
+    } finally {
+      setBenchmarkRunning(false);
+    }
+  };
+
+  const handleRunCodingBenchmarks = async () => {
+    setCodingBenchmarkRunning(true);
+    try {
+      await runCodingBenchmark();
+      const res = await getBenchmarkResults();
+      setBenchmarks(res.results);
+      logStreamEvent("benchmark", "Coding benchmarks completed and refreshed");
+    } catch (e) {
+      logStreamEvent("benchmark-error", e instanceof Error ? e.message : String(e));
+    } finally {
+      setCodingBenchmarkRunning(false);
+    }
+  };
+
+  const handleAutoSelectModel = async (taskType: "coding" | "vision" | "chat" | "default") => {
+    try {
+      const model = await selectModel(taskType);
+      setSelectedModel(model);
+      logStreamEvent("auto-select", `Selected ${model} for task "${taskType}"`);
+    } catch (e) {
+      logStreamEvent("auto-select-error", e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleVideoUpload = async (file: File) => {
+    setExtractRunning(true);
+    setExtractError(null);
+    setExtractResult(null);
+    try {
+      const res = await uploadAudioFile(file);
+      void refreshLibrary();
+      setExtractResult({
+        filename: res.filename,
+        relative_path: res.relative_path,
+        stored_path: res.stored_path,
+        size_bytes: res.size_bytes,
+        message: res.message,
+        converted: res.converted,
+        source_filename: res.source_filename,
+        lossless: res.lossless,
+      });
+    } catch (e) {
+      setExtractError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExtractRunning(false);
+    }
+  };
+
+  const handleNewChat = () => {
+    if (abortRef.current) abortRef.current.abort();
+    setMessages([]);
+    setHistory([]);
+    setError(null);
+    setPrompt("");
+    setGenerating(false);
+    setStreamStatus("idle");
+    setStreamEvents([]);
+    abortRef.current = null;
+  };
+
+  const handleClear = () => {
+    setMessages([]);
+    setStreamEvents([]);
+    setStreamStatus("idle");
   };
 
   const handleCopy = (text: string) => {
@@ -352,6 +695,31 @@ export function AIToolsPage() {
       .reverse()
       .find((m) => m.vizConfig)?.vizConfig ?? null;
 
+  // Stream status styling — computed outside JSX to avoid nested template
+  // literals inside JSX attribute values.
+  const statusColor =
+    streamStatus === "connecting"
+      ? "text-emerald-400"
+      : streamStatus === "thinking"
+        ? "text-purple-400"
+        : streamStatus === "executing_tool"
+          ? "text-amber-400"
+          : streamStatus === "streaming_response"
+            ? "text-blue-400"
+            : "text-emerald-400";
+  const statusLabel =
+    streamStatus === "connecting"
+      ? "Connecting…"
+      : streamStatus === "thinking"
+        ? "Model is thinking…"
+        : streamStatus === "executing_tool"
+          ? `Executing tool${currentTool ? `: ${currentTool}` : ""}${
+              totalToolSteps > 0 ? ` (step ${toolStep + 1}/${totalToolSteps})` : ""
+            }`
+          : streamStatus === "streaming_response"
+            ? "Streaming response…"
+            : "Complete";
+
   return (
     <div className={DS.page}>
       {/* Header */}
@@ -363,18 +731,18 @@ export function AIToolsPage() {
           <div>
             <h1 className={DS.pageTitle}>AI Tools</h1>
             <p className={DS.pageSubtitle}>
-              Generate creative ideas using local AI models with tool support.
+              Chat with local Ollama models, run tools, and generate visualizations.
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {ollamaConnected ? (
             <span className={"flex items-center gap-1 text-xs " + DS.accentGreen}>
-              <Wifi size={12} /> Connected
+              <Activity size={12} /> Ollama online
             </span>
           ) : (
             <span className={"flex items-center gap-1 text-xs " + DS.accentRed}>
-              <WifiOff size={12} /> Disconnected
+              <WifiOff size={12} /> Ollama offline
             </span>
           )}
           <button
@@ -389,7 +757,7 @@ export function AIToolsPage() {
       </div>
 
       <div className={DS.gridChat}>
-        {/* Main Chat Area */}
+        {/* Left column: model selection, benchmarks, stream status, chat, input */}
         <div className="lg:col-span-2 space-y-4">
           {/* Model Selection */}
           <div className={DS.card}>
@@ -515,7 +883,161 @@ export function AIToolsPage() {
                 </div>
               </div>
             )}
+            {/* Benchmark + task-routing controls */}
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <button
+                onClick={() => void handleRunBenchmarks()}
+                disabled={benchmarkRunning}
+                className="px-3 py-1.5 text-xs rounded bg-gray-700/50 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 disabled:opacity-50"
+                title={benchmarkRunning ? "Running benchmarks…" : "Run Ollama benchmarks"}
+              >
+                {benchmarkRunning ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Download size={13} />
+                )}
+                <span className="ml-1">{benchmarkRunning ? "Running…" : "Run benchmarks"}</span>
+              </button>
+              <button
+                onClick={() => void handleRunCodingBenchmarks()}
+                disabled={codingBenchmarkRunning}
+                className="px-3 py-1.5 text-xs rounded bg-gray-700/50 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 disabled:opacity-50"
+                title={
+                  codingBenchmarkRunning ? "Running coding benchmarks…" : "Run coding benchmarks"
+                }
+              >
+                {codingBenchmarkRunning ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Zap size={13} />
+                )}
+                <span className="ml-1">Coding</span>
+              </button>
+              {taskRoutes && (
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(taskRoutes.routes).map(([task, route]) => (
+                    <button
+                      key={task}
+                      onClick={() =>
+                        void handleAutoSelectModel(task as "coding" | "vision" | "chat" | "default")
+                      }
+                      className="px-2 py-1 text-xs rounded bg-purple-900/20 border border-purple-900/50 hover:bg-purple-900/40 text-purple-300"
+                      title={`Switch to ${route.model} for ${task} (${route.reason})`}
+                    >
+                      {task}: {route.model.split(":")[0]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Stream status banner */}
+          {streamStatus !== "idle" && (
+            <Card className="mb-2 shrink-0">
+              <div className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  {streamStatus === "connecting" ? (
+                    <Loader2 size={13} className="animate-spin text-emerald-400" />
+                  ) : streamStatus === "thinking" ? (
+                    <Brain size={13} className="text-purple-400 animate-pulse" />
+                  ) : streamStatus === "executing_tool" ? (
+                    <Wrench size={13} className="text-amber-400 animate-pulse" />
+                  ) : streamStatus === "streaming_response" ? (
+                    <Activity size={13} className="text-blue-400 animate-pulse" />
+                  ) : (
+                    <Shield size={13} className="text-emerald-400" />
+                  )}
+                  <span className={`text-xs font-semibold uppercase tracking-wider ${statusColor}`}>
+                    {statusLabel}
+                  </span>
+                </div>
+                {streamEvents.length > 0 && (
+                  <details
+                    className="mt-2 text-xs"
+                    open={showStreamDetails}
+                    onToggle={() => setShowStreamDetails((v) => !v)}
+                  >
+                    <summary className="cursor-pointer text-muted hover:text-white mb-1">
+                      Processing details
+                    </summary>
+                    <div className="bg-black/20 rounded-lg p-2 font-mono text-xs overflow-x-auto border border-white/10">
+                      {streamEvents.map((e, i) => (
+                        <div key={i} className="flex gap-2 mb-1">
+                          <span className="text-muted/60 w-12">{e.time}</span>
+                          <span className="text-purple-300">{e.event}</span>
+                          <span className="text-gray-300/80">{e.detail}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* Video → audio extraction */}
+          <Card title="Video → Audio" icon={<Download size={16} className="text-violet-400" />}>
+            <div className="p-4">
+              <p className={DS.textXs + " mb-3"}>
+                Upload a video file to extract its audio track. The result is saved to your audio
+                library and can be analyzed on the Audio Analysis page.
+              </p>
+              <label className="flex items-center gap-2 cursor-pointer bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-xs text-gray-300 hover:bg-gray-600 transition-colors">
+                <span>Choose video…</span>
+                <input
+                  type="file"
+                  accept=".mp4,.mov,.mkv,.webm,.m4v,.avi"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleVideoUpload(file);
+                    e.target.value = "";
+                  }}
+                  className="sr-only"
+                  aria-label="Select a video file to extract audio"
+                />
+              </label>
+              {extractRunning && (
+                <div className="mt-3 flex items-center gap-2">
+                  <Loader2 size={13} className="animate-spin text-muted" />
+                  <span className={DS.textXs}>Extracting audio…</span>
+                </div>
+              )}
+              {extractError && (
+                <p className="mt-2 text-xs text-red-400 flex items-center gap-1" role="alert">
+                  <AlertCircle size={12} /> {extractError}
+                </p>
+              )}
+              {extractResult && (
+                <div className="mt-3 space-y-2 pt-2 border-t border-gray-700">
+                  <div className="flex items-center gap-2 text-xs text-emerald-400 font-mono">
+                    {extractResult.converted ? "Converted" : "Uploaded"} · {extractResult.message}
+                  </div>
+                  <div className="flex items-center justify-between gap-2 bg-gray-800/50 rounded-lg px-3 py-2 border border-gray-700">
+                    <p
+                      className={DS.textXs + " text-gray-300 font-mono truncate"}
+                      title={extractResult.filename}
+                    >
+                      {extractResult.filename}
+                    </p>
+                    <a
+                      href={getOutputUrl(extractResult.relative_path)}
+                      download
+                      className="p-1.5 hover:bg-gray-600 rounded-lg text-muted hover:text-white shrink-0"
+                      title="Download audio file"
+                    >
+                      <Download size={13} />
+                    </a>
+                  </div>
+                  <AudioTransport
+                    src={getOutputUrl(extractResult.relative_path)}
+                    className="mt-2 w-full"
+                    ariaLabel={`Play ${extractResult.filename}`}
+                  />
+                </div>
+              )}
+            </div>
+          </Card>
 
           {/* Conversation */}
           <div className="flex-1 min-h-[300px] max-h-[600px] overflow-y-auto space-y-4 p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
@@ -524,6 +1046,18 @@ export function AIToolsPage() {
                 <MessageCircle size={32} className="mb-3 opacity-30" />
                 <p>Start a conversation with your AI model</p>
                 <p className="text-xs mt-1 opacity-50">Select a model and type a message above</p>
+                <div className="flex flex-col gap-2 mt-6 w-full max-w-xs mx-auto">
+                  {SUGGESTED_PROMPTS.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      onClick={() => setPrompt(suggestion)}
+                      className="w-full text-left px-3 py-1.5 text-xs rounded bg-gray-700/50 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 whitespace-nowrap"
+                    >
+                      <Zap size={10} className="text-amber-400 shrink-0" />
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             {messages.map((msg) => (
@@ -566,9 +1100,22 @@ export function AIToolsPage() {
                         >
                           <Copy size={10} />
                         </button>
+                        {readAloud && (
+                          <button
+                            onClick={() => void speakAloud.speak(msg.content)}
+                            className="text-[10px] text-gray-400 hover:text-gray-200 px-1 py-0.5 rounded hover:bg-gray-600"
+                            title="Read aloud"
+                          >
+                            <Volume2 size={10} />
+                          </button>
+                        )}
                       </div>
                     )}
-                    <div className="whitespace-pre-wrap break-words text-sm">{msg.content}</div>
+                    {msg.role === "assistant" ? (
+                      <SimpleMarkdown content={msg.content} />
+                    ) : (
+                      <div className="whitespace-pre-wrap break-words text-sm">{msg.content}</div>
+                    )}
                     {msg.role === "assistant" && msg.thinking && !generating && (
                       <div className="mt-2 pt-2 border-t border-gray-600/50">
                         <button
@@ -684,7 +1231,7 @@ export function AIToolsPage() {
                 onChange={(e) => setPrompt(e.target.value)}
                 className={DS.textarea + " pr-12"}
                 rows={3}
-                placeholder="Ask for video concepts, scene descriptions, color palettes…"
+                placeholder={selectedModel ? `Message ${selectedModel}…` : "Select a model first…"}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
                     e.preventDefault();
@@ -759,7 +1306,7 @@ export function AIToolsPage() {
           <ToolExecutionCard />
         </div>
 
-        {/* Sidebar */}
+        {/* Right sidebar */}
         <Sidebar
           tools={tools}
           enabledTools={enabledTools}
@@ -776,6 +1323,59 @@ export function AIToolsPage() {
           history={history}
           setResponse={setResponse}
         />
+
+        {/* Conversation controls card (read aloud, clear, new) */}
+        <div className={DS.card}>
+          <div className={DS.flexBetween + " mb-3"}>
+            <h3 className={DS.sectionTitle}>
+              <Activity size={14} />
+              Conversation
+            </h3>
+          </div>
+          <div className="space-y-2 mt-3">
+            <div className="flex gap-2">
+              <button
+                onClick={handleClear}
+                disabled={messages.length === 0 || generating}
+                className="flex-1 text-left px-3 py-2 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 disabled:opacity-50"
+              >
+                <Trash2 size={12} className="mr-2" />
+                Clear chat
+              </button>
+              <button
+                onClick={handleNewChat}
+                disabled={generating}
+                className="flex-1 text-left px-3 py-2 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 disabled:opacity-50"
+                title="New conversation"
+              >
+                <Plus size={12} className="mr-2" />
+                New
+              </button>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={readAloud}
+                onChange={(e) => setReadAloud(e.target.checked)}
+                className="rounded border-gray-600 bg-gray-800/50"
+              />
+              Read replies aloud
+            </label>
+            {speakAloud.speaking && (
+              <button
+                onClick={speakAloud.stop}
+                className="mt-2 w-full text-left px-3 py-1.5 text-[10px] rounded bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1"
+                title={`Stop — voice: ${speakAloud.voice || "maya-blend65"}`}
+              >
+                <VolumeX size={11} className="mr-2" />
+                Stop speaking
+              </button>
+            )}
+            <p className={DS.textXs + " mt-2"}>
+              {messages.length} message{messages.length !== 1 ? "s" : ""} in this conversation
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Tool Editor Modal */}

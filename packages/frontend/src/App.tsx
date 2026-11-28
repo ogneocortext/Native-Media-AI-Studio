@@ -37,7 +37,10 @@ const lazyNamed = (loadModule: () => Promise<Record<string, unknown>>, name: str
 const Dashboard = lazyNamed(async () => import("./features/dashboard/Dashboard"), "Dashboard");
 const Queue = lazyNamed(async () => import("./features/queue/Queue"), "Queue");
 const Settings = lazyNamed(async () => import("./features/settings/Settings"), "Settings");
-const AdminDashboard = lazyNamed(async () => import("./features/admin/AdminDashboard"), "AdminDashboard");
+const AdminDashboard = lazyNamed(
+  async () => import("./features/admin/AdminDashboard"),
+  "AdminDashboard",
+);
 const MasteringPage = lazyNamed(
   async () => import("./features/mastering/MasteringPage"),
   "MasteringPage",
@@ -59,10 +62,7 @@ const ImageProcessingPage = lazyNamed(
   async () => import("./features/image-processing/ImageProcessingPage"),
   "ImageProcessingPage",
 );
-const UpscalePage = lazyNamed(
-  async () => import("./features/upscale/UpscalePage"),
-  "UpscalePage",
-);
+const UpscalePage = lazyNamed(async () => import("./features/upscale/UpscalePage"), "UpscalePage");
 const MediaLibrary = lazyNamed(
   async () => import("./features/media-library/MediaLibrary"),
   "MediaLibrary",
@@ -89,7 +89,6 @@ const AudioAnalysisPage = lazyNamed(
   "AudioAnalysisPage",
 );
 const AIToolsPage = lazyNamed(async () => import("./features/ai-tools/AIToolsPage"), "AIToolsPage");
-const OllamaChat = lazyNamed(async () => import("./features/ollama-chat/OllamaChat"), "OllamaChat");
 const AgentChat = lazyNamed(async () => import("./features/agent-chat/AgentChat"), "AgentChat");
 const SubAgentChat = lazyNamed(
   async () => import("./features/sub-agent/SubAgentChat"),
@@ -162,13 +161,19 @@ const VoiceLivePage = lazyNamed(
 const VSTPage = lazyNamed(async () => import("./features/vst/VSTPage"), "VSTPage");
 
 // Register all lazy routes for preloading on hover
-registerRouteLoader("/create/music-video", async () => import("./features/music-video/MusicVideoWizard"));
+registerRouteLoader(
+  "/create/music-video",
+  async () => import("./features/music-video/MusicVideoWizard"),
+);
 registerRouteLoader(
   "/create/video",
   async () => import("./features/video-generation/VideoGenerationPage"),
 );
 registerRouteLoader("/create/3d", async () => import("./features/three-js-studio/ThreeJSStudio"));
-registerRouteLoader("/create/image", async () => import("./features/image-generation/ImageGeneration"));
+registerRouteLoader(
+  "/create/image",
+  async () => import("./features/image-generation/ImageGeneration"),
+);
 registerRouteLoader(
   "/create/typography",
   async () => import("./features/kinetic-typography/KineticTypographyPage"),
@@ -180,19 +185,30 @@ registerRouteLoader(
   "/create/animation",
   async () => import("./features/animation-studio/AnimationStudio"),
 );
-registerRouteLoader("/create/unity", async () => import("./features/unity-control/UnityControlPage"));
-registerRouteLoader("/create/hyperframes", async () => import("./features/hyperframes/HyperFramesPage"));
+registerRouteLoader(
+  "/create/unity",
+  async () => import("./features/unity-control/UnityControlPage"),
+);
+registerRouteLoader(
+  "/create/hyperframes",
+  async () => import("./features/hyperframes/HyperFramesPage"),
+);
 registerRouteLoader("/create/vst", async () => import("./features/vst/VSTPage"));
 registerRouteLoader("/library", async () => import("./features/media-library/MediaLibrary"));
 registerRouteLoader("/nsfw", async () => import("./features/media-library/NsfwLibrary"));
 registerRouteLoader("/voice-live", async () => import("./features/voice-live/VoiceLivePage"));
 registerRouteLoader("/library/video", async () => import("./features/media-library/VideoLibrary"));
 registerRouteLoader("/library/audio", async () => import("./features/media-library/AudioLibrary"));
-registerRouteLoader("/library/storyboards", async () => import("./features/storyboards/StoryboardPage"));
+registerRouteLoader(
+  "/library/storyboards",
+  async () => import("./features/storyboards/StoryboardPage"),
+);
 registerRouteLoader("/mastering", async () => import("./features/mastering/MasteringPage"));
-registerRouteLoader("/analyze/audio", async () => import("./features/audio-analysis/AudioAnalysisPage"));
+registerRouteLoader(
+  "/analyze/audio",
+  async () => import("./features/audio-analysis/AudioAnalysisPage"),
+);
 registerRouteLoader("/analyze/ai", async () => import("./features/ai-tools/AIToolsPage"));
-registerRouteLoader("/analyze/chat", async () => import("./features/ollama-chat/OllamaChat"));
 registerRouteLoader("/analyze/agent-chat", async () => import("./features/agent-chat/AgentChat"));
 registerRouteLoader("/render/visualizer", async () => import("./features/visualizer/Visualizer"));
 registerRouteLoader("/render/preview", async () => import("./features/preview/Preview"));
@@ -210,13 +226,19 @@ registerRouteLoader(
 );
 registerRouteLoader("/system/database", async () => import("./features/database/DatabasePage"));
 registerRouteLoader("/system/gpu", async () => import("./features/gpu/GpuMonitorPage"));
-registerRouteLoader("/system/log-analytics", async () => import("./features/log-analytics/LogAnalytics"));
+registerRouteLoader(
+  "/system/log-analytics",
+  async () => import("./features/log-analytics/LogAnalytics"),
+);
 registerRouteLoader(
   "/system/notifications",
   async () => import("./features/notifications/NotificationsPage"),
 );
 registerRouteLoader("/system/docs", async () => import("./features/docs/DocsPage"));
-registerRouteLoader("/system/onboarding", async () => import("./features/onboarding/OnboardingPage"));
+registerRouteLoader(
+  "/system/onboarding",
+  async () => import("./features/onboarding/OnboardingPage"),
+);
 
 const withErrorBoundary = (element: React.ReactNode) => <ErrorBoundary>{element}</ErrorBoundary>;
 
@@ -255,7 +277,6 @@ const ROUTE_TITLES: Record<string, string> = {
   "/voice-live": "Voice Live",
   "/analyze/audio": "Audio Analysis",
   "/analyze/ai": "AI Tools",
-  "/analyze/chat": "Ollama Chat",
   "/analyze/agent": "Local Sub-Agent",
   "/analyze/agent-chat": "Agent Chat",
   "/mastering": "Mastering",
@@ -340,10 +361,7 @@ function App() {
                 path="/create/image-processing"
                 element={withErrorBoundary(<ImageProcessingPage />)}
               />
-              <Route
-                path="/create/upscale"
-                element={withErrorBoundary(<UpscalePage />)}
-              />
+              <Route path="/create/upscale" element={withErrorBoundary(<UpscalePage />)} />
               <Route
                 path="/create/typography"
                 element={withErrorBoundary(<KineticTypographyPage />)}
@@ -372,7 +390,6 @@ function App() {
               <Route path="/mastering" element={withErrorBoundary(<MasteringPage />)} />
               <Route path="/analyze/audio" element={withErrorBoundary(<AudioAnalysisPage />)} />
               <Route path="/analyze/ai" element={withErrorBoundary(<AIToolsPage />)} />
-              <Route path="/analyze/chat" element={withErrorBoundary(<OllamaChat />)} />
               <Route path="/analyze/agent-chat" element={withErrorBoundary(<AgentChat />)} />
               <Route path="/analyze/agent" element={withErrorBoundary(<SubAgentChat />)} />
 
@@ -400,7 +417,7 @@ function App() {
               <Route path="/video-generation" element={<Navigate to="/create/video" replace />} />
               <Route path="/generate-3d" element={<Navigate to="/create/3d" replace />} />
               <Route path="/ai-tools" element={<Navigate to="/analyze/ai" replace />} />
-              <Route path="/ollama-chat" element={<Navigate to="/analyze/chat" replace />} />
+              <Route path="/ollama-chat" element={<Navigate to="/analyze/ai" replace />} />
               <Route path="/docs" element={<Navigate to="/system/docs" replace />} />
               <Route path="/storyboards" element={<Navigate to="/library/storyboards" replace />} />
               <Route path="/image-generation" element={<Navigate to="/create/image" replace />} />

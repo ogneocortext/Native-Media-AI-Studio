@@ -36,9 +36,7 @@ interface BreadcrumbItem {
   icon?: React.ReactNode;
 }
 
-const ROUTE_LABELS: Partial<
-  Record<string, { label: string; icon?: React.ReactNode }>
-> = {
+const ROUTE_LABELS: Partial<Record<string, { label: string; icon?: React.ReactNode }>> = {
   "/system": { label: "Dashboard", icon: <Home size={14} /> },
   "/system/admin": { label: "Admin Dashboard", icon: <Monitor size={14} /> },
   "/system/health": { label: "Health", icon: <AlertTriangle size={14} /> },
@@ -114,7 +112,11 @@ export function Breadcrumbs() {
     <nav className="flex items-center gap-1 px-4 py-2 text-sm" aria-label="Breadcrumb">
       <ol className="flex items-center gap-1 flex-wrap" role="list">
         <li>
-          <NavLink to="/system" className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors" aria-current="page">
+          <NavLink
+            to="/system"
+            className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+            aria-current="page"
+          >
             <Home size={14} />
           </NavLink>
         </li>
@@ -137,7 +139,7 @@ export function Breadcrumbs() {
             </li>
           );
         })}
-        </ol>
+      </ol>
     </nav>
   );
 }
