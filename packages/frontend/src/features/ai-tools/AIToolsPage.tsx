@@ -74,14 +74,24 @@ export function AIToolsPage() {
   );
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [showAllModels, setShowAllModels] = useState(false);
-  const [benchmarks, setBenchmarks] = useState<
-    Record<string, OllamaBenchmarkResult | undefined>
-  >({});
-  const [hwSummary, setHwSummary] = useState<
-    Record<string, HardwareBenchmarkSummary | undefined>
-  >({});
+  const [benchmarks, setBenchmarks] = useState<Record<string, OllamaBenchmarkResult | undefined>>(
+    {},
+  );
+  const [hwSummary, setHwSummary] = useState<Record<string, HardwareBenchmarkSummary | undefined>>(
+    {},
+  );
   const abortRef = useRef<AbortController | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleNewChat = () => {
+    if (abortRef.current) abortRef.current.abort();
+    setMessages([]);
+    setHistory([]);
+    setError(null);
+    setPrompt("");
+    setGenerating(false);
+    abortRef.current = null;
+  };
 
   useEffect(() => {
     void loadModels(true);
@@ -159,8 +169,9 @@ export function AIToolsPage() {
       }));
   }, [tools, enabledTools]);
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) return;
+  const handleGenerate = async (contentOverride?: string) => {
+    const content = (contentOverride ?? prompt).trim();
+    if (!content) return;
     if (!selectedModel) return;
     setGenerating(true);
     setError(null);
@@ -174,11 +185,11 @@ export function AIToolsPage() {
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
-      content: prompt.trim(),
+      content,
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMessage]);
-    setPrompt("");
+    if (!contentOverride) setPrompt("");
 
     const assistantMessage: Message = {
       id: crypto.randomUUID(),
@@ -194,7 +205,7 @@ export function AIToolsPage() {
 
     try {
       const stream = await ollamaChatStream(
-        prompt.trim(),
+        content,
         selectedModel,
         {
           tools: activeTools,
@@ -311,7 +322,7 @@ export function AIToolsPage() {
     const modelToUse = message.model ?? selectedModel ?? "";
     setSelectedModel(modelToUse);
     setPrompt(userMsg.content);
-    void handleGenerate();
+    void handleGenerate(userMsg.content);
   };
 
   const getModelCaps = (m: OllamaModel) =>
@@ -335,7 +346,11 @@ export function AIToolsPage() {
     return score !== null && score >= 0 ? Math.round(score) : null;
   };
 
-  const vizConfig = messages.find((m) => m.vizConfig)?.vizConfig ?? null;
+  const vizConfig =
+    messages
+      .slice()
+      .reverse()
+      .find((m) => m.vizConfig)?.vizConfig ?? null;
 
   return (
     <div className={DS.page}>
@@ -362,6 +377,14 @@ export function AIToolsPage() {
               <WifiOff size={12} /> Disconnected
             </span>
           )}
+          <button
+            onClick={handleNewChat}
+            className="px-3 py-1.5 text-xs rounded bg-gray-700/50 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1"
+            title="Start a new conversation"
+          >
+            <RotateCw size={13} className="text-gray-400 shrink-0" />
+            New chat
+          </button>
         </div>
       </div>
 
