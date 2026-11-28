@@ -12,6 +12,6 @@ Public surface:
 run-gates.py remains as a thin CLI entry point that imports from here.
 """
 
-from . import cli, executor, gates, interpreter, output, selection, timing
+from . import cache, cli, executor, gates, interpreter, output, selection, timing
 
-__all__ = ["cli", "executor", "gates", "interpreter", "output", "selection", "timing"]
+__all__ = ["cache", "cli", "executor", "gates", "interpreter", "output", "selection", "timing"]

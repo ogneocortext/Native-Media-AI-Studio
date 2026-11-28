@@ -10,10 +10,11 @@ import threading
 import time as _time
 from pathlib import Path
 
+from . import cache
 from .executor import _materialize, run_lane
 from .gates import gates
 from .interpreter import _describe, candidate_list, read_cache, resolve_pnpm, resolve_python
-from .selection import changed_from_git, gate_relevant, select_gates
+from .selection import changed_from_git, gate_relevant, gate_relevant_files, select_gates
 
 # Import test analytics for saving results
 try:
@@ -351,28 +352,81 @@ def main(argv=None) -> int:
 
     run_selected = []
     skipped = []
+    cached = []
     changed_temp_files: list[str] = []
     for g in selected:
+        relevant_files: set[str] | None = None
         if changed is not None:
             is_relevant, reason = gate_relevant(g, changed)
             if not is_relevant:
                 skipped.append({"gate": g, "reason": reason})
                 continue
+            relevant_files = gate_relevant_files(g, changed)
+
+        # Cache hit: a previous PASS with the same relevant-file contents
+        # means this gate's output is already known. Skip re-execution and
+        # report [CACHED] instead — this is the main accelerator for
+        # repeated pushes where nothing relevant changed.
+        if relevant_files is not None:
+            cached_status = cache.get_cached_result(
+                g.name, sorted(relevant_files))
+            if cached_status == "PASS":
+                cached.append({
+                    "gate": g,
+                    "reason": (f"cached PASS "
+                               f"({len(relevant_files)} relevant file(s) "
+                               f"unchanged)"),
+                })
+                continue
+
         run_selected.append(g)
-        if g.name in ("docs", "glsl") and changed:
-            # check-all.py / check-glsl-compile.py scope via --changed.
-            # Write changed paths to a temp file and pass it via
-            # --changed-from-file instead of as individual args: Windows'
-            # CreateProcessW command-line limit (32,767 chars) is easily
-            # exceeded by a large unpushed batch (e.g. a vendored package
-            # removal lists hundreds of deleted files).
-            fd, tmp_path = tempfile.mkstemp(
-                prefix="nma-changed-", suffix=".txt", text=True)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                for fpath in sorted(changed):
-                    f.write(fpath + "\n")
-            g.argv = g.argv + ["--changed-from-file", tmp_path]
-            changed_temp_files.append(tmp_path)
+
+        # Scope file-linting and test gates to the changed subset when
+        # --changed is active, so eslint/ruff/vitest don't re-check the
+        # whole tree for a one-file change.
+        if changed is not None and relevant_files:
+            if g.name == "ruff":
+                new_argv = []
+                for a in g.argv:
+                    if a == ".":
+                        new_argv.extend(sorted(relevant_files))
+                    else:
+                        new_argv.append(a)
+                g.argv = new_argv
+            elif g.name == "lint":
+                new_argv = []
+                for a in g.argv:
+                    if a == "src":
+                        new_argv.extend(sorted(relevant_files))
+                    else:
+                        new_argv.append(a)
+                g.argv = new_argv
+            elif g.name == "unit":
+                # Run only affected vitest test files. Non-test source
+                # changes without changed test files fall through to
+                # running all tests (kept safe by the cache above on
+                # repeat pushes).
+                test_files = sorted(
+                    f for f in relevant_files
+                    if f.lower().endswith((".test.ts", ".test.tsx",
+                                           ".spec.ts", ".spec.tsx")))
+                if test_files:
+                    g.argv = g.argv + test_files
+
+            if g.name in ("docs", "glsl"):
+                # check-all.py / check-glsl-compile.py scope via --changed.
+                # Write changed paths to a temp file and pass it via
+                # --changed-from-file instead of as individual args: Windows'
+                # CreateProcessW command-line limit (32,767 chars) is easily
+                # exceeded by a large unpushed batch (e.g. a vendored package
+                # removal lists hundreds of deleted files).
+                fd, tmp_path = tempfile.mkstemp(
+                    prefix="nma-changed-", suffix=".txt", text=True)
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    for fpath in sorted(relevant_files):
+                        f.write(fpath + "\n")
+                g.argv = g.argv + ["--changed-from-file", tmp_path]
+                changed_temp_files.append(tmp_path)
 
     if not run_selected:
         available = ", ".join(g.name for g in all_gates)
@@ -400,6 +454,7 @@ def main(argv=None) -> int:
         "total_gates": len(selected),
         "ran_gates": len(run_selected),
         "skipped_gates": len(skipped),
+        "cached_gates": len(cached),
         "lanes": lane_count,
         "changed_files": sorted(changed) if changed else None,
         "environment": {
@@ -415,6 +470,12 @@ def main(argv=None) -> int:
         summary["skipped_details"] = [
             {"gate": s["gate"].name, "reason": s["reason"]}
             for s in skipped
+        ]
+    if cached:
+        print("  cached (unchanged inputs): " + ", ".join(c["gate"].name for c in cached))
+        summary["cached_details"] = [
+            {"gate": c["gate"].name, "reason": c["reason"]}
+            for c in cached
         ]
     print("=" * 68)
     sys.stdout.flush()
@@ -497,23 +558,43 @@ def main(argv=None) -> int:
         for t in threads:
             t.join()
 
+    # Register cached gates in results so they appear as [CACHED] in output.
+    if changed is not None:
+        for c in cached:
+            shared["results"][c["gate"].name] = {
+                "name": c["gate"].name, "status": "CACHED", "elapsed": 0.0,
+                "attempts": 0, "lane": c["gate"].lane,
+            }
+
     results = [shared["results"].get(g.name, {
         "name": g.name, "status": "SKIP", "elapsed": 0.0,
         "attempts": 0, "lane": g.lane,
     }) for g in selected]
     failed = [r["name"] for r in results
-              if r["status"] not in ("PASS", "SKIP")]
+              if r["status"] not in ("PASS", "SKIP", "CACHED")]
 
     # Save test results to database for historical analytics
     analytics_outcome = {"saved": 0, "skipped": 0, "error": None}
     if TEST_ANALYTICS_AVAILABLE:
         analytics_outcome = _save_gate_results_to_db(results, shared)
 
+    # Persist PASS results to the content-hash cache so repeated pushes with
+    # unchanged relevant files skip re-execution. Only gates that actually
+    # ran (not cached, not skipped) are eligible.
+    if changed is not None:
+        for g in run_selected:
+            result = shared["results"].get(g.name)
+            if result and result["status"] == "PASS":
+                relevant_files = gate_relevant_files(g, changed)
+                cache.save_result(g.name, sorted(relevant_files), "PASS",
+                                  result["elapsed"])
+
     # Build final summary for AI agents
     final_summary = {
-        "gates_run": [r["name"] for r in results if r["status"] == "PASS"],
+        "gates_run": [r["name"] for r in results if r["status"] in ("PASS", "CACHED")],
         "gates_failed": failed,
         "gates_skipped": [s["gate"].name for s in skipped],
+        "gates_cached": [c["gate"].name for c in cached],
         "total_time_seconds": round(sum(r["elapsed"] for r in results), 1),
         "setup_time_seconds": round(setup_seconds, 1),
         "environment": summary["environment"],
@@ -599,10 +680,16 @@ def main(argv=None) -> int:
                         print(f"  {name}: Check the gate output above for specific error messages")
         else:
             print("all gates passed")
+            if cached:
+                print("  (cached: " + ", ".join(c["gate"].name for c in cached) + ")")
 
         # Add final summary for AI agents
         print("\n--- Summary for AI Agents ---")
         print(f"Gates passed: {len(final_summary['gates_run'])}")
+        if final_summary["gates_cached"]:
+            print(f"Gates cached (skipped re-run): "
+                  f"{len(final_summary['gates_cached'])} — "
+                  f"{', '.join(final_summary['gates_cached'])}")
         print(f"Gates failed: {len(final_summary['gates_failed'])}")
         if final_summary["gates_failed"]:
             print(f"Failed gates: {', '.join(final_summary['gates_failed'])}")

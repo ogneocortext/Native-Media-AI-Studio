@@ -127,6 +127,73 @@ def gate_relevant(gate: Gate, changed: set[str]) -> bool:
     return True, "gate not specifically scoped"
 
 
+def gate_relevant_files(gate: Gate, changed: set[str]) -> set[str]:
+    """Return the subset of ``changed`` files that ``gate`` could be affected by.
+
+    Used for cache hashing (only hash the files a gate cares about) and for
+    scoping file-linting gates (eslint, ruff) and vitest to the changed
+    subset. Mirrors the criteria in ``gate_relevant`` so the two stay
+    consistent.
+
+    Returns an empty set when ``changed`` is empty or no changed file is
+    relevant to this gate.
+    """
+    if not changed:
+        return set()
+
+    py_files = {f for f in changed if f.endswith(".py")}
+    ts_files = {f for f in changed if f.lower().endswith((".ts", ".tsx"))}
+    frontend_src = {f for f in changed if f.startswith("packages/frontend/src/")}
+    frontend_test = {f for f in changed if f.startswith("packages/frontend/tests/")}
+    frontend_root = {
+        f for f in changed
+        if f.startswith("packages/frontend/")
+        and not f.startswith("packages/frontend/src/")
+        and not f.startswith("packages/frontend/tests/")
+    }
+    backend_app = {
+        f for f in changed
+        if f.startswith("packages/backend/app/") and f.endswith(".py")
+    }
+    backend_any = {f for f in changed if f.startswith("packages/backend/")}
+    tools_py = {f for f in changed if f.startswith("tools/") and f.endswith(".py")}
+    tools_tests = {f for f in changed if f.startswith("tools/tests/")}
+    docs_files = {f for f in changed if f.startswith("docs/") or f == "AGENTS.md"}
+    text_files = {
+        f for f in changed
+        if f.lower().endswith((".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py",
+                               ".md", ".json", ".yaml", ".yml", ".toml", ".ps1",
+                               ".sh", ".css", ".html", ".txt", ".cfg", ".ini"))
+    }
+    config_files = {f for f in changed if f.startswith("config/")}
+
+    name = gate.name
+    if name == "docs":
+        return text_files | docs_files | config_files
+    if name == "ruff":
+        return py_files
+    if name == "arch":
+        return backend_app
+    if name == "routes":
+        return {f for f in changed
+                if f.startswith("packages/backend/app/api/") and f.endswith(".py")}
+    if name == "glsl":
+        return ts_files & frontend_src
+    if name == "pytest":
+        return backend_any
+    if name == "tools-pytest":
+        return tools_py | tools_tests
+    if name in ("type", "lint"):
+        return ts_files & frontend_src
+    if name == "unit":
+        return ts_files & (frontend_src | frontend_test | frontend_root)
+    if name == "build":
+        return frontend_src | frontend_root
+    if name == "e2e":
+        return ts_files & frontend_src
+    return set()
+
+
 def select_gates(all_gates: list[Gate], only: list[str] | None,
                  *, include_e2e: bool = False) -> list[Gate]:
     """The gates to run, applying --only and the opt-in rule.
