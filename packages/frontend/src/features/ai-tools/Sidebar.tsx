@@ -1,7 +1,6 @@
 import React from "react";
-import { Plus, Trash2, Settings, Wrench, Sparkles, Cpu, MessageSquare } from "lucide-react";
+import { Plus, Trash2, Settings, Wrench, Sparkles, MessageSquare } from "lucide-react";
 import { DS } from "../../styles/designSystem";
-import { formatSize } from "../../utils/format";
 import type { Tool, HistoryEntry } from "./types";
 import type { OllamaModel } from "../../services/api";
 
@@ -15,7 +14,6 @@ interface SidebarProps {
   setTools: React.Dispatch<React.SetStateAction<Tool[]>>;
   setPrompt: (prompt: string) => void;
   promptRef: React.RefObject<HTMLTextAreaElement | null>;
-  selectedModel: string;
   setSelectedModel: (model: string) => void;
   models: OllamaModel[];
   history: HistoryEntry[];
@@ -56,7 +54,6 @@ export function Sidebar({
   setTools,
   setPrompt,
   promptRef,
-  selectedModel,
   setSelectedModel,
   models,
   history,
@@ -172,38 +169,6 @@ export function Sidebar({
         <p className={DS.textXs + " mt-2"}>
           Enabled: {enabledTools.size} / {tools.length}
         </p>
-      </div>
-
-      {/* Available Models */}
-      <div className={DS.card}>
-        <h3 className={DS.sectionTitle}>
-          <Cpu size={14} />
-          Models
-        </h3>
-        {models.length > 0 ? (
-          <div className="space-y-1 mt-3">
-            {models.map((m) => (
-              <button
-                key={m.name}
-                onClick={() => setSelectedModel(m.name)}
-                className={`w-full text-left px-2 py-1.5 rounded text-sm ${
-                  selectedModel === m.name
-                    ? "bg-violet-600/30 text-violet-300 light:text-violet-700"
-                    : "text-muted hover:bg-gray-700"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className={DS.truncate}>{m.name}</span>
-                  {m.supportsTools && <Wrench size={10} className={DS.accentGreen} />}
-                  {m.supportsVision && <span className={DS.accentSky}>👁</span>}
-                </div>
-                <div className={DS.textXs}>{m.size > 0 ? formatSize(m.size) : "unknown size"}</div>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className={DS.textXs}>No models available</p>
-        )}
       </div>
 
       {/* History */}

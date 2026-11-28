@@ -17,9 +17,7 @@ import {
   RotateCw,
   ChevronRight,
   Trash2,
-  Plus,
   Volume2,
-  VolumeX,
   Download,
   Activity,
   Shield,
@@ -312,7 +310,6 @@ export function AIToolsPage() {
     source_filename: string | null | undefined;
     lossless: boolean | undefined;
   } | null>(null);
-  const [readAloud, setReadAloud] = useState(false);
   const speakAloud = useSpeakAloud();
   const { refresh: refreshLibrary } = useAudioLibrary();
   const abortRef = useRef<AbortController | null>(null);
@@ -533,9 +530,6 @@ export function AIToolsPage() {
       });
       setStreamStatus("done");
       logStreamEvent("done", `Stream finished (${fullResponse.length} chars)`);
-      if (readAloud && fullResponse.trim()) {
-        void speakAloud.speak(fullResponse);
-      }
 
       if (fullResponse) {
         setHistory((prev) => [
@@ -752,6 +746,15 @@ export function AIToolsPage() {
           >
             <RotateCw size={13} className="text-gray-400 shrink-0" />
             New chat
+          </button>
+          <button
+            onClick={handleClear}
+            disabled={messages.length === 0 || generating}
+            className="px-3 py-1.5 text-xs rounded bg-gray-700/50 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 disabled:opacity-50"
+            title="Clear the conversation"
+          >
+            <Trash2 size={13} className="text-gray-400 shrink-0" />
+            Clear
           </button>
         </div>
       </div>
@@ -1100,15 +1103,13 @@ export function AIToolsPage() {
                         >
                           <Copy size={10} />
                         </button>
-                        {readAloud && (
-                          <button
-                            onClick={() => void speakAloud.speak(msg.content)}
-                            className="text-[10px] text-gray-400 hover:text-gray-200 px-1 py-0.5 rounded hover:bg-gray-600"
-                            title="Read aloud"
-                          >
-                            <Volume2 size={10} />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => void speakAloud.speak(msg.content)}
+                          className="text-[10px] text-gray-400 hover:text-gray-200 px-1 py-0.5 rounded hover:bg-gray-600"
+                          title="Read aloud"
+                        >
+                          <Volume2 size={10} />
+                        </button>
                       </div>
                     )}
                     {msg.role === "assistant" ? (
@@ -1317,65 +1318,11 @@ export function AIToolsPage() {
           setTools={setTools}
           setPrompt={setPrompt}
           promptRef={promptRef}
-          selectedModel={selectedModel ?? ""}
           setSelectedModel={setSelectedModel}
           models={models}
           history={history}
           setResponse={setResponse}
         />
-
-        {/* Conversation controls card (read aloud, clear, new) */}
-        <div className={DS.card}>
-          <div className={DS.flexBetween + " mb-3"}>
-            <h3 className={DS.sectionTitle}>
-              <Activity size={14} />
-              Conversation
-            </h3>
-          </div>
-          <div className="space-y-2 mt-3">
-            <div className="flex gap-2">
-              <button
-                onClick={handleClear}
-                disabled={messages.length === 0 || generating}
-                className="flex-1 text-left px-3 py-2 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 disabled:opacity-50"
-              >
-                <Trash2 size={12} className="mr-2" />
-                Clear chat
-              </button>
-              <button
-                onClick={handleNewChat}
-                disabled={generating}
-                className="flex-1 text-left px-3 py-2 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1 disabled:opacity-50"
-                title="New conversation"
-              >
-                <Plus size={12} className="mr-2" />
-                New
-              </button>
-            </div>
-            <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={readAloud}
-                onChange={(e) => setReadAloud(e.target.checked)}
-                className="rounded border-gray-600 bg-gray-800/50"
-              />
-              Read replies aloud
-            </label>
-            {speakAloud.speaking && (
-              <button
-                onClick={speakAloud.stop}
-                className="mt-2 w-full text-left px-3 py-1.5 text-[10px] rounded bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 flex items-center gap-1"
-                title={`Stop — voice: ${speakAloud.voice || "maya-blend65"}`}
-              >
-                <VolumeX size={11} className="mr-2" />
-                Stop speaking
-              </button>
-            )}
-            <p className={DS.textXs + " mt-2"}>
-              {messages.length} message{messages.length !== 1 ? "s" : ""} in this conversation
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* Tool Editor Modal */}
