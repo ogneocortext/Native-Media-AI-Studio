@@ -49,6 +49,15 @@ import {
   getHyperFramesAudioPayload,
   type CompileStoryboardResponse,
 } from "../../services/api";
+import {
+  buildBoardCompilePayload,
+  formatBoardDuration,
+  formatBoardTimecode,
+  type BoardScene,
+  type StoryboardBoard,
+} from "./boardTypes";
+import { SceneEditor } from "./SceneEditor";
+import { useStoryboardBoard } from "./useStoryboardBoard";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { EmptySection } from "../../components/common";
 
@@ -115,6 +124,17 @@ export function StoryboardPage() {
   const [compileResult, setCompileResult] = useState<CompileStoryboardResponse | null>(null);
   const [compiling, setCompiling] = useState(false);
   const [compileError, setCompileError] = useState<string | null>(null);
+  // Canonical board (T-VID-35): when the backend store has this board, it
+  // is the directing surface and the Markdown render is the treatment doc.
+  const {
+    board,
+    boardDirty,
+    savingBoard,
+    boardError,
+    boardSaved,
+    handleSceneEdit,
+    handleSaveBoard,
+  } = useStoryboardBoard(selected?.name ?? null);
 
   useEffect(() => {
     fetchUniqueTracksFromAPI()
@@ -254,8 +274,22 @@ export function StoryboardPage() {
     [],
   );
 
+  // The sidebar list shows the canonical board's scenes when one is
+  // loaded, converted to the display shape StoryboardDetail renders.
+  const displayScenes: SceneData[] = board
+    ? board.scenes.map((scene) => ({
+        seq: scene.id,
+        section: scene.section,
+        timecode: `${formatBoardTimecode(scene.start)}-${formatBoardTimecode(scene.end)}`,
+        duration: formatBoardDuration(scene.start, scene.end),
+        lyric: scene.lyric_lines.join(" / "),
+        visual: scene.visual.length > 0 ? scene.visual : (scene.description ?? ""),
+        technique: scene.camera_text ?? scene.technique ?? "",
+      }))
+    : scenes;
+
   const handleCompile = useCallback(async () => {
-    if (!selected || scenes.length === 0) return;
+    if (!selected || (scenes.length === 0 && !board)) return;
     setCompiling(true);
     setCompileError(null);
     try {
@@ -266,7 +300,7 @@ export function StoryboardPage() {
       const result = await compileStoryboard({
         name: selected.name,
         title: selected.title,
-        storyboard: buildCompilePayload(selected, scenes),
+        storyboard: board ? buildBoardCompilePayload(board) : buildCompilePayload(selected, scenes),
         audio_path: audioFilename,
         audio_data: audioData,
       });
@@ -276,7 +310,7 @@ export function StoryboardPage() {
     } finally {
       setCompiling(false);
     }
-  }, [buildCompilePayload, scenes, selected, trackMetadata]);
+  }, [board, buildCompilePayload, scenes, selected, trackMetadata]);
 
   const handleOpenIn3DStudio = useCallback(
     (storyboard: StoryboardFile) => {
@@ -596,7 +630,14 @@ export function StoryboardPage() {
             storyboard={selected}
             trackMetadata={trackMetadata[selected.name]}
             content={content}
-            scenes={scenes}
+            scenes={displayScenes}
+            board={board}
+            onSceneEdit={handleSceneEdit}
+            onSaveBoard={() => void handleSaveBoard()}
+            savingBoard={savingBoard}
+            boardDirty={boardDirty}
+            boardError={boardError}
+            boardSaved={boardSaved}
             activeScene={activeScene}
             onSelectScene={setActiveScene}
             onBack={() => {
@@ -871,11 +912,25 @@ function StoryboardDetail({
   compileResult,
   compileError,
   renderMarkdown,
+  board,
+  onSceneEdit,
+  onSaveBoard,
+  savingBoard,
+  boardDirty,
+  boardError,
+  boardSaved,
 }: {
   storyboard: StoryboardFile;
   trackMetadata?: TrackMetadata;
   content: string;
   scenes: SceneData[];
+  board: StoryboardBoard | null;
+  onSceneEdit: (idx: number, patch: Partial<BoardScene>) => void;
+  onSaveBoard: () => void;
+  savingBoard: boolean;
+  boardDirty: boolean;
+  boardError: string | null;
+  boardSaved: boolean;
   activeScene: number | null;
   onSelectScene: (idx: number | null) => void;
   onBack: () => void;
@@ -889,6 +944,11 @@ function StoryboardDetail({
 }) {
   const visualPreview = (visual: string) =>
     visual.length <= 60 ? visual : visual.slice(0, 57) + "...";
+
+  // The expanded scene row is the only place the editor renders, and it
+  // only renders for the active scene, so one lookup covers it.
+  const activeBoardScene =
+    board && activeScene !== null ? board.scenes[activeScene] : undefined;
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -944,6 +1004,12 @@ function StoryboardDetail({
                       <Box size={9} /> 3D
                     </button>
                   </div>
+                  {activeBoardScene && (
+                    <SceneEditor
+                      scene={activeBoardScene}
+                      onChange={(patch) => onSceneEdit(idx, patch)}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -972,6 +1038,20 @@ function StoryboardDetail({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {board && (
+              <>
+                {boardError && <span className="text-[10px] text-red-400 max-w-56 truncate" title={boardError}>{boardError}</span>}
+                {!boardError && boardDirty && <span className="text-[10px] text-amber-400">Unsaved changes</span>}
+                {!boardError && !boardDirty && boardSaved && <span className="text-[10px] text-emerald-400">Board saved</span>}
+                <button
+                  onClick={onSaveBoard}
+                  disabled={!boardDirty || savingBoard}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-700 rounded-lg text-xs font-medium flex items-center gap-1.5"
+                >
+                  {savingBoard ? "Saving..." : "Save Board"}
+                </button>
+              </>
+            )}
             <button
               onClick={onCompile}
               disabled={compiling || scenes.length === 0}

@@ -1687,6 +1687,8 @@ export interface CompileStoryboardRequest {
     track?: string;
     title?: string;
     duration?: number;
+    /** Measured BPM, when the board carries one (surfaced in the response). */
+    bpm?: number;
     scenes: {
       id?: string;
       title?: string;
@@ -1695,6 +1697,22 @@ export interface CompileStoryboardRequest {
       end?: number;
       duration_seconds?: number;
       palette?: Record<string, string>;
+      /** Canonical-board direction fields (T-VID-35): the compiler passes
+       * through the ones it knows and the rest ride the payload as the
+       * authored record. */
+      section?: string;
+      lyric_lines?: string[];
+      camera_text?: string;
+      palette_text?: string;
+      typography?: string;
+      transition?: string;
+      technique?: string;
+      blender?: string;
+      framing?: string;
+      character_ref?: string;
+      accent?: string;
+      state?: string;
+      panel_image?: string;
     }[];
   };
   name?: string;
