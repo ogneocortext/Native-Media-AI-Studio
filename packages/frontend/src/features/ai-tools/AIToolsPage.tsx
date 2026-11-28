@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Brain,
   Send,
@@ -8,7 +8,6 @@ import {
   CheckCircle,
   Zap,
   WifiOff,
-  Palette,
   MessageCircle,
   User,
   Bot,
@@ -20,12 +19,8 @@ import {
   Volume2,
   Download,
   Activity,
-  Shield,
-  Wrench,
 } from "lucide-react";
 import { ToolExecutionCard } from "../../components/ToolExecutionCard";
-import { Card } from "../../components/common";
-import { AudioTransport } from "../../components/audio";
 import {
   getOllamaModels,
   ollamaChatStream,
@@ -42,13 +37,15 @@ import {
   type OllamaBenchmarkResult,
   type HardwareBenchmarkSummary,
 } from "../../services/api";
-import { getOutputUrl } from "../../utils/url";
 import { useAudioLibrary } from "../../hooks/useAudioLibrary";
 import { useSpeakAloud } from "../../hooks/useSpeakAloud";
 import { DS } from "../../styles/designSystem";
 import { formatSize } from "../../utils/format";
-import { VisualizationCanvas } from "./VisualizationCanvas";
 import type { VisualizationConfig } from "./VisualizationCanvas";
+import { SimpleMarkdown } from "./SimpleMarkdown";
+import { StreamStatusBanner } from "./StreamStatusBanner";
+import { VideoExtractionCard } from "./VideoExtractionCard";
+import { VisualizationCard } from "./VisualizationCard";
 import { Sidebar } from "./Sidebar";
 import { ToolEditor } from "./ToolEditor";
 import { DEFAULT_TOOLS, type Tool, type HistoryEntry } from "./types";
@@ -69,187 +66,6 @@ interface Message {
     status: "calling" | "done";
   }[];
   vizConfig?: VisualizationConfig;
-}
-
-// ---------------------------------------------------------------------------
-// SimpleMarkdown — lightweight markdown → React (no extra dependency)
-// ---------------------------------------------------------------------------
-
-type MDNode =
-  | { type: "text"; content: string }
-  | { type: "bold"; children: MDNode[] }
-  | { type: "italic"; children: MDNode[] }
-  | { type: "code"; content: string }
-  | { type: "link"; href: string; children: MDNode[] }
-  | { type: "br" };
-
-function parseInline(md: string): MDNode[] {
-  const nodes: MDNode[] = [];
-  let i = 0;
-  const len = md.length;
-  while (i < len) {
-    const ch = md[i];
-    if (ch === "`") {
-      const end = md.indexOf("`", i + 1);
-      if (end !== -1) {
-        nodes.push({ type: "code", content: md.slice(i + 1, end) });
-        i = end + 1;
-        continue;
-      }
-      nodes.push({ type: "text", content: ch });
-      i += 1;
-      continue;
-    }
-    if (md.startsWith("**", i)) {
-      const end = md.indexOf("**", i + 2);
-      if (end !== -1) {
-        nodes.push({ type: "bold", children: parseInline(md.slice(i + 2, end)) });
-        i = end + 2;
-        continue;
-      }
-      nodes.push({ type: "text", content: "**" });
-      i += 2;
-      continue;
-    }
-    if (ch === "*") {
-      const end = md.indexOf("*", i + 1);
-      if (end !== -1 && end > i + 1) {
-        nodes.push({ type: "italic", children: parseInline(md.slice(i + 1, end)) });
-        i = end + 1;
-        continue;
-      }
-      nodes.push({ type: "text", content: ch });
-      i += 1;
-      continue;
-    }
-    if (ch === "[") {
-      const close = md.indexOf("]", i + 1);
-      if (close !== -1 && md[close + 1] === "(") {
-        const parenClose = md.indexOf(")", close + 2);
-        if (parenClose !== -1) {
-          nodes.push({
-            type: "link",
-            href: md.slice(close + 2, parenClose),
-            children: parseInline(md.slice(i + 1, close)),
-          });
-          i = parenClose + 1;
-          continue;
-        }
-      }
-      nodes.push({ type: "text", content: ch });
-      i += 1;
-      continue;
-    }
-    if (ch === "\n") {
-      nodes.push({ type: "br" });
-      i += 1;
-      continue;
-    }
-    nodes.push({ type: "text", content: ch });
-    i += 1;
-  }
-  return nodes;
-}
-
-function renderInline(nodes: MDNode[]): React.ReactNode {
-  return nodes.map((node, idx) => {
-    switch (node.type) {
-      case "text":
-        return node.content;
-      case "bold":
-        return <strong key={idx}>{renderInline(node.children)}</strong>;
-      case "italic":
-        return <em key={idx}>{renderInline(node.children)}</em>;
-      case "code":
-        return (
-          <code
-            key={idx}
-            className="text-xs bg-white/10 px-1.5 py-0.5 rounded border border-white/5 text-cyan-300 font-mono"
-          >
-            {node.content}
-          </code>
-        );
-      case "link":
-        return (
-          <a
-            key={idx}
-            href={node.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
-          >
-            {renderInline(node.children)}
-          </a>
-        );
-      case "br":
-        return <br key={idx} />;
-      default:
-        return null;
-    }
-  });
-}
-
-function SimpleMarkdown({ content }: { content: string }): React.ReactNode {
-  if (!content) return null;
-  const blocks = content.split("\n\n");
-  return blocks.map((block, bi) => {
-    const trimmed = block.trim();
-    if (!trimmed) return null;
-    if (trimmed.startsWith("```")) {
-      const fenceEnd = trimmed.indexOf("```", 3);
-      const langLine = trimmed.slice(3, fenceEnd !== -1 ? fenceEnd : trimmed.length).trim();
-      const codeBody = fenceEnd !== -1 ? trimmed.slice(fenceEnd + 3).trim() : "";
-      return (
-        <div
-          key={bi}
-          className="my-2 rounded-lg border border-white/10 bg-black/30 p-3 overflow-x-auto"
-        >
-          <div className="flex items-center gap-2 mb-1 text-[10px] text-muted font-mono">
-            <span>{langLine || "text"}</span>
-          </div>
-          <pre className="text-sm text-gray-200 font-mono leading-relaxed whitespace-pre break-all">
-            {codeBody}
-          </pre>
-        </div>
-      );
-    }
-    const headingMatch = /^(#{1,3})\s(.+)/s.exec(trimmed);
-    if (headingMatch) {
-      const level = headingMatch[1].length;
-      const text = headingMatch[2];
-      const Tag = level === 1 ? "h2" : level === 2 ? "h3" : "h4";
-      return (
-        <Tag key={bi} className="mt-3 mb-1 text-white font-semibold">
-          {renderInline(parseInline(text))}
-        </Tag>
-      );
-    }
-    if (trimmed.startsWith(">")) {
-      const text = trimmed.slice(1).trim();
-      return (
-        <div key={bi} className="my-2 border-l-2 border-emerald-500 pl-3 italic text-gray-300">
-          {renderInline(parseInline(text))}
-        </div>
-      );
-    }
-    if (/^[-*]\s/m.test(trimmed)) {
-      const items = trimmed.split(/\n(?=[-*]\s)/);
-      return (
-        <ul key={bi} className="my-2 list-disc pl-5 space-y-1 text-gray-200">
-          {items.map((item, ii) => (
-            <li key={ii} className="whitespace-pre-wrap">
-              {renderInline(parseInline(item.replace(/^[-*]\s/, "")))}
-            </li>
-          ))}
-        </ul>
-      );
-    }
-    return (
-      <p key={bi} className="my-2 text-gray-200 whitespace-pre-wrap break-words">
-        {renderInline(parseInline(trimmed))}
-      </p>
-    );
-  });
 }
 
 const SUGGESTED_PROMPTS = [
@@ -520,14 +336,6 @@ export function AIToolsPage() {
         }
       }
 
-      setMessages((prev) => {
-        const next = [...prev];
-        const last = next[next.length - 1];
-        if (last.role === "assistant") {
-          last.content = fullResponse;
-        }
-        return next;
-      });
       setStreamStatus("done");
       logStreamEvent("done", `Stream finished (${fullResponse.length} chars)`);
 
@@ -688,31 +496,6 @@ export function AIToolsPage() {
       .slice()
       .reverse()
       .find((m) => m.vizConfig)?.vizConfig ?? null;
-
-  // Stream status styling — computed outside JSX to avoid nested template
-  // literals inside JSX attribute values.
-  const statusColor =
-    streamStatus === "connecting"
-      ? "text-emerald-400"
-      : streamStatus === "thinking"
-        ? "text-purple-400"
-        : streamStatus === "executing_tool"
-          ? "text-amber-400"
-          : streamStatus === "streaming_response"
-            ? "text-blue-400"
-            : "text-emerald-400";
-  const statusLabel =
-    streamStatus === "connecting"
-      ? "Connecting…"
-      : streamStatus === "thinking"
-        ? "Model is thinking…"
-        : streamStatus === "executing_tool"
-          ? `Executing tool${currentTool ? `: ${currentTool}` : ""}${
-              totalToolSteps > 0 ? ` (step ${toolStep + 1}/${totalToolSteps})` : ""
-            }`
-          : streamStatus === "streaming_response"
-            ? "Streaming response…"
-            : "Complete";
 
   return (
     <div className={DS.page}>
@@ -935,112 +718,24 @@ export function AIToolsPage() {
             </div>
           </div>
 
-          {/* Stream status banner */}
-          {streamStatus !== "idle" && (
-            <Card className="mb-2 shrink-0">
-              <div className="p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  {streamStatus === "connecting" ? (
-                    <Loader2 size={13} className="animate-spin text-emerald-400" />
-                  ) : streamStatus === "thinking" ? (
-                    <Brain size={13} className="text-purple-400 animate-pulse" />
-                  ) : streamStatus === "executing_tool" ? (
-                    <Wrench size={13} className="text-amber-400 animate-pulse" />
-                  ) : streamStatus === "streaming_response" ? (
-                    <Activity size={13} className="text-blue-400 animate-pulse" />
-                  ) : (
-                    <Shield size={13} className="text-emerald-400" />
-                  )}
-                  <span className={`text-xs font-semibold uppercase tracking-wider ${statusColor}`}>
-                    {statusLabel}
-                  </span>
-                </div>
-                {streamEvents.length > 0 && (
-                  <details
-                    className="mt-2 text-xs"
-                    open={showStreamDetails}
-                    onToggle={() => setShowStreamDetails((v) => !v)}
-                  >
-                    <summary className="cursor-pointer text-muted hover:text-white mb-1">
-                      Processing details
-                    </summary>
-                    <div className="bg-black/20 rounded-lg p-2 font-mono text-xs overflow-x-auto border border-white/10">
-                      {streamEvents.map((e, i) => (
-                        <div key={i} className="flex gap-2 mb-1">
-                          <span className="text-muted/60 w-12">{e.time}</span>
-                          <span className="text-purple-300">{e.event}</span>
-                          <span className="text-gray-300/80">{e.detail}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </div>
-            </Card>
-          )}
+          <StreamStatusBanner
+            streamStatus={streamStatus}
+            streamEvents={streamEvents}
+            showStreamDetails={showStreamDetails}
+            setShowStreamDetails={setShowStreamDetails}
+            currentTool={currentTool}
+            toolStep={toolStep}
+            totalToolSteps={totalToolSteps}
+          />
 
-          {/* Video → audio extraction */}
-          <Card title="Video → Audio" icon={<Download size={16} className="text-violet-400" />}>
-            <div className="p-4">
-              <p className={DS.textXs + " mb-3"}>
-                Upload a video file to extract its audio track. The result is saved to your audio
-                library and can be analyzed on the Audio Analysis page.
-              </p>
-              <label className="flex items-center gap-2 cursor-pointer bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-xs text-gray-300 hover:bg-gray-600 transition-colors">
-                <span>Choose video…</span>
-                <input
-                  type="file"
-                  accept=".mp4,.mov,.mkv,.webm,.m4v,.avi"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void handleVideoUpload(file);
-                    e.target.value = "";
-                  }}
-                  className="sr-only"
-                  aria-label="Select a video file to extract audio"
-                />
-              </label>
-              {extractRunning && (
-                <div className="mt-3 flex items-center gap-2">
-                  <Loader2 size={13} className="animate-spin text-muted" />
-                  <span className={DS.textXs}>Extracting audio…</span>
-                </div>
-              )}
-              {extractError && (
-                <p className="mt-2 text-xs text-red-400 flex items-center gap-1" role="alert">
-                  <AlertCircle size={12} /> {extractError}
-                </p>
-              )}
-              {extractResult && (
-                <div className="mt-3 space-y-2 pt-2 border-t border-gray-700">
-                  <div className="flex items-center gap-2 text-xs text-emerald-400 font-mono">
-                    {extractResult.converted ? "Converted" : "Uploaded"} · {extractResult.message}
-                  </div>
-                  <div className="flex items-center justify-between gap-2 bg-gray-800/50 rounded-lg px-3 py-2 border border-gray-700">
-                    <p
-                      className={DS.textXs + " text-gray-300 font-mono truncate"}
-                      title={extractResult.filename}
-                    >
-                      {extractResult.filename}
-                    </p>
-                    <a
-                      href={getOutputUrl(extractResult.relative_path)}
-                      download
-                      className="p-1.5 hover:bg-gray-600 rounded-lg text-muted hover:text-white shrink-0"
-                      title="Download audio file"
-                    >
-                      <Download size={13} />
-                    </a>
-                  </div>
-                  <AudioTransport
-                    src={getOutputUrl(extractResult.relative_path)}
-                    className="mt-2 w-full"
-                    ariaLabel={`Play ${extractResult.filename}`}
-                  />
-                </div>
-              )}
-            </div>
-          </Card>
+          <VideoExtractionCard
+            extractRunning={extractRunning}
+            extractError={extractError}
+            extractResult={extractResult}
+            handleVideoUpload={(file: File) => {
+              void handleVideoUpload(file);
+            }}
+          />
 
           {/* Conversation */}
           <div className="flex-1 min-h-[300px] max-h-[600px] overflow-y-auto space-y-4 p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
@@ -1284,24 +979,7 @@ export function AIToolsPage() {
             </div>
           )}
 
-          {/* Visualization Canvas */}
-          {vizConfig && (
-            <div className={DS.card}>
-              <div className={DS.flexCenter + " mb-3"}>
-                <Palette size={16} className="text-purple-400" />
-                <span className={DS.textBold}>Visualization</span>
-              </div>
-              <Suspense
-                fallback={
-                  <div className="viz-canvas-placeholder" style={{ width: 400, height: 300 }}>
-                    <p>Rendering visualization…</p>
-                  </div>
-                }
-              >
-                <VisualizationCanvas config={vizConfig} width={400} height={300} />
-              </Suspense>
-            </div>
-          )}
+          <VisualizationCard config={vizConfig} />
 
           {/* Tool Execution Metrics */}
           <ToolExecutionCard />

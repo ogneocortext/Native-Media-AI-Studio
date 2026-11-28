@@ -34,10 +34,16 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from .adapters.registry import adapter_registry
 from .api import ascii as ascii_router
 from .api.image_processing import router as image_processing_router
+from .api.integrations_audio import router as integrations_audio_router
+from .api.integrations_comfyui import router as integrations_comfyui_router
 from .api.integrations_config import router as integrations_config_router
 from .api.integrations_generation import router as integrations_generation_router
 from .api.integrations_misc import router as integrations_misc_router
 from .api.integrations_music_video import router as integrations_music_video_router
+from .api.integrations_ollama import router as integrations_ollama_router
+from .api.integrations_upscale import router as integrations_upscale_router
+from .api.integrations_visualizer import router as integrations_visualizer_router
+from .api.integrations_vram import router as integrations_vram_router
 from .api.sub_agent import router as sub_agent_router
 from .api.test_analytics import router as test_analytics_router
 from .api.vst import router as vst_router
@@ -1165,6 +1171,12 @@ app.include_router(gen3d.router)
 app.include_router(integrations_config_router, prefix="/api/integrations")
 app.include_router(integrations_music_video_router, prefix="/api/integrations")
 app.include_router(integrations_generation_router, prefix="/api/integrations")
+app.include_router(integrations_comfyui_router, prefix="/api/integrations")
+app.include_router(integrations_ollama_router, prefix="/api/integrations")
+app.include_router(integrations_vram_router, prefix="/api/integrations")
+app.include_router(integrations_visualizer_router, prefix="/api/integrations")
+app.include_router(integrations_audio_router, prefix="/api/integrations")
+app.include_router(integrations_upscale_router, prefix="/api/integrations")
 app.include_router(integrations_misc_router, prefix="/api/integrations")
 app.include_router(outputs.router)
 app.include_router(assets.router)
