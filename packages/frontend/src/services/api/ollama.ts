@@ -455,6 +455,62 @@ export async function ollamaGenerate(
 }
 
 /**
+ * Pull (download) a model into Ollama.
+ * Long-running (up to 5 minutes for large models).
+ */
+export async function pullOllamaModel(
+  model: string,
+): Promise<{ success: boolean; error?: string }> {
+  const base = getApiBase();
+  try {
+    const res = await postJson<{
+      status: string;
+      error?: string;
+      data?: unknown;
+    }>(`${base}${BASE}/pull`, { model }, { timeout: 300000 });
+    return { success: res.status === "success", error: res.error };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Delete a model from Ollama.
+ */
+export async function deleteOllamaModel(
+  model: string,
+): Promise<{ success: boolean; error?: string }> {
+  const base = getApiBase();
+  try {
+    const res = await postJson<{ status: string; error?: string }>(
+      `${base}${BASE}/delete`,
+      { model },
+      { timeout: 60000 },
+    );
+    return { success: res.status === "success", error: res.error };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Get currently loaded models and VRAM usage via /api/ps.
+ */
+export async function getLoadedOllamaModels(): Promise<{
+  models: unknown[];
+  error?: string;
+}> {
+  const base = getApiBase();
+  try {
+    return getJson<{ models: unknown[]; error?: string }>(`${base}${BASE}/ps`, {
+      timeout: 15000,
+    });
+  } catch (err) {
+    return { models: [], error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
  * Generate visualizer preset using AI.
  * Long-running (up to 2 minutes).
  */

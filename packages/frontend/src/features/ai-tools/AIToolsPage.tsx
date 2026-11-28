@@ -21,6 +21,7 @@ import {
   Activity,
 } from "lucide-react";
 import { ToolExecutionCard } from "../../components/ToolExecutionCard";
+import { OllamaModelManager } from "./OllamaModelManager";
 import {
   getOllamaModels,
   ollamaChatStream,
@@ -717,6 +718,9 @@ export function AIToolsPage() {
               )}
             </div>
           </div>
+
+          {/* Ollama model management: pull, delete, loaded-in-VRAM */}
+          <OllamaModelManager />
 
           <StreamStatusBanner
             streamStatus={streamStatus}

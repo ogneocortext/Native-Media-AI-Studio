@@ -855,3 +855,60 @@ async def get_best_coding_benchmark() -> dict:
     except Exception as e:
         logger.error("Failed to get best coding benchmark model: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# ---------------------------------------------------------------------------
+# Model lifecycle (pull / delete / ps)
+# ---------------------------------------------------------------------------
+class OllamaPullRequest(BaseModel):
+    """Body for pulling a model into Ollama: { "model": "llama3.2:3b" }"""
+
+    model: str
+
+
+class OllamaDeleteRequest(BaseModel):
+    """Body for deleting a model from Ollama: { "model": "llama3.2:3b" }"""
+
+    model: str
+
+
+@router.post("/ollama/pull")
+async def ollama_pull(body: OllamaPullRequest) -> dict:
+    """Pull (download) a model into Ollama via ``/api/pull``.
+
+    Pulls can take several minutes for large models; the client should poll
+    or show a loading indicator while this runs.
+    """
+    model = (body.model or "").strip()
+    if not model:
+        raise HTTPException(status_code=400, detail="model is required")
+    result = await _oc.pull_model(model)
+    if result["status"] == "error":
+        raise HTTPException(status_code=502, detail=result["error"])
+    # Clear caches so the newly-pulled model shows up in listings immediately
+    _oc.clear_capability_cache()
+    return result
+
+
+@router.post("/ollama/delete")
+async def ollama_delete(body: OllamaDeleteRequest) -> dict:
+    """Delete a model from Ollama via ``/api/delete``."""
+    model = (body.model or "").strip()
+    if not model:
+        raise HTTPException(status_code=400, detail="model is required")
+    result = await _oc.delete_model(model)
+    if result["status"] == "error":
+        raise HTTPException(status_code=502, detail=result["error"])
+    _oc.clear_capability_cache()
+    return {"status": "success", "model": model}
+
+
+@router.get("/ollama/ps")
+async def ollama_ps() -> dict:
+    """List currently loaded models and VRAM usage via ``/api/ps``.
+
+    Useful on the 8 GB card where only one heavy model fits at a time."""
+    models = await _oc.ps()
+    if models is None:
+        return {"models": [], "error": "Could not reach Ollama server"}
+    return {"models": models}

@@ -654,3 +654,69 @@ async def generate_content(
         logger.debug("Ollama /api/generate -> malformed JSON")
         return None
     return (data.get("response", "") or "").strip() or None
+
+
+# ---------------------------------------------------------------------------
+# Model lifecycle (pull / delete / ps)
+# ---------------------------------------------------------------------------
+async def pull_model(model: str, timeout: float = 300) -> dict[str, Any]:
+    """POST ``/api/pull`` to download a model into Ollama.
+
+    Defaults to a 5-minute timeout since large models can take a while to
+    download. Clears the capability cache on success so the new model shows
+    up in listings immediately.
+
+    Returns ``{"status": "success", "data": {...}}`` or
+    ``{"status": "error", "error": "..."}``.
+    """
+    result = await _post_json("/api/pull", {"model": model}, timeout)
+    if result is None:
+        return {"status": "error", "error": "Pull failed - could not reach Ollama server"}
+    status, body = result
+    if status != 200:
+        return {"status": "error", "error": f"Pull failed with HTTP {status}: {body[:300]}"}
+    data = _json_body(body)
+    return {"status": "success", "data": data or {}}
+
+
+async def delete_model(model: str, timeout: float = 30) -> dict[str, Any]:
+    """DELETE ``/api/delete`` to remove a model from Ollama.
+
+    Returns ``{"status": "success"}`` or ``{"status": "error", "error": "..."}``.
+    """
+    try:
+        session = await get_shared_session()
+        async with asyncio.timeout(timeout), session.delete(
+            ollama_url("/api/delete"),
+            json={"model": model},
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as resp:
+            if resp.status != 200:
+                body = await resp.text()
+                return {
+                    "status": "error",
+                    "error": f"Delete failed with HTTP {resp.status}: {body[:300]}",
+                }
+            return {"status": "success"}
+    except Exception as e:
+        logger.debug("Ollama /api/delete %s failed: %s", model, e)
+        return {"status": "error", "error": str(e)}
+
+
+async def ps(timeout: float = 10) -> list[dict[str, Any]] | None:
+    """GET ``/api/ps`` - list currently loaded models and VRAM usage.
+
+    Returns the model list or None if the server can't be reached."""
+    try:
+        session = await get_shared_session()
+        async with asyncio.timeout(timeout), session.get(
+            ollama_url("/api/ps"),
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as resp:
+            if resp.status != 200:
+                return None
+            data = await resp.json()
+            return data.get("models", [])
+    except Exception as e:
+        logger.debug("Ollama /api/ps failed: %s", e)
+        return None

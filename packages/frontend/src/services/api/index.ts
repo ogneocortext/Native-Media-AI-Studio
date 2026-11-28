@@ -349,6 +349,9 @@ export {
   ollamaChatStream,
   parseOllamaStream,
   ollamaGenerate,
+  pullOllamaModel,
+  deleteOllamaModel,
+  getLoadedOllamaModels,
   generateVisualizerPreset,
   generateVisualizerPresetAtomic,
 } from "./ollama";
