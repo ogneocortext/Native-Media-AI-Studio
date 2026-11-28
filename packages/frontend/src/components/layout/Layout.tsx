@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { startAutoRefresh, stopAutoRefresh } from "../../state/jobStore";
 import { useUIStore } from "../../state/uiStore";
@@ -60,9 +60,11 @@ export function Layout({ children }: LayoutProps) {
     };
   }, []);
   const { focusMode } = useUIStore();
+  const { pathname } = useLocation();
+  const roomRoute = pathname === "/room" || pathname.startsWith("/room/");
 
   return (
-    <div className={`layout-root${focusMode ? " layout-focus-mode" : ""}`}>
+    <div className={`layout-root${focusMode ? " layout-focus-mode" : ""}${roomRoute ? " room-route" : ""}`}>
       <div className="layout-topbar">
         <ConnectionStatusDot />
         <Presence />

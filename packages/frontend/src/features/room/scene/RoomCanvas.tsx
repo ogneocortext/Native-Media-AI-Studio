@@ -170,6 +170,18 @@ function CameraRig({ bookmark }: { bookmark: number }) {
   }, [bookmark, camera]);
 
   useFrame((_, dt) => {
+    // Pan + position clamped inside the 5.0 x 4.0 x 2.7 m room
+    // (knowledge doc §2, tightened for this footprint). Runs every
+    // frame - outside the bookmark animation early-return.
+    const c0 = controlsRef.current;
+    if (c0 && !anim.current) {
+      c0.target.x = THREE.MathUtils.clamp(c0.target.x, -1.9, 1.9);
+      c0.target.y = THREE.MathUtils.clamp(c0.target.y, 0.35, 2.3);
+      c0.target.z = THREE.MathUtils.clamp(c0.target.z, -1.4, 1.4);
+      camera.position.x = THREE.MathUtils.clamp(camera.position.x, -2.35, 2.35);
+      camera.position.y = THREE.MathUtils.clamp(camera.position.y, 0.35, 2.55);
+      camera.position.z = THREE.MathUtils.clamp(camera.position.z, -1.85, 1.85);
+    }
     const a = anim.current;
     if (!a) return;
     a.t = Math.min(1, a.t + dt / 0.9);
@@ -178,13 +190,6 @@ function CameraRig({ bookmark }: { bookmark: number }) {
     if (controlsRef.current) {
       controlsRef.current.target.lerpVectors(a.fromT, a.toT, k);
       controlsRef.current.update();
-    }
-    // Pan clamped to the room (knowledge doc §2).
-    const c = controlsRef.current;
-    if (c && !anim.current) {
-      c.target.x = THREE.MathUtils.clamp(c.target.x, -2.2, 2.2);
-      c.target.y = THREE.MathUtils.clamp(c.target.y, 0.3, 2.4);
-      c.target.z = THREE.MathUtils.clamp(c.target.z, -1.7, 1.7);
     }
     const cam = camera as THREE.PerspectiveCamera;
     cam.fov = a.fromFov + (a.toFov - a.fromFov) * k;
@@ -197,8 +202,8 @@ function CameraRig({ bookmark }: { bookmark: number }) {
       ref={controlsRef}
       makeDefault
       target={[0, 1.1, 0]}
-      minDistance={1.2}
-      maxDistance={7.5}
+      minDistance={0.6}
+      maxDistance={3.4}
       minPolarAngle={0.35}
       maxPolarAngle={Math.PI / 2 + 0.08}
       enabled={controlsEnabled}

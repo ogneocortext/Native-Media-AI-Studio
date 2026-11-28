@@ -258,6 +258,16 @@
   z-index: 20;
 }
 
+/* The Room owns its top strip: global chips pass clicks through to the
+   page controls beneath; genuinely interactive chrome (the bell) keeps
+   its events. */
+.layout-root.room-route .layout-topbar {
+  pointer-events: none;
+}
+.layout-root.room-route .layout-topbar :is(button, a, [role="button"]) {
+  pointer-events: auto;
+}
+
 /* ===== NOTIFICATION BELL ===== */
 .notification-bell-wrap {
   position: relative;

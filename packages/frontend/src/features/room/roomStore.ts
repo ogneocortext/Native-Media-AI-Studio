@@ -199,9 +199,15 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
   beginDrag: (id) =>
     set({ draggingId: id, controlsEnabled: false }),
 
-  updateDrag: (id, position) =>
-    set((s) => ({
-      dirty: { ...s.dirty, [id]: { position } },
+  updateDrag: (id, position) => {
+    // Drag plane is infinite; keep the object inside the room footprint.
+    const clamped: [number, number, number] = [
+      Math.min(2.3, Math.max(-2.3, position[0])),
+      position[1],
+      Math.min(1.9, Math.max(-1.9, position[2])),
+    ];
+    return set((s) => ({
+      dirty: { ...s.dirty, [id]: { position: clamped } },
       // Keep merged state visually in sync while dragging.
       state: s.state
         ? {
@@ -209,12 +215,13 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
             objects: {
               ...s.state.objects,
               ...(s.state.objects[id] as RoomObject | undefined
-                ? { [id]: { ...s.state.objects[id], position } }
+                ? { [id]: { ...s.state.objects[id], position: clamped } }
                 : {}),
             },
           }
         : s.state,
-    })),
+    }));
+  },
 
   endDrag: async (id) => {
     const s = get();
